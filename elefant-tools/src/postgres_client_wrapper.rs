@@ -1,7 +1,8 @@
 use tokio::task::JoinHandle;
-use tokio_postgres::{Client, NoTls, Row};
+use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
 use tokio_postgres::types::{FromSqlOwned};
 use crate::Result;
+use bytes::Buf;
 
 pub struct PostgresClientWrapper {
     client: Client,
@@ -29,7 +30,7 @@ impl PostgresClientWrapper {
     }
 
     pub async fn execute_non_query(&self, sql: &str) -> Result {
-        self.client.execute(sql, &[]).await.map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
+        self.client.batch_execute(sql).await.map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
             source: e,
             query: sql.to_string(),
         })?;
@@ -80,6 +81,18 @@ impl PostgresClientWrapper {
         let result = self.get_result::<(T,)>(sql).await?;
         Ok(result.0)
     }
+
+    pub async fn copy_in<U>(&self, sql: &str) -> Result<CopyInSink<U>>
+        where U: Buf + Send + 'static
+    {
+        let sink = self.client.copy_in(sql).await?;
+        Ok(sink)
+    }
+
+    pub async fn copy_out(&self, sql: &str) -> Result<CopyOutStream> {
+        let stream = self.client.copy_out(sql).await?;
+        Ok(stream)
+    }
 }
 
 impl Drop for PostgresClientWrapper {
@@ -105,6 +118,16 @@ impl<T1: FromSqlOwned, T2: FromSqlOwned> FromRow for (T1, T2) {
         Ok((
             row.try_get(0)?,
             row.try_get(1)?,
+        ))
+    }
+}
+
+impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned> FromRow for (T1, T2, T3) {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok((
+            row.try_get(0)?,
+            row.try_get(1)?,
+            row.try_get(2)?,
         ))
     }
 }

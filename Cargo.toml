@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "elefant_tools",
-    "elefant_sync"
+    "elefant-tools",
+    "elefant-sync"
 ]
 
 

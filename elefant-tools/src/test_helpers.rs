@@ -1,4 +1,6 @@
 use std::panic::{RefUnwindSafe, UnwindSafe};
+use bytes::Buf;
+use tokio_postgres::{CopyInSink, CopyOutStream};
 use tokio_postgres::types::FromSqlOwned;
 use uuid::Uuid;
 use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
@@ -6,7 +8,7 @@ use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 
 pub struct TestHelper {
     test_db_name: String,
-    main_connection: Option<PostgresClientWrapper>,
+    main_connection: PostgresClientWrapper,
 }
 
 impl Drop for TestHelper {
@@ -28,13 +30,9 @@ impl Drop for TestHelper {
     }
 }
 
-impl RefUnwindSafe for TestHelper {
+impl RefUnwindSafe for TestHelper {}
 
-}
-
-impl UnwindSafe for TestHelper {
-
-}
+impl UnwindSafe for TestHelper {}
 
 pub async fn get_test_helper() -> TestHelper {
     let id = Uuid::new_v4().simple().to_string();
@@ -51,7 +49,7 @@ pub async fn get_test_helper() -> TestHelper {
 
     TestHelper {
         test_db_name,
-        main_connection: Some(conn),
+        main_connection: conn,
     }
 }
 
@@ -82,11 +80,22 @@ impl TestHelper {
     }
 
     pub fn get_conn(&self) -> &PostgresClientWrapper {
-        self.main_connection.as_ref().expect("main_connection was None")
+        &self.main_connection
     }
 
     pub fn get_current_database_name(&self) -> String {
         self.test_db_name.clone()
+    }
+
+
+    pub async fn copy_in<U>(&self, sql: &str) -> CopyInSink<U>
+        where U: Buf + Send + 'static
+    {
+        self.main_connection.copy_in(sql).await.unwrap_or_else(|e| panic!("Failed to do copy_in: {:?}\n{}", e, sql))
+    }
+
+    pub async fn copy_out(&self, sql: &str) -> CopyOutStream {
+        self.main_connection.copy_out(sql).await.unwrap_or_else(|e| panic!("Failed to do copy_out: {:?}\n{}", e, sql))
     }
 }
 

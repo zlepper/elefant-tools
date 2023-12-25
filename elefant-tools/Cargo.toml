@@ -1,0 +1,22 @@
+[package]
+name = "elefant-tools"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tokio = { version = "1", features = ["rt", "fs"], default-features = false }
+tokio-postgres = "0.7"
+thiserror = "1.0"
+itertools = "0.12"
+async-trait = "0.1"
+bytes = "1.5"
+futures = "0.3"
+uuid = { version = "1.6", features = ["v4"] }
+
+[dev-dependencies]
+indoc = "2"
+uuid = { version = "1.6", features = ["fast-rng", "v4"] }
+tokio = { version = "1", features = [ "macros"], default-features = false }
+similar-asserts = "1.5"

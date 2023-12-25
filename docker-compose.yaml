@@ -7,3 +7,13 @@ services:
       - "5432:5432"
     environment:
       POSTGRES_PASSWORD: passw0rd
+    command:
+      - postgres
+      - -c
+      - log_statement=all
+      - -c
+      - log_destination=stderr
+      - -c
+      - log_min_messages=info
+      - -c
+      - log_min_error_statement=debug1

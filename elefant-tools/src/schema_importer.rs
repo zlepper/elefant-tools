@@ -45,35 +45,14 @@ impl SchemaImporter<'_> {
     }
 
     async fn create_schema(&self, schema: &PostgresSchema) -> Result<()> {
-        let sql = format!("create schema if not exists {}", schema.name);
+        let sql = schema.get_create_statement();
         self.connection.execute_non_query(&sql).await?;
 
         Ok(())
     }
 
     async fn create_table(&self, schema: &PostgresSchema, table: &PostgresTable) -> Result<()> {
-        let mut query_builder = DdlQueryBuilder::new();
-        let mut table_builder = query_builder.create_table(&schema.name, &table.name);
-
-
-
-        for column in &table.columns {
-            let mut column_builder = table_builder.column(&column.name, &column.data_type);
-
-            if !column.is_nullable {
-                column_builder.not_null();
-            }
-        }
-
-        if let Some(pk) = &table.primary_key {
-
-            let columns = pk.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
-
-            table_builder.primary_key(&pk.name, columns);
-        }
-
-
-        let sql = query_builder.build();
+        let sql = table.get_create_statement(schema);
 
         self.connection.execute_non_query(&sql).await?;
 
@@ -83,13 +62,13 @@ impl SchemaImporter<'_> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
     use crate::test_helpers::*;
     use crate::schema_reader::tests::introspect_schema;
     use tokio::test;
 
-    async fn import_database(test_helper: &TestHelper, db: &PostgresDatabase) {
+    pub async fn import_database_schema(test_helper: &TestHelper, db: &PostgresDatabase) {
         let conn = test_helper.get_conn();
         let importer = SchemaImporter::new(conn);
         importer.import_database(db).await.expect("Failed to import database");
@@ -105,7 +84,7 @@ mod tests {
 
         let target_db = get_test_helper().await;
 
-        import_database(&target_db, &source_schema).await;
+        import_database_schema(&target_db, &source_schema).await;
 
         let destination_schema = introspect_schema(&target_db).await;
 

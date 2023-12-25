@@ -1,12 +1,5 @@
 use thiserror::Error;
-
-mod postgres_client_wrapper;
-#[cfg(test)]
-mod test_helpers;
-mod schema_reader;
-mod models;
-mod schema_importer;
-mod ddl_query_builder;
+use crate::storage::DataFormat;
 
 #[derive(Error, Debug)]
 pub enum ElefantToolsError {
@@ -28,6 +21,16 @@ pub enum ElefantToolsError {
 
     #[error("Unknown constraint type '{0}'")]
     UnknownConstraintType(String),
+
+    #[error("io error: `{0}`")]
+    IoError(#[from] std::io::Error),
+
+    #[error("Data formats are not compatible between source and target. Supported by target: {supported_by_target:?}, supported by source: {supported_by_source:?}, required format: {required_format:?}")]
+    DataFormatsNotCompatible {
+        supported_by_target: Vec<DataFormat>,
+        supported_by_source: Vec<DataFormat>,
+        required_format: Option<DataFormat>,
+    },
 }
 
 pub type Result<T = ()> = std::result::Result<T, ElefantToolsError>;

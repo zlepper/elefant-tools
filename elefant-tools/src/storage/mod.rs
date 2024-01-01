@@ -122,6 +122,14 @@ mod tests {
             (E't\t\tap', 421),
             (E'q''t', 12)
             ;
+
+        create table tree_node(
+            id serial primary key,
+            name text not null,
+            -- parent_id int references tree_node(id),
+            parent_id int,
+            constraint unique_name_per_level unique nulls not distinct (parent_id, name)
+        );
     "#;
 
     pub fn get_expected_data() -> Vec<(i32, String, i32)> {

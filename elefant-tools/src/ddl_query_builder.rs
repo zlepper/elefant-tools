@@ -58,14 +58,6 @@ impl<'a> DdlTableBuilder<'a> {
         self
     }
 
-    pub fn unique_constraint<'i>(&mut self, name: &str, columns: impl IntoIterator<Item=&'i str>) -> &mut Self {
-        self.start_new_line();
-        let cols = columns.into_iter().join(", ");
-        self.query_builder.sql.push_str(&format!("    constraint {} unique ({})", name, cols));
-
-        self
-    }
-
     fn start_new_line(&mut self) {
         if self.has_first_line {
             self.query_builder.sql.push_str(",\n")
@@ -195,42 +187,6 @@ mod tests {
             id int,
             name varchar(255),
             constraint check_name check (name != 'foo' and id > 0)
-        );
-        "#});
-    }
-
-    #[test]
-    fn unique_constraint_single_column() {
-        let mut builder = DdlQueryBuilder::new();
-        let mut table_builder = builder.create_table("public", "my_table");
-        table_builder.column("id", "int");
-        table_builder.column("name", "varchar(255)");
-        table_builder.unique_constraint("unique_name", vec!["name"]);
-        let result = builder.build();
-
-        assert_eq!(result, indoc! {r#"
-        create table public.my_table (
-            id int,
-            name varchar(255),
-            constraint unique_name unique (name)
-        );
-        "#});
-    }
-
-    #[test]
-    fn unique_constraint_multiple_column() {
-        let mut builder = DdlQueryBuilder::new();
-        let mut table_builder = builder.create_table("public", "my_table");
-        table_builder.column("id", "int");
-        table_builder.column("name", "varchar(255)");
-        table_builder.unique_constraint("unique_name", vec!["name", "id"]);
-        let result = builder.build();
-
-        assert_eq!(result, indoc! {r#"
-        create table public.my_table (
-            id int,
-            name varchar(255),
-            constraint unique_name unique (name, id)
         );
         "#});
     }

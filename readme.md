@@ -12,15 +12,16 @@
 ➕ Check constraints  
   ❌ Check constraints calling functions 
 ➕ Unique constraints
-  ❌ Relational null
+  ✅ Distinct nulls
   ❌ Using explicit unique index
-✅ Indexes
+➕ Indexes
    ✅ Column direction
    ✅ Nulls first/last
    ✅ Index type
    ✅ Filtered index
    ✅ Expressions
    ✅ Included columns
+   ❌ Index storage parameters
 ❌ Generated columns
 ❌ Row level security
 ❌ Foreign keys

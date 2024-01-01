@@ -119,6 +119,12 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
                 for index in &table.indices {
                     self.connection.execute_non_query(&index.get_create_index_command(schema, table)).await?;
                 }
+
+                for constraint in &table.constraints {
+                    if let PostgresConstraint::Unique(unique) = constraint {
+                        self.connection.execute_non_query(&unique.get_create_statement(schema, table)).await?;
+                    }
+                }
             }
         }
 

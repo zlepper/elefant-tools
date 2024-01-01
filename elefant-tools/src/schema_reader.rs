@@ -92,6 +92,7 @@ impl SchemaReader<'_> {
                     }
                     ConstraintType::Unique => PostgresUniqueConstraint {
                         name: constraint_name.clone(),
+                        distinct_nulls: key_columns.iter().any(|c| c.nulls_distinct.is_some_and(|v| v)),
                         columns: key_columns
                             .iter()
                             .map(|c| PostgresUniqueConstraintColumn {
@@ -254,7 +255,7 @@ impl SchemaReader<'_> {
         //language=postgresql
         self.connection.get_results(
             r#"
-            select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type from information_schema.key_column_usage kcu
+            select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type, tc.nulls_distinct from information_schema.key_column_usage kcu
             join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
             where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'FOREIGN KEY' or tc.constraint_type = 'UNIQUE'
             order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;
@@ -344,6 +345,7 @@ struct KeyColumnUsageResult {
     pub ordinal_position: i32,
     pub position_in_unique_constraint: Option<i32>,
     pub key_type: ConstraintType,
+    pub nulls_distinct: Option<bool>,
 }
 
 impl FromRow for KeyColumnUsageResult {
@@ -356,6 +358,11 @@ impl FromRow for KeyColumnUsageResult {
             ordinal_position: row.try_get(4)?,
             position_in_unique_constraint: row.try_get(5)?,
             key_type: ConstraintType::from_str(row.try_get(6)?)?,
+            nulls_distinct: match row.try_get::<usize, Option<&str>>(7)? {
+                Some("YES") => Some(true),
+                Some("NO") => Some(false),
+                _ => None,
+            },
         })
     }
 }
@@ -527,6 +534,7 @@ pub mod tests {
                                     column_name: "name".to_string(),
                                     ordinal_position: 1,
                                 }],
+                                distinct_nulls: true,
                             }),
                             PostgresConstraint::Check(PostgresCheckConstraint {
                                 name: "my_multi_check".to_string(),
@@ -971,6 +979,54 @@ pub mod tests {
                                 ],
                             },
                         ],
+                    }],
+                }]
+            }
+        )
+    }
+
+    #[test]
+    async fn table_with_non_distinct_nulls() {
+        let helper = get_test_helper().await;
+        //language=postgresql
+        helper
+            .execute_not_query(
+                r#"
+        create table my_table(
+            value int unique nulls not distinct
+        );
+        "#,
+            )
+            .await;
+
+        let db = introspect_schema(&helper).await;
+
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
+                    name: "public".to_string(),
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "value".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: true,
+                                data_type: "integer".to_string(),
+                            },
+                        ],
+                        constraints: vec![
+                            PostgresConstraint::Unique(PostgresUniqueConstraint {
+                                name: "my_table_value_key".to_string(),
+                                columns: vec![PostgresUniqueConstraintColumn {
+                                    column_name: "value".to_string(),
+                                    ordinal_position: 1,
+                                }],
+                                distinct_nulls: false,
+                            })
+                        ],
+                        indices: vec![],
                     }],
                 }]
             }

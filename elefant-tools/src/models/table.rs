@@ -46,10 +46,8 @@ impl PostgresTable {
                 PostgresConstraint::Check(check) => {
                     table_builder.check_constraint(&check.name, &check.check_clause);
                 }
-                PostgresConstraint::Unique(unique) => {
-                    let columns = unique.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
-
-                    table_builder.unique_constraint(&unique.name, columns);
+                PostgresConstraint::Unique(_) => {
+                    // Deferred until last part of the transaction
                 }
             }
         }

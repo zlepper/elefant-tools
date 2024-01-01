@@ -12,17 +12,31 @@ use crate::models::SimplifiedDataType;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
 use crate::storage::{BaseCopyTarget, CopyDestination, DataFormat, TableData};
-use crate::Result;
+use crate::{PostgresConstraint, Result};
+
+pub struct SqlFileOptions {
+    pub max_rows_per_insert: usize,
+}
+
+impl Default for SqlFileOptions {
+    fn default() -> Self {
+        Self {
+            max_rows_per_insert: 1000,
+        }
+    }
+}
 
 pub struct SqlFile<F: AsyncWrite + Unpin + Send + Sync> {
     file: F,
+    options: SqlFileOptions,
 }
 
 impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
-    pub async fn new(path: &str) -> Result<SqlFile<BufWriter<File>>> {
+    pub async fn new(path: &str, options: SqlFileOptions) -> Result<SqlFile<BufWriter<File>>> {
         let file = File::create(path).await?;
         Ok(SqlFile {
             file: BufWriter::new(file),
+            options
         })
     }
 }
@@ -63,51 +77,50 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
 
         let column_types = table.columns.iter().map(|c| c.get_simplified_data_type()).collect_vec();
 
-        file.write_all(b"insert into ").await?;
-        file.write_all(schema.name.as_bytes()).await?;
-        file.write_all(b".").await?;
-        file.write_all(table.name.as_bytes()).await?;
-        file.write_all(b" (").await?;
-        let mut first = true;
-        for column in &table.columns {
-            if first {
-                first = false;
-            } else {
-                file.write_all(b", ").await?;
-            }
-            file.write_all(column.name.as_bytes()).await?;
-        }
-        file.write_all(b")").await?;
-        file.write_all(b" values").await?;
-
-        file.write_all(b"\n").await?;
-
         let stream = data.into_stream();
 
         pin_mut!(stream);
 
-        let mut first = true;
+        let mut count = 0;
         while let Some(bytes) = stream.next().await {
             match bytes {
                 Ok(bytes) => {
-                    eprintln!("raw bytes: {:?}", bytes);
-                    if first {
-                        first = false;
+                    if count % self.options.max_rows_per_insert == 0 {
+
+                        if count > 0 {
+                            file.write_all(b";\n\n").await?;
+                        }
+
+                        file.write_all(b"insert into ").await?;
+                        file.write_all(schema.name.as_bytes()).await?;
+                        file.write_all(b".").await?;
+                        file.write_all(table.name.as_bytes()).await?;
+                        file.write_all(b" (").await?;
+                        for (index, column) in table.columns.iter().enumerate() {
+                            if index != 0 {
+                                file.write_all(b", ").await?;
+                            }
+                            file.write_all(column.name.as_bytes()).await?;
+                        }
+                        file.write_all(b")").await?;
+                        file.write_all(b" values").await?;
+
+                        file.write_all(b"\n").await?;
+                        count = 0;
                     } else {
                         file.write_all(b",\n").await?;
                     }
+                    count += 1;
 
                     let bytes: &[u8] = bytes.deref();
                     let bytes = &bytes[0..bytes.len() - 1];
                     let cols = BufRead::split(bytes, b'\t').zip(column_types.iter());
                     file.write_all(b"(").await?;
-                    let mut first = true;
-                    for (bytes, col_data_type) in cols {
-                        if first {
-                            first = false;
-                        } else {
+                    for (index, (bytes, col_data_type)) in cols.enumerate() {
+                        if index != 0 {
                             file.write_all(b", ").await?;
                         }
+
                         match bytes {
                             Ok(bytes) => {
 
@@ -160,7 +173,9 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
             }
         }
 
-        file.write_all(b";\n\n").await?;
+        if count > 0 {
+            file.write_all(b";\n\n").await?;
+        }
 
         file.flush().await?;
 
@@ -169,11 +184,23 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
 
     async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
-            for table in &schema.tables {
+            for (i, table) in schema.tables.iter().enumerate() {
+                if i != 0 {
+                    self.file.write_all("\n".as_bytes()).await?;
+                }
+
                 for index in &table.indices {
                     let sql = index.get_create_index_command(schema, table);
                     self.file.write_all(sql.as_bytes()).await?;
                     self.file.write_all("\n".as_bytes()).await?;
+                }
+
+                for constraint in &table.constraints {
+                    if let PostgresConstraint::Unique(unique) = constraint {
+                        let sql = unique.get_create_statement(schema, table);
+                        self.file.write_all(sql.as_bytes()).await?;
+                        self.file.write_all("\n".as_bytes()).await?;
+                    }
                 }
 
             }
@@ -200,6 +227,7 @@ mod tests {
         {
             let mut sql_file = SqlFile {
                 file: &mut result_file,
+                options: SqlFileOptions::default(),
             };
 
             let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
@@ -233,6 +261,13 @@ mod tests {
                 constraint people_age_check check ((age > 0))
             );
 
+            create table public.tree_node (
+                id integer not null,
+                name text not null,
+                parent_id integer,
+                constraint tree_node_pkey primary key (id)
+            );
+
             insert into public.people (id, name, age) values
             (1, E'foo', 42),
             (2, E'bar', 89),
@@ -244,6 +279,8 @@ mod tests {
             create index people_age_brin_idx on public.people using brin (age);
             create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
             create index people_name_lower_idx on public.people using btree (lower(name) asc nulls last);
+
+            alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (parent_id, name);
             "#});
 
         let destination = get_test_helper().await;

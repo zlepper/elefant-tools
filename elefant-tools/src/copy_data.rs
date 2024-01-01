@@ -31,7 +31,7 @@ pub async fn copy_data(source: &impl CopySource, destination: &mut impl CopyDest
         }
     }
 
-
+    destination.apply_post_structure(&definition).await?;
 
     Ok(())
 }

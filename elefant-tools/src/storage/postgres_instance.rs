@@ -108,15 +108,21 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
             sink.send(item).await?;
         }
 
-        // sink.send_all(&mut stream).await?;
-
         sink.close().await?;
 
         Ok(())
     }
 
     async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
-        todo!()
+        for schema in &db.schemas {
+            for table in &schema.tables {
+                for index in &table.indices {
+                    self.connection.execute_non_query(&index.get_create_index_command(schema, table)).await?;
+                }
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -142,6 +148,8 @@ mod tests {
             constraint multi_check check ( name != 'fsgsdfgsdf' and age < 9999 ),
             constraint multi_unique unique ( name, age )
         );
+
+        create index people_age_idx on people(age desc);
 
         insert into people(name, age)
         values

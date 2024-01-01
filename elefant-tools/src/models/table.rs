@@ -2,6 +2,7 @@ use itertools::Itertools;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
 use crate::{DataFormat, DdlQueryBuilder};
+use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -9,6 +10,7 @@ pub struct PostgresTable {
     pub name: String,
     pub columns: Vec<PostgresColumn>,
     pub constraints: Vec<PostgresConstraint>,
+    pub indices: Vec<PostgresIndex>,
 }
 
 impl PostgresTable {
@@ -17,6 +19,7 @@ impl PostgresTable {
             name: name.to_string(),
             columns: vec![],
             constraints: vec![],
+            indices: vec![],
         }
     }
 

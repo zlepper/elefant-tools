@@ -160,7 +160,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
             }
         }
 
-        file.write_all(b";\n").await?;
+        file.write_all(b";\n\n").await?;
 
         file.flush().await?;
 
@@ -168,7 +168,18 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
     }
 
     async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
-        todo!()
+        for schema in &db.schemas {
+            for table in &schema.tables {
+                for index in &table.indices {
+                    let sql = index.get_create_index_command(schema, table);
+                    self.file.write_all(sql.as_bytes()).await?;
+                    self.file.write_all("\n".as_bytes()).await?;
+                }
+
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -213,6 +224,8 @@ mod tests {
             constraint multi_check check (name != 'fsgsdfgsdf' and age < 9999)
         );
 
+        create index people_age_idx on people(age desc);
+
         insert into people(name, age)
         values
             ('foo', 42),
@@ -245,6 +258,8 @@ mod tests {
             (4, E'str\nange', 420),
             (5, E't\t\tap', 421),
             (6, E'q''t', 12);
+
+            create index people_age_idx on public.people (age desc nulls first);
             "#});
 
         let destination = get_test_helper().await;
@@ -299,6 +314,7 @@ mod tests {
             ('Infinity', 'Infinity'),
             ('-Infinity', '-Infinity'),
             (null, null);
+
             "#});
 
         let destination = get_test_helper().await;

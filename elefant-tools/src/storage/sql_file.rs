@@ -290,6 +290,11 @@ mod tests {
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
 
         assert_eq!(items, storage::tests::get_expected_data());
+
+        destination.execute_not_query("insert into tree_node(id, name, parent_id) values (1, 'foo', null), (2, 'bar', 1)").await;
+        let result = destination.get_conn().execute_non_query("insert into tree_node(id, name, parent_id) values (3, 'foo', null)").await;
+        assert_pg_error(result, 23505);
+
     }
 
 

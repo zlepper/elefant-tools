@@ -175,23 +175,11 @@ mod tests {
 
         let result = destination.get_conn().execute_non_query("insert into people (id, name, age) values (5, 'foo', 100)").await;
         assert_pg_error(result, 23505);
-    }
-
-    fn assert_pg_error(result: Result, code: u16) {
-        match result {
-            Err(ElefantToolsError::PostgresErrorWithQuery {
-                    source,
-                    ..
-                }) => {
 
 
-                assert_eq!(*source.as_db_error().unwrap().code(), SqlState::from_code(&code.to_string()));
-
-            },
-            _ => {
-                panic!("Expected PostgresErrorWithQuery, got {:?}", result);
-            }
-        }
+        destination.execute_not_query("insert into tree_node(id, name, parent_id) values (1, 'foo', null), (2, 'bar', 1)").await;
+        let result = destination.get_conn().execute_non_query("insert into tree_node(id, name, parent_id) values (3, 'foo', null)").await;
+        assert_pg_error(result, 23505);
     }
 
 

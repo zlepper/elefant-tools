@@ -1,8 +1,10 @@
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use bytes::Buf;
 use tokio_postgres::{CopyInSink, CopyOutStream};
+use tokio_postgres::error::SqlState;
 use tokio_postgres::types::FromSqlOwned;
 use uuid::Uuid;
+use crate::ElefantToolsError;
 use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 
 
@@ -101,6 +103,24 @@ async fn get_test_connection(database_name: &str) -> PostgresClientWrapper {
 async fn cleanup(db_name: &str) {
     let conn = get_test_connection("postgres").await;
     conn.execute_non_query(&format!("drop database {} with (force);", db_name)).await.expect("Failed to drop test database");
+}
+
+
+pub fn assert_pg_error(result: crate::Result, code: u16) {
+    match result {
+        Err(ElefantToolsError::PostgresErrorWithQuery {
+                source,
+                ..
+            }) => {
+
+
+            assert_eq!(*source.as_db_error().unwrap().code(), SqlState::from_code(&code.to_string()));
+
+        },
+        _ => {
+            panic!("Expected PostgresErrorWithQuery, got {:?}", result);
+        }
+    }
 }
 
 

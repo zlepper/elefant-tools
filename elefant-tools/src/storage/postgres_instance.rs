@@ -3,11 +3,13 @@ use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt, TryStreamExt};
 use futures::stream::MapErr;
 use tokio_postgres::CopyOutStream;
-use crate::models::{PostgresDatabase, PostgresSchema, PostgresTable};
+use crate::models::PostgresDatabase;
 use crate::postgres_client_wrapper::PostgresClientWrapper;
 use crate::schema_reader::SchemaReader;
 use crate::storage::{BaseCopyTarget, CopyDestination, CopySource, DataFormat, TableData};
 use crate::*;
+use crate::models::PostgresSchema;
+use crate::models::PostgresTable;
 
 pub struct PostgresInstanceStorage<'a> {
     connection: &'a PostgresClientWrapper,
@@ -121,6 +123,7 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 #[cfg(test)]
 mod tests {
     use tokio::test;
+    use tokio_postgres::error::SqlState;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
     use super::*;
@@ -134,9 +137,10 @@ mod tests {
         source.execute_not_query(r#"
         create table people(
             id serial primary key,
-            name text not null,
+            name text not null unique,
             age int not null check ( age > 0 ),
-            constraint multi_check check ( name != 'fsgsdfgsdf' and age < 9999 )
+            constraint multi_check check ( name != 'fsgsdfgsdf' and age < 9999 ),
+            constraint multi_unique unique ( name, age )
         );
 
         insert into people(name, age)
@@ -176,7 +180,27 @@ mod tests {
 
         // TODO: Make sure primary key auto increments
         let result = destination.get_conn().execute_non_query("insert into people (id, name, age) values (5, 'new-value', 10000)").await;
-        assert!(result.is_err(), "Expected error, got {:?}", result);
+        assert_pg_error(result, 23514);
+
+        let result = destination.get_conn().execute_non_query("insert into people (id, name, age) values (5, 'foo', 100)").await;
+        assert_pg_error(result, 23505);
+    }
+
+    fn assert_pg_error(result: Result, code: u16) {
+        match result {
+            Err(ElefantToolsError::PostgresErrorWithQuery {
+                    source,
+                    ..
+                }) => {
+
+
+                assert_eq!(*source.as_db_error().unwrap().code(), SqlState::from_code(&code.to_string()));
+
+            },
+            _ => {
+                panic!("Expected PostgresErrorWithQuery, got {:?}", result);
+            }
+        }
     }
 
 

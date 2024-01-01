@@ -1,30 +1,14 @@
 use itertools::Itertools;
-use crate::ddl_query_builder::DdlQueryBuilder;
-use crate::storage::DataFormat;
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct PostgresDatabase {
-    pub schemas: Vec<PostgresSchema>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct PostgresSchema {
-    pub tables: Vec<PostgresTable>,
-    pub name: String,
-}
-
-impl PostgresSchema {
-    pub fn get_create_statement(&self) -> String {
-        format!("create schema if not exists {};", self.name)
-    }
-}
+use crate::models::column::PostgresColumn;
+use crate::models::constraint::PostgresConstraint;
+use crate::{DataFormat, DdlQueryBuilder};
+use crate::models::schema::PostgresSchema;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresTable {
     pub name: String,
     pub columns: Vec<PostgresColumn>,
-    pub primary_key: Option<PostgresPrimaryKey>,
-    pub check_constraints: Vec<PostgresCheckConstraint>,
+    pub constraints: Vec<PostgresConstraint>,
 }
 
 impl PostgresTable {
@@ -32,8 +16,7 @@ impl PostgresTable {
         PostgresTable {
             name: name.to_string(),
             columns: vec![],
-            primary_key: None,
-            check_constraints: vec![],
+            constraints: vec![],
         }
     }
 
@@ -50,14 +33,22 @@ impl PostgresTable {
             }
         }
 
-        if let Some(pk) = &self.primary_key {
-            let columns = pk.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
+        for constraint in &self.constraints {
+            match constraint {
+                PostgresConstraint::PrimaryKey(pk) => {
+                    let columns = pk.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
 
-            table_builder.primary_key(&pk.name, columns);
-        }
+                    table_builder.primary_key(&pk.name, columns);
+                }
+                PostgresConstraint::Check(check) => {
+                    table_builder.check_constraint(&check.name, &check.check_clause);
+                }
+                PostgresConstraint::Unique(unique) => {
+                    let columns = unique.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
 
-        for check_constraint in &self.check_constraints {
-            table_builder.check_constraint(&check_constraint.name, &check_constraint.check_clause);
+                    table_builder.unique_constraint(&unique.name, columns);
+                }
+            }
         }
 
 
@@ -122,47 +113,4 @@ impl PostgresTable {
 
         s
     }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct PostgresColumn {
-    pub name: String,
-    pub ordinal_position: i32,
-    pub is_nullable: bool,
-    pub data_type: String,
-}
-
-impl PostgresColumn {
-    pub fn get_simplified_data_type(&self) -> SimplifiedDataType {
-        match self.data_type.as_str() {
-            "bigint"|"integer"|"smallint"|"real"|"double precision" => SimplifiedDataType::Number,
-            "boolean" => SimplifiedDataType::Bool,
-            _ => SimplifiedDataType::Text,
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum SimplifiedDataType {
-    Number,
-    Text,
-    Bool,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct PostgresPrimaryKey {
-    pub name: String,
-    pub columns: Vec<PostgresPrimaryKeyColumn>,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct PostgresPrimaryKeyColumn {
-    pub column_name: String,
-    pub ordinal_position: i32,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub struct PostgresCheckConstraint {
-    pub name: String,
-    pub check_clause: String,
 }

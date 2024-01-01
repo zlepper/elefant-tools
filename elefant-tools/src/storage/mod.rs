@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
-use crate::models::{PostgresDatabase, PostgresSchema, PostgresTable};
+use crate::models::PostgresDatabase;
 use crate::*;
 
 mod elefant_file;
@@ -10,6 +10,8 @@ mod postgres_instance;
 
 // pub use elefant_file::ElefantFileDestinationStorage;
 pub use sql_file::SqlFile;
+use crate::models::PostgresSchema;
+use crate::models::PostgresTable;
 
 #[async_trait]
 pub trait BaseCopyTarget {

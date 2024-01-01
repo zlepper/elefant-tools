@@ -1,8 +1,9 @@
+use crate::models::*;
+use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
+use crate::Result;
+use itertools::Itertools;
 use std::str::FromStr;
 use tokio_postgres::Row;
-use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
-use crate::{PostgresCheckConstraint, Result};
-use crate::models::{PostgresColumn, PostgresDatabase, PostgresPrimaryKey, PostgresPrimaryKeyColumn, PostgresSchema, PostgresTable};
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -10,9 +11,7 @@ pub struct SchemaReader<'a> {
 
 impl SchemaReader<'_> {
     pub fn new(connection: &PostgresClientWrapper) -> SchemaReader {
-        SchemaReader {
-            connection
-        }
+        SchemaReader { connection }
     }
 
     pub async fn introspect_database(&self) -> Result<PostgresDatabase> {
@@ -40,7 +39,7 @@ impl SchemaReader<'_> {
             r#"
             select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type from information_schema.key_column_usage kcu
             join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
-            where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'FOREIGN KEY'
+            where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'FOREIGN KEY' or tc.constraint_type = 'UNIQUE'
             order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;
             "#
         ).await?;
@@ -57,9 +56,7 @@ impl SchemaReader<'_> {
             "#
         ).await?;
 
-        let mut db = PostgresDatabase {
-            schemas: vec![]
-        };
+        let mut db = PostgresDatabase { schemas: vec![] };
 
         for row in tables {
             let current_schema = match db.schemas.last_mut() {
@@ -74,11 +71,21 @@ impl SchemaReader<'_> {
                 }
             };
 
-            let columns = columns.iter().filter(|c| c.schema_name == row.schema_name && c.table_name == row.table_name);
+            let columns = columns
+                .iter()
+                .filter(|c| c.schema_name == row.schema_name && c.table_name == row.table_name);
 
-            let key_columns = key_columns.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
+            let key_columns = key_columns
+                .iter()
+                .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name)
+                .group_by(|c| (c.constraint_name.clone(), c.key_type));
+            let key_columns = key_columns
+                .into_iter()
+                .map(|g| (g.0.0, g.0.1, g.1.collect_vec()));
 
-            let check_constraints = check_constraints.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
+            let check_constraints = check_constraints
+                .iter()
+                .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
 
             let mut table = PostgresTable::new(&row.table_name);
 
@@ -91,35 +98,71 @@ impl SchemaReader<'_> {
                 });
             }
 
-            for key_column in key_columns {
-                match key_column.key_type {
-                    ConstraintType::PrimaryKey => {
-                        if table.primary_key.is_none() {
-                            table.primary_key = Some(PostgresPrimaryKey {
-                                name: key_column.constraint_name.clone(),
-                                columns: vec![],
-                            });
-                        }
-
-                        table.primary_key.as_mut().unwrap().columns.push(PostgresPrimaryKeyColumn {
-                            column_name: key_column.column_name.clone(),
-                            ordinal_position: key_column.ordinal_position,
-                        });
+            for (constraint_name, constraint_type, key_columns) in key_columns {
+                let constraint = match constraint_type {
+                    ConstraintType::PrimaryKey => PostgresPrimaryKey {
+                        name: constraint_name.clone(),
+                        columns: key_columns
+                            .iter()
+                            .map(|c| PostgresPrimaryKeyColumn {
+                                column_name: c.column_name.clone(),
+                                ordinal_position: c.ordinal_position,
+                            })
+                            .collect(),
                     }
-                    _ => todo!()
-                }
+                        .into(),
+                    ConstraintType::ForeignKey => {
+                        todo!()
+                    }
+                    ConstraintType::Check => {
+                        todo!()
+                    }
+                    ConstraintType::Unique => PostgresUniqueConstraint {
+                        name: constraint_name.clone(),
+                        columns: key_columns
+                            .iter()
+                            .map(|c| PostgresUniqueConstraintColumn {
+                                column_name: c.column_name.clone(),
+                                ordinal_position: c.ordinal_position,
+                            })
+                            .collect(),
+                    }
+                        .into(),
+                };
+
+                table.constraints.push(constraint);
             }
+
+            // if !key_columns.is_empty() {
+            //     let mut pk = PostgresPrimaryKey {
+            //         name: key_columns[0].constraint_name.clone(),
+            //         columns: vec![],
+            //     };
+            //
+            //     for key_column in key_columns {
+            //         pk.columns.push(PostgresPrimaryKeyColumn {
+            //             column_name: key_column.column_name.clone(),
+            //             ordinal_position: key_column.ordinal_position,
+            //         });
+            //     }
+            //
+            //     table.constraints.push(pk.into());
+            // }
 
             for check_constraint in check_constraints {
-                table.check_constraints.push(PostgresCheckConstraint {
-                    name: check_constraint.constraint_name.clone(),
-                    check_clause: check_constraint.check_clause.clone(),
-                });
+                table.constraints.push(
+                    PostgresCheckConstraint {
+                        name: check_constraint.constraint_name.clone(),
+                        check_clause: check_constraint.check_clause.clone(),
+                    }
+                        .into(),
+                );
             }
+
+            table.constraints.sort();
 
             current_schema.tables.push(table);
         }
-
 
         Ok(db)
     }
@@ -207,7 +250,7 @@ impl FromRow for CheckConstraintResult {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 enum ConstraintType {
     PrimaryKey,
     ForeignKey,
@@ -224,18 +267,18 @@ impl FromStr for ConstraintType {
             "FOREIGN KEY" => Ok(ConstraintType::ForeignKey),
             "CHECK" => Ok(ConstraintType::Check),
             "UNIQUE" => Ok(ConstraintType::Unique),
-            _ => Err(crate::ElefantToolsError::UnknownConstraintType(s.to_string())),
+            _ => Err(crate::ElefantToolsError::UnknownConstraintType(
+                s.to_string(),
+            )),
         }
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use tokio::test;
-    use crate::models::{PostgresColumn, PostgresDatabase, PostgresPrimaryKey, PostgresPrimaryKeyColumn, PostgresSchema, PostgresTable};
     use crate::test_helpers::{get_test_helper, TestHelper};
+    use tokio::test;
 
     pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
         let conn = test_helper.get_conn();
@@ -246,142 +289,158 @@ pub mod tests {
     #[test]
     async fn reads_simple_schema() {
         let helper = get_test_helper().await;
-        helper.execute_not_query(r#"
+        helper
+            .execute_not_query(
+                r#"
         create table my_table(
             id serial primary key,
-            name text not null,
+            name text not null unique,
             age int not null check (age > 21),
             constraint my_multi_check check (age > 21 and age < 65 and name is not null)
         );
-        "#).await;
+        "#,
+            )
+            .await;
 
         let db = introspect_schema(&helper).await;
 
-        assert_eq!(db, PostgresDatabase {
-            schemas: vec![
-                PostgresSchema {
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
                     name: "public".to_string(),
-                    tables: vec![
-                        PostgresTable {
-                            name: "my_table".to_string(),
-                            columns: vec![
-                                PostgresColumn {
-                                    name: "id".to_string(),
-                                    ordinal_position: 1,
-                                    is_nullable: false,
-                                    data_type: "integer".to_string(),
-                                },
-                                PostgresColumn {
-                                    name: "name".to_string(),
-                                    ordinal_position: 2,
-                                    is_nullable: false,
-                                    data_type: "text".to_string(),
-                                },
-                                PostgresColumn {
-                                    name: "age".to_string(),
-                                    ordinal_position: 3,
-                                    is_nullable: false,
-                                    data_type: "integer".to_string(),
-                                },
-                            ],
-                            primary_key: Some(PostgresPrimaryKey {
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "id".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 2,
+                                is_nullable: false,
+                                data_type: "text".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "age".to_string(),
+                                ordinal_position: 3,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                            },
+                        ],
+                        constraints: vec![
+                            PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
                                 name: "my_table_pkey".to_string(),
-                                columns: vec![
-                                    PostgresPrimaryKeyColumn {
-                                        column_name: "id".to_string(),
-                                        ordinal_position: 1,
-                                    }
-                                ],
+                                columns: vec![PostgresPrimaryKeyColumn {
+                                    column_name: "id".to_string(),
+                                    ordinal_position: 1,
+                                }],
                             }),
-                            check_constraints: vec![
-                                PostgresCheckConstraint {
-                                    name: "my_multi_check".to_string(),
-                                    check_clause: "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))".to_string(),
-                                },
-                                PostgresCheckConstraint {
-                                    name: "my_table_age_check".to_string(),
-                                    check_clause: "((age > 21))".to_string(),
-                                },
-                            ],
-                        }
-                    ],
-                }
-            ]
-        })
+                            PostgresConstraint::Unique(PostgresUniqueConstraint {
+                                name: "my_table_name_key".to_string(),
+                                columns: vec![PostgresUniqueConstraintColumn {
+                                    column_name: "name".to_string(),
+                                    ordinal_position: 1,
+                                }],
+                            }),
+                            PostgresConstraint::Check(PostgresCheckConstraint {
+                                name: "my_multi_check".to_string(),
+                                check_clause:
+                                "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))"
+                                    .to_string(),
+                            }),
+                            PostgresConstraint::Check(PostgresCheckConstraint {
+                                name: "my_table_age_check".to_string(),
+                                check_clause: "((age > 21))".to_string(),
+                            }),
+                        ],
+                    }],
+                }]
+            }
+        )
     }
 
     #[test]
     async fn table_without_columns() {
         let helper = get_test_helper().await;
-        helper.execute_not_query(r#"
+        helper
+            .execute_not_query(
+                r#"
         create table my_table();
-        "#).await;
+        "#,
+            )
+            .await;
 
         let db = introspect_schema(&helper).await;
 
-        assert_eq!(db, PostgresDatabase {
-            schemas: vec![
-                PostgresSchema {
-                    tables: vec![
-                        PostgresTable {
-                            name: "my_table".to_string(),
-                            primary_key: None,
-                            columns: vec![],
-                            check_constraints: vec![],
-                        }
-                    ],
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![],
+                        constraints: vec![],
+                    }],
                     name: "public".to_string(),
-                }
-            ]
-        })
+                }]
+            }
+        )
     }
 
     #[test]
     async fn table_without_primary_key() {
         let helper = get_test_helper().await;
-        helper.execute_not_query(r#"
+        helper
+            .execute_not_query(
+                r#"
         create table my_table(
             name text not null,
             age int not null
         );
-        "#).await;
+        "#,
+            )
+            .await;
 
         let db = introspect_schema(&helper).await;
 
-        assert_eq!(db, PostgresDatabase {
-            schemas: vec![
-                PostgresSchema {
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
                     name: "public".to_string(),
-                    tables: vec![
-                        PostgresTable {
-                            name: "my_table".to_string(),
-                            columns: vec![
-                                PostgresColumn {
-                                    name: "name".to_string(),
-                                    ordinal_position: 1,
-                                    is_nullable: false,
-                                    data_type: "text".to_string(),
-                                },
-                                PostgresColumn {
-                                    name: "age".to_string(),
-                                    ordinal_position: 2,
-                                    is_nullable: false,
-                                    data_type: "integer".to_string(),
-                                },
-                            ],
-                            primary_key: None,
-                            check_constraints: vec![],
-                        }
-                    ],
-                }
-            ]
-        })
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "text".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "age".to_string(),
+                                ordinal_position: 2,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                            },
+                        ],
+                        constraints: vec![],
+                    }],
+                }]
+            }
+        )
     }
 
     #[test]
     async fn composite_primary_keys() {
         let helper = get_test_helper().await;
-        helper.execute_not_query(r#"
+        helper
+            .execute_not_query(
+                r#"
         create table my_table(
             id_part_1 int not null,
             id_part_2 int not null,
@@ -389,61 +448,61 @@ pub mod tests {
             age int,
             constraint my_table_pk primary key (id_part_1, id_part_2)
         );
-        "#).await;
+        "#,
+            )
+            .await;
 
         let db = introspect_schema(&helper).await;
 
-        assert_eq!(db, PostgresDatabase {
-            schemas: vec![
-                PostgresSchema {
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
                     name: "public".to_string(),
-                    tables: vec![
-                        PostgresTable {
-                            name: "my_table".to_string(),
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "id_part_1".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "id_part_2".to_string(),
+                                ordinal_position: 2,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 3,
+                                is_nullable: true,
+                                data_type: "text".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "age".to_string(),
+                                ordinal_position: 4,
+                                is_nullable: true,
+                                data_type: "integer".to_string(),
+                            },
+                        ],
+                        constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
+                            name: "my_table_pk".to_string(),
                             columns: vec![
-                                PostgresColumn {
-                                    name: "id_part_1".to_string(),
+                                PostgresPrimaryKeyColumn {
+                                    column_name: "id_part_1".to_string(),
                                     ordinal_position: 1,
-                                    is_nullable: false,
-                                    data_type: "integer".to_string(),
                                 },
-                                PostgresColumn {
-                                    name: "id_part_2".to_string(),
+                                PostgresPrimaryKeyColumn {
+                                    column_name: "id_part_2".to_string(),
                                     ordinal_position: 2,
-                                    is_nullable: false,
-                                    data_type: "integer".to_string(),
-                                },
-                                PostgresColumn {
-                                    name: "name".to_string(),
-                                    ordinal_position: 3,
-                                    is_nullable: true,
-                                    data_type: "text".to_string(),
-                                },
-                                PostgresColumn {
-                                    name: "age".to_string(),
-                                    ordinal_position: 4,
-                                    is_nullable: true,
-                                    data_type: "integer".to_string(),
                                 },
                             ],
-                            primary_key: Some(PostgresPrimaryKey {
-                                name: "my_table_pk".to_string(),
-                                columns: vec![
-                                    PostgresPrimaryKeyColumn {
-                                        column_name: "id_part_1".to_string(),
-                                        ordinal_position: 1,
-                                    },
-                                    PostgresPrimaryKeyColumn {
-                                        column_name: "id_part_2".to_string(),
-                                        ordinal_position: 2,
-                                    },
-                                ],
-                            }),
-                            check_constraints: vec![],
-                        }
-                    ],
-                }
-            ]
-        })
+                        }), ],
+                    }],
+                }]
+            }
+        )
     }
 }

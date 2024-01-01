@@ -4,6 +4,7 @@
 - [x] Check constraints
    - [ ] Check constraints calling functions 
 - [ ] Unique constraints
+  - [ ] Relational null
 - [ ] Generated columns
 - [ ] Indexes
 - [ ] Row level security

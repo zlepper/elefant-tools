@@ -7,7 +7,10 @@ use futures::{pin_mut, Stream, StreamExt};
 use itertools::Itertools;
 use tokio::fs::File;
 use tokio::io::{AsyncWrite, AsyncWriteExt, BufWriter};
-use crate::models::{PostgresDatabase, PostgresSchema, PostgresTable, SimplifiedDataType};
+use crate::models::PostgresDatabase;
+use crate::models::SimplifiedDataType;
+use crate::models::PostgresSchema;
+use crate::models::PostgresTable;
 use crate::storage::{BaseCopyTarget, CopyDestination, DataFormat, TableData};
 use crate::Result;
 

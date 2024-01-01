@@ -224,7 +224,7 @@ mod tests {
             constraint multi_check check (name != 'fsgsdfgsdf' and age < 9999)
         );
 
-        create index people_age_idx on people (age desc);
+        create index people_age_idx on people (age desc) where (age % 2 = 0);
         create index people_age_brin_idx on people using brin (age);
 
         insert into people(name, age)
@@ -261,7 +261,7 @@ mod tests {
             (6, E'q''t', 12);
 
             create index people_age_brin_idx on public.people using brin (age);
-            create index people_age_idx on public.people using btree (age desc nulls first);
+            create index people_age_idx on public.people using btree (age desc nulls first) where (age % 2) = 0;
             "#});
 
         let destination = get_test_helper().await;

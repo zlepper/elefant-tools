@@ -6,6 +6,7 @@ pub struct PostgresIndex {
     pub name: String,
     pub columns: Vec<PostgresIndexColumn>,
     pub index_type: String,
+    pub predicate: Option<String>,
 }
 
 impl Ord for PostgresIndex {
@@ -52,7 +53,14 @@ impl PostgresIndex {
             }
         }
 
-        command.push_str(");");
+        command.push_str(")");
+
+        if let Some(ref predicate) = self.predicate {
+            command.push_str(" where ");
+            command.push_str(predicate);
+        }
+
+        command.push_str(";");
 
         command
     }

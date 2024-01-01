@@ -160,6 +160,7 @@ impl SchemaReader<'_> {
                 name: index.index_name.clone(),
                 columns,
                 index_type: index.index_type.clone(),
+                predicate: index.index_predicate.clone(),
             });
         }
 
@@ -205,7 +206,8 @@ impl SchemaReader<'_> {
                    table_class.relname as table_name,
                    index_class.relname as index_name,
                    pa.amname           as index_type,
-                   pg_indexam_has_property(pa.oid, 'can_order') as can_sort
+                   pg_indexam_has_property(pa.oid, 'can_order') as can_sort,
+                   pg_catalog.pg_get_expr(i.indpred, i.indrelid, true) as index_predicate
             from pg_index i
                      join pg_class table_class on table_class.oid = i.indrelid
                      join pg_class index_class on index_class.oid = i.indexrelid
@@ -419,6 +421,7 @@ struct IndexResult {
     index_name: String,
     index_type: String,
     can_sort: bool,
+    index_predicate: Option<String>,
 }
 
 impl FromRow for IndexResult {
@@ -429,6 +432,7 @@ impl FromRow for IndexResult {
             index_name: row.try_get(2)?,
             index_type: row.try_get(3)?,
             can_sort: row.try_get(4)?,
+            index_predicate: row.try_get(5)?,
         })
     }
 }
@@ -715,6 +719,7 @@ pub mod tests {
                                     nulls_order: Some(PostgresIndexNullsOrder::First),
                                 }],
                                 index_type: "btree".to_string(),
+                                predicate: None,
                             },
                             PostgresIndex {
                                 name: "my_table_value_asc_nulls_last".to_string(),
@@ -725,6 +730,7 @@ pub mod tests {
                                     nulls_order: Some(PostgresIndexNullsOrder::Last),
                                 }],
                                 index_type: "btree".to_string(),
+                                predicate: None,
                             },
                             PostgresIndex {
                                 name: "my_table_value_desc_nulls_first".to_string(),
@@ -735,6 +741,7 @@ pub mod tests {
                                     nulls_order: Some(PostgresIndexNullsOrder::First),
                                 }],
                                 index_type: "btree".to_string(),
+                                predicate: None,
                             },
                             PostgresIndex {
                                 name: "my_table_value_desc_nulls_last".to_string(),
@@ -745,6 +752,7 @@ pub mod tests {
                                     nulls_order: Some(PostgresIndexNullsOrder::Last),
                                 }],
                                 index_type: "btree".to_string(),
+                                predicate: None,
                             },
                         ],
                     }],
@@ -795,6 +803,7 @@ pub mod tests {
                                     nulls_order: None,
                                 }],
                                 index_type: "gin".to_string(),
+                                predicate: None,
                             },
                             PostgresIndex {
                                 name: "my_table_gist".to_string(),
@@ -805,6 +814,57 @@ pub mod tests {
                                     nulls_order: None,
                                 }],
                                 index_type: "gist".to_string(),
+                                predicate: None,
+                            },
+                        ],
+                    }],
+                }]
+            }
+        )
+    }
+
+    #[test]
+    async fn filtered_index() {
+        let helper = get_test_helper().await;
+        helper
+            .execute_not_query(
+                r#"
+        create table my_table(
+            value int
+        );
+
+        create index my_table_idx on my_table (value) where (value % 2 = 0);
+        "#,
+            )
+            .await;
+
+        let db = introspect_schema(&helper).await;
+
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
+                    name: "public".to_string(),
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![PostgresColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: true,
+                            data_type: "integer".to_string(),
+                        }, ],
+                        constraints: vec![],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "my_table_idx".to_string(),
+                                columns: vec![PostgresIndexColumn {
+                                    name: "value".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: Some("(value % 2) = 0".to_string()),
                             },
                         ],
                     }],

@@ -18,7 +18,7 @@
    ✅ Column direction
    ✅ Nulls first/last
    ✅ Index type
-   ❌ Conditions
+   ✅ Filtered index
    ❌ Expressions
    ❌ Included columns
 ❌ Generated columns

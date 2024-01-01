@@ -1,25 +1,28 @@
-# TODOs:
-* Unique constraints
-* Generated columns
-* Indexes
-* Row level security
-* Foreign keys
-* Triggers
-* Views
-* Materialized views
-* Stored procedures
-* Functions
-* Check constraints calling functions
-* Extensions
-* Comments
-* Partitions
-* Inheritance
-* Sequences
-* Enums
-* Domains
-* Collations
-* Schemas
-* Roles
-* Users
-* Defaults
-* Quoted identifier names
+# Supported features:
+- [x] Primary keys
+- [x] Not null constraints
+- [x] Check constraints
+   - [ ] Check constraints calling functions 
+- [ ] Unique constraints
+- [ ] Generated columns
+- [ ] Indexes
+- [ ] Row level security
+- [ ] Foreign keys
+- [ ] Triggers
+- [ ] Views
+- [ ] Materialized views
+- [ ] Stored procedures
+- [ ] Functions
+- [ ] Extensions
+- [ ] Comments
+- [ ] Partitions
+- [ ] Inheritance
+- [ ] Sequences
+- [ ] Enums
+- [ ] Domains
+- [ ] Collations
+- [ ] Schemas
+- [ ] Roles
+- [ ] Users
+- [ ] Defaults
+- [ ] Quoted identifier names

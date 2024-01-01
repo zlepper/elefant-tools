@@ -7,10 +7,12 @@
 ```
 
 ```
-✅ Primary keys  
-✅ Not null constraints  
-➕ Check constraints  
-  ❌ Check constraints calling functions 
+✅ Primary keys
+❌ Sequences
+❌ Foreign keys
+✅ Not null constraints
+➕ Check constraints
+  ❌ Check constraints calling functions
 ➕ Unique constraints
   ✅ Distinct nulls
   ❌ Using explicit unique index
@@ -24,21 +26,17 @@
    ❌ Index storage parameters
 ❌ Generated columns
 ❌ Row level security
-❌ Foreign keys
 ❌ Triggers
 ❌ Views
 ❌ Materialized views
-❌ Stored procedures
-❌ Functions
+❌ Functions/Stored procedures
 ❌ Extensions
 ❌ Comments
 ❌ Partitions
 ❌ Inheritance
-❌ Sequences
 ❌ Enums
-❌ Domains
 ❌ Collations
-❌ Schemas
+✅ Schemas
 ❌ Roles
 ❌ Users
 ❌ Defaults

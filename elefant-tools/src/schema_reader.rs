@@ -138,7 +138,7 @@ impl SchemaReader<'_> {
                 .iter()
                 .filter(|c| c.is_key)
                 .map(|c| PostgresIndexKeyColumn {
-                    name: c.indexdef.clone(),
+                    name: c.column_expression.clone(),
                     ordinal_position: c.ordinal_position,
                     direction: if index.can_sort {
                         Some(match c.is_desc {
@@ -165,7 +165,7 @@ impl SchemaReader<'_> {
                 .iter()
                 .filter(|c| !c.is_key)
                 .map(|c| PostgresIndexIncludedColumn {
-                    name: c.indexdef.clone(),
+                    name: c.column_expression.clone(),
                     ordinal_position: c.ordinal_position,
                 })
                 .collect_vec();
@@ -194,7 +194,6 @@ impl SchemaReader<'_> {
                 select n.nspname                                              as table_schema,
                       table_class.relname                                    as table_name,
                       index_class.relname                                    as index_name,
-                      a.attname,
                       a.attnum <= i.indnkeyatts                              as is_key,
                       pg_catalog.pg_get_indexdef(a.attrelid, a.attnum, true) as indexdef,
                       i.indoption[a.attnum - 1] & 1 <> 0                     as is_desc,
@@ -414,9 +413,8 @@ struct IndexColumnResult {
     table_schema: String,
     table_name: String,
     index_name: String,
-    attname: String,
     is_key: bool,
-    indexdef: String,
+    column_expression: String,
     is_desc: Option<bool>,
     nulls_first: Option<bool>,
     ordinal_position: i32,
@@ -428,12 +426,11 @@ impl FromRow for IndexColumnResult {
             table_schema: row.try_get(0)?,
             table_name: row.try_get(1)?,
             index_name: row.try_get(2)?,
-            attname: row.try_get(3)?,
-            is_key: row.try_get(4)?,
-            indexdef: row.try_get(5)?,
-            is_desc: row.try_get(6)?,
-            nulls_first: row.try_get(7)?,
-            ordinal_position: row.try_get(8)?,
+            is_key: row.try_get(3)?,
+            column_expression: row.try_get(4)?,
+            is_desc: row.try_get(5)?,
+            nulls_first: row.try_get(6)?,
+            ordinal_position: row.try_get(7)?,
         })
     }
 }

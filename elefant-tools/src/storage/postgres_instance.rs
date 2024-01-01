@@ -135,7 +135,6 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 #[cfg(test)]
 mod tests {
     use tokio::test;
-    use tokio_postgres::error::SqlState;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
     use super::*;

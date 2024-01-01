@@ -1,6 +1,4 @@
 use std::panic::{RefUnwindSafe, UnwindSafe};
-use bytes::Buf;
-use tokio_postgres::{CopyInSink, CopyOutStream};
 use tokio_postgres::error::SqlState;
 use tokio_postgres::types::FromSqlOwned;
 use uuid::Uuid;
@@ -83,16 +81,6 @@ impl TestHelper {
 
     pub fn get_conn(&self) -> &PostgresClientWrapper {
         &self.main_connection
-    }
-
-    pub async fn copy_in<U>(&self, sql: &str) -> CopyInSink<U>
-        where U: Buf + Send + 'static
-    {
-        self.main_connection.copy_in(sql).await.unwrap_or_else(|e| panic!("Failed to do copy_in: {:?}\n{}", e, sql))
-    }
-
-    pub async fn copy_out(&self, sql: &str) -> CopyOutStream {
-        self.main_connection.copy_out(sql).await.unwrap_or_else(|e| panic!("Failed to do copy_out: {:?}\n{}", e, sql))
     }
 }
 

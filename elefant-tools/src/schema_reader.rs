@@ -20,6 +20,7 @@ impl SchemaReader<'_> {
         let key_columns = self.get_key_columns().await?;
         let check_constraints = self.get_check_constraints().await?;
         let indices = self.get_indices().await?;
+        let index_columns = self.get_index_columns().await?;
 
         let mut db = PostgresDatabase { schemas: vec![] };
 
@@ -40,7 +41,7 @@ impl SchemaReader<'_> {
                 name: row.table_name.clone(),
                 columns: Self::add_columns(&columns, &row),
                 constraints: Self::add_constraints(&key_columns, &check_constraints, &row),
-                indices: Self::add_indices(&indices, &row),
+                indices: Self::add_indices(&indices, &index_columns, &row),
             };
 
             current_schema.tables.push(table);
@@ -123,80 +124,103 @@ impl SchemaReader<'_> {
         constraints
     }
 
-    fn add_indices(indices: &[IndexResult], row: &TablesResult) -> Vec<PostgresIndex> {
-        let indices = indices
-            .iter()
-            .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name)
-            .group_by(|c| (c.index_name.clone(), c.indexdef.clone()));
-        let mut indices: Vec<PostgresIndex> = indices
-            .into_iter()
-            .map(|g| (g.0.0, g.0.1, g.1.collect_vec()))
-            .map(
-                |(index_name, indexdef, index_columns)| {
-                    let mut columns = index_columns
-                        .iter()
-                        .map(|c| PostgresIndexColumn {
-                            name: c.attname.clone(),
-                            ordinal_position: c.ordinal_position,
-                            direction: match c.is_desc {
-                                Some(true) => PostgresIndexColumnDirection::Descending,
-                                _ => PostgresIndexColumnDirection::Ascending,
-                            },
-                            nulls_order: match c.nulls_first {
-                                Some(true) => PostgresIndexNullsOrder::First,
-                                _ => PostgresIndexNullsOrder::Last,
-                            },
+    fn add_indices(indices: &[IndexResult], index_columns: &[IndexColumnResult], row: &TablesResult) -> Vec<PostgresIndex> {
+        let mut result = vec![];
+
+        let indices = indices.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
+        for index in indices {
+            let mut columns = index_columns
+                .iter()
+                .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name && c.index_name == index.index_name)
+                .map(|c| PostgresIndexColumn {
+                    name: c.attname.clone(),
+                    ordinal_position: c.ordinal_position,
+                    direction: if index.can_sort {
+                        Some(match c.is_desc {
+                            Some(true) => PostgresIndexColumnDirection::Descending,
+                            _ => PostgresIndexColumnDirection::Ascending,
                         })
-                        .collect_vec();
+                    } else {
+                        None
+                    },
+                    nulls_order: if index.can_sort {
+                        Some(match c.nulls_first {
+                            Some(true) => PostgresIndexNullsOrder::First,
+                            _ => PostgresIndexNullsOrder::Last,
+                        })
+                    } else {
+                        None
+                    },
+                })
+                .collect_vec();
 
-                    columns.sort();
+            columns.sort();
 
-                    PostgresIndex {
-                        name: index_name.clone(),
-                        columns,
-                    }
-                },
-            )
-            .collect();
+            result.push(PostgresIndex {
+                name: index.index_name.clone(),
+                columns,
+                index_type: index.index_type.clone(),
+            });
+        }
 
-        indices.sort();
+        result.sort();
 
-        indices
+        result
     }
 
-    async fn get_indices(&self) -> Result<Vec<IndexResult>> {
+    async fn get_index_columns(&self) -> Result<Vec<IndexColumnResult>> {
         //language=postgresql
         self.connection
-            .get_results::<IndexResult>(
+            .get_results(
                 r#"
-            SELECT n.nspname                                              as table_schema,
+                select n.nspname                                              as table_schema,
                       table_class.relname                                    as table_name,
                       index_class.relname                                    as index_name,
                       a.attname,
-                      a.attnum <= i.indnkeyatts                              AS is_key,
-                      pg_catalog.pg_get_indexdef(a.attrelid, a.attnum, TRUE) AS indexdef,
+                      a.attnum <= i.indnkeyatts                              as is_key,
+                      pg_catalog.pg_get_indexdef(a.attrelid, a.attnum, true) as indexdef,
                       i.indoption[a.attnum - 1] & 1 <> 0                     as is_desc,
                       i.indoption[a.attnum - 1] & 2 <> 0                     as nulls_first,
                       a.attnum::int                                               as ordinal_position
-               FROM pg_index i
-                        JOIN pg_class table_class ON table_class.oid = i.indrelid
-                        JOIN pg_class index_class ON index_class.oid = i.indexrelid
-                        LEFT JOIN pg_namespace n ON n.oid = table_class.relnamespace
-                        LEFT JOIN pg_tablespace ts ON ts.oid = index_class.reltablespace
-                        JOIN pg_catalog.pg_attribute a ON a.attrelid = index_class.oid
-               WHERE a.attnum > 0
-                 AND NOT a.attisdropped
-                 AND n.nspname NOT IN ('pg_catalog', 'pg_toast', 'information_schema')
-                 AND NOT i.indisprimary AND NOT i.indisunique
-               ORDER BY table_schema, table_name, index_name, ordinal_position
+               from pg_index i
+                        join pg_class table_class on table_class.oid = i.indrelid
+                        join pg_class index_class on index_class.oid = i.indexrelid
+                        left join pg_namespace n on n.oid = table_class.relnamespace
+                        left join pg_tablespace ts on ts.oid = index_class.reltablespace
+                        join pg_catalog.pg_attribute a on a.attrelid = index_class.oid
+               where a.attnum > 0
+                 and not a.attisdropped
+                 and n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+                 and not i.indisprimary and not i.indisunique
+               order by table_schema, table_name, index_name, ordinal_position
             "#,
             )
             .await
     }
 
+    async fn get_indices(&self) -> Result<Vec<IndexResult>> {
+        //language=postgresql
+        self.connection.get_results(r#"
+            select n.nspname           as table_schema,
+                   table_class.relname as table_name,
+                   index_class.relname as index_name,
+                   pa.amname           as index_type,
+                   pg_indexam_has_property(pa.oid, 'can_order') as can_sort
+            from pg_index i
+                     join pg_class table_class on table_class.oid = i.indrelid
+                     join pg_class index_class on index_class.oid = i.indexrelid
+                     left join pg_namespace n on n.oid = table_class.relnamespace
+                     left join pg_tablespace ts on ts.oid = index_class.reltablespace
+                     join pg_catalog.pg_am pa on index_class.relam = pa.oid
+            where n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+              and not i.indisprimary
+              and not i.indisunique
+        "#).await
+    }
+
     async fn get_check_constraints(&self) -> Result<Vec<CheckConstraintResult>> {
         //language=postgresql
-        self.connection.get_results::<CheckConstraintResult>(
+        self.connection.get_results(
             r#"
             select distinct t.table_schema, t.table_name, cc.constraint_name, cc.check_clause from information_schema.check_constraints cc
             join information_schema.table_constraints tc on cc.constraint_schema = tc.constraint_schema and cc.constraint_name = tc.constraint_name
@@ -210,7 +234,7 @@ impl SchemaReader<'_> {
 
     async fn get_key_columns(&self) -> Result<Vec<KeyColumnUsageResult>> {
         //language=postgresql
-        self.connection.get_results::<KeyColumnUsageResult>(
+        self.connection.get_results(
             r#"
             select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type from information_schema.key_column_usage kcu
             join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
@@ -222,7 +246,7 @@ impl SchemaReader<'_> {
 
     async fn get_columns(&self) -> Result<Vec<TableColumnsResult>> {
         //language=postgresql
-        self.connection.get_results::<TableColumnsResult>(
+        self.connection.get_results(
             r#"
             select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type from information_schema.tables t
             join information_schema.columns c on t.table_schema = c.table_schema and t.table_name = c.table_name
@@ -234,7 +258,7 @@ impl SchemaReader<'_> {
 
     async fn get_tables(&self) -> Result<Vec<TablesResult>> {
         //language=postgresql
-        self.connection.get_results::<TablesResult>(
+        self.connection.get_results(
             r#"
             select table_schema, table_name from information_schema.tables
             where table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and table_type = 'BASE TABLE'
@@ -361,7 +385,7 @@ impl FromStr for ConstraintType {
     }
 }
 
-struct IndexResult {
+struct IndexColumnResult {
     table_schema: String,
     table_name: String,
     index_name: String,
@@ -373,9 +397,9 @@ struct IndexResult {
     ordinal_position: i32,
 }
 
-impl FromRow for IndexResult {
+impl FromRow for IndexColumnResult {
     fn from_row(row: Row) -> Result<Self> {
-        Ok(IndexResult {
+        Ok(IndexColumnResult {
             table_schema: row.try_get(0)?,
             table_name: row.try_get(1)?,
             index_name: row.try_get(2)?,
@@ -388,6 +412,27 @@ impl FromRow for IndexResult {
         })
     }
 }
+
+struct IndexResult {
+    table_schema: String,
+    table_name: String,
+    index_name: String,
+    index_type: String,
+    can_sort: bool,
+}
+
+impl FromRow for IndexResult {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(IndexResult {
+            table_schema: row.try_get(0)?,
+            table_name: row.try_get(1)?,
+            index_name: row.try_get(2)?,
+            index_type: row.try_get(3)?,
+            can_sort: row.try_get(4)?,
+        })
+    }
+}
+
 
 #[cfg(test)]
 pub mod tests {
@@ -666,36 +711,100 @@ pub mod tests {
                                 columns: vec![PostgresIndexColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
-                                    direction: PostgresIndexColumnDirection::Ascending,
-                                    nulls_order: PostgresIndexNullsOrder::First,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::First),
                                 }],
+                                index_type: "btree".to_string(),
                             },
                             PostgresIndex {
                                 name: "my_table_value_asc_nulls_last".to_string(),
                                 columns: vec![PostgresIndexColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
-                                    direction: PostgresIndexColumnDirection::Ascending,
-                                    nulls_order: PostgresIndexNullsOrder::Last,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
                                 }],
+                                index_type: "btree".to_string(),
                             },
                             PostgresIndex {
                                 name: "my_table_value_desc_nulls_first".to_string(),
                                 columns: vec![PostgresIndexColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
-                                    direction: PostgresIndexColumnDirection::Descending,
-                                    nulls_order: PostgresIndexNullsOrder::First,
+                                    direction: Some(PostgresIndexColumnDirection::Descending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::First),
                                 }],
+                                index_type: "btree".to_string(),
                             },
                             PostgresIndex {
                                 name: "my_table_value_desc_nulls_last".to_string(),
                                 columns: vec![PostgresIndexColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
-                                    direction: PostgresIndexColumnDirection::Descending,
-                                    nulls_order: PostgresIndexNullsOrder::Last,
+                                    direction: Some(PostgresIndexColumnDirection::Descending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
                                 }],
+                                index_type: "btree".to_string(),
+                            },
+                        ],
+                    }],
+                }]
+            }
+        )
+    }
+
+    #[test]
+    async fn index_types() {
+        let helper = get_test_helper().await;
+        helper
+            .execute_not_query(
+                r#"
+        create table my_table(
+            free_text tsvector
+        );
+
+        create index my_table_gist on my_table using gist (free_text);
+        create index my_table_gin on my_table using gin (free_text);
+        "#,
+            )
+            .await;
+
+        let db = introspect_schema(&helper).await;
+
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
+                    name: "public".to_string(),
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![PostgresColumn {
+                            name: "free_text".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: true,
+                            data_type: "tsvector".to_string(),
+                        }, ],
+                        constraints: vec![],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "my_table_gin".to_string(),
+                                columns: vec![PostgresIndexColumn {
+                                    name: "free_text".to_string(),
+                                    ordinal_position: 1,
+                                    direction: None,
+                                    nulls_order: None,
+                                }],
+                                index_type: "gin".to_string(),
+                            },
+                            PostgresIndex {
+                                name: "my_table_gist".to_string(),
+                                columns: vec![PostgresIndexColumn {
+                                    name: "free_text".to_string(),
+                                    ordinal_position: 1,
+                                    direction: None,
+                                    nulls_order: None,
+                                }],
+                                index_type: "gist".to_string(),
                             },
                         ],
                     }],

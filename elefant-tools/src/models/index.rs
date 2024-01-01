@@ -5,6 +5,7 @@ use crate::{PostgresSchema, PostgresTable};
 pub struct PostgresIndex {
     pub name: String,
     pub columns: Vec<PostgresIndexColumn>,
+    pub index_type: String,
 }
 
 impl Ord for PostgresIndex {
@@ -21,7 +22,7 @@ impl PartialOrd for PostgresIndex {
 
 impl PostgresIndex {
     pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable) -> String {
-        let mut command = format!("create index {} on {}.{} (", self.name, schema.name, table.name);
+        let mut command = format!("create index {} on {}.{} using {} (", self.name, schema.name, table.name, self.index_type);
 
         for (i, column) in self.columns.iter().enumerate() {
             if i > 0 {
@@ -31,21 +32,23 @@ impl PostgresIndex {
             command.push_str(&column.name);
 
             match column.direction {
-                PostgresIndexColumnDirection::Ascending => {
+                Some(PostgresIndexColumnDirection::Ascending) => {
                     command.push_str(" asc");
                 },
-                PostgresIndexColumnDirection::Descending => {
+                Some(PostgresIndexColumnDirection::Descending) => {
                     command.push_str(" desc");
                 },
+                _ => {},
             }
 
             match column.nulls_order {
-                PostgresIndexNullsOrder::First => {
+                Some(PostgresIndexNullsOrder::First) => {
                     command.push_str(" nulls first");
                 },
-                PostgresIndexNullsOrder::Last => {
+                Some(PostgresIndexNullsOrder::Last) => {
                     command.push_str(" nulls last");
                 },
+                _ => {}
             }
         }
 
@@ -59,8 +62,8 @@ impl PostgresIndex {
 pub struct PostgresIndexColumn {
     pub name: String,
     pub ordinal_position: i32,
-    pub direction: PostgresIndexColumnDirection,
-    pub nulls_order: PostgresIndexNullsOrder,
+    pub direction: Option<PostgresIndexColumnDirection>,
+    pub nulls_order: Option<PostgresIndexNullsOrder>,
 }
 
 impl Ord for PostgresIndexColumn {

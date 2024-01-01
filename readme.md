@@ -20,7 +20,7 @@
    ✅ Index type
    ✅ Filtered index
    ❌ Expressions
-   ❌ Included columns
+   ✅ Included columns
 ❌ Generated columns
 ❌ Row level security
 ❌ Foreign keys

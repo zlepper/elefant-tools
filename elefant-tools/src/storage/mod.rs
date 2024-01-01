@@ -98,3 +98,39 @@ impl<S: Stream<Item=Result<Bytes>> + Send> TableData<S> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    pub static SOURCE_DATABASE_CREATE_SCRIPT: &str = r#"
+        create table people(
+            id serial primary key,
+            name text not null,
+            age int not null check (age > 0),
+            constraint multi_check check (name != 'fsgsdfgsdf' and age < 9999)
+        );
+
+        create index people_age_idx on people (age desc) include (name, id) where (age % 2 = 0);
+        create index people_age_brin_idx on people using brin (age);
+
+        insert into people(name, age)
+        values
+            ('foo', 42),
+            ('bar', 89),
+            ('nice', 69),
+            (E'str\nange', 420),
+            (E't\t\tap', 421),
+            (E'q''t', 12)
+            ;
+    "#;
+
+    pub fn get_expected_data() -> Vec<(i32, String, i32)> {
+        vec![
+            (1, "foo".to_string(), 42),
+            (2, "bar".to_string(), 89),
+            (3, "nice".to_string(), 69),
+            (4, "str\nange".to_string(), 420),
+            (5, "t\t\tap".to_string(), 421),
+            (6, "q't".to_string(), 12),
+        ]
+    }
+}

@@ -129,11 +129,15 @@ impl SchemaReader<'_> {
 
         let indices = indices.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
         for index in indices {
-            let mut columns = index_columns
+            let index_columns = index_columns
                 .iter()
                 .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name && c.index_name == index.index_name)
-                .map(|c| PostgresIndexColumn {
-                    name: c.attname.clone(),
+                .collect_vec();
+            let mut key_columns = index_columns
+                .iter()
+                .filter(|c| c.is_key)
+                .map(|c| PostgresIndexKeyColumn {
+                    name: c.indexdef.clone(),
                     ordinal_position: c.ordinal_position,
                     direction: if index.can_sort {
                         Some(match c.is_desc {
@@ -154,13 +158,25 @@ impl SchemaReader<'_> {
                 })
                 .collect_vec();
 
-            columns.sort();
+            key_columns.sort();
+
+            let mut included_columns = index_columns
+                .iter()
+                .filter(|c| !c.is_key)
+                .map(|c| PostgresIndexIncludedColumn {
+                    name: c.indexdef.clone(),
+                    ordinal_position: c.ordinal_position,
+                })
+                .collect_vec();
+
+            included_columns.sort();
 
             result.push(PostgresIndex {
                 name: index.index_name.clone(),
-                columns,
+                key_columns,
                 index_type: index.index_type.clone(),
                 predicate: index.index_predicate.clone(),
+                included_columns,
             });
         }
 
@@ -712,7 +728,7 @@ pub mod tests {
                         indices: vec![
                             PostgresIndex {
                                 name: "my_table_value_asc_nulls_first".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
                                     direction: Some(PostgresIndexColumnDirection::Ascending),
@@ -720,10 +736,11 @@ pub mod tests {
                                 }],
                                 index_type: "btree".to_string(),
                                 predicate: None,
+                                included_columns: vec![],
                             },
                             PostgresIndex {
                                 name: "my_table_value_asc_nulls_last".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
                                     direction: Some(PostgresIndexColumnDirection::Ascending),
@@ -731,10 +748,11 @@ pub mod tests {
                                 }],
                                 index_type: "btree".to_string(),
                                 predicate: None,
+                                included_columns: vec![],
                             },
                             PostgresIndex {
                                 name: "my_table_value_desc_nulls_first".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
                                     direction: Some(PostgresIndexColumnDirection::Descending),
@@ -742,10 +760,11 @@ pub mod tests {
                                 }],
                                 index_type: "btree".to_string(),
                                 predicate: None,
+                                included_columns: vec![],
                             },
                             PostgresIndex {
                                 name: "my_table_value_desc_nulls_last".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
                                     direction: Some(PostgresIndexColumnDirection::Descending),
@@ -753,6 +772,7 @@ pub mod tests {
                                 }],
                                 index_type: "btree".to_string(),
                                 predicate: None,
+                                included_columns: vec![],
                             },
                         ],
                     }],
@@ -796,7 +816,7 @@ pub mod tests {
                         indices: vec![
                             PostgresIndex {
                                 name: "my_table_gin".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "free_text".to_string(),
                                     ordinal_position: 1,
                                     direction: None,
@@ -804,10 +824,11 @@ pub mod tests {
                                 }],
                                 index_type: "gin".to_string(),
                                 predicate: None,
+                                included_columns: vec![],
                             },
                             PostgresIndex {
                                 name: "my_table_gist".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "free_text".to_string(),
                                     ordinal_position: 1,
                                     direction: None,
@@ -815,6 +836,7 @@ pub mod tests {
                                 }],
                                 index_type: "gist".to_string(),
                                 predicate: None,
+                                included_columns: vec![],
                             },
                         ],
                     }],
@@ -857,7 +879,7 @@ pub mod tests {
                         indices: vec![
                             PostgresIndex {
                                 name: "my_table_idx".to_string(),
-                                columns: vec![PostgresIndexColumn {
+                                key_columns: vec![PostgresIndexKeyColumn {
                                     name: "value".to_string(),
                                     ordinal_position: 1,
                                     direction: Some(PostgresIndexColumnDirection::Ascending),
@@ -865,6 +887,73 @@ pub mod tests {
                                 }],
                                 index_type: "btree".to_string(),
                                 predicate: Some("(value % 2) = 0".to_string()),
+                                included_columns: vec![],
+                            },
+                        ],
+                    }],
+                }]
+            }
+        )
+    }
+
+    #[test]
+    async fn index_with_include() {
+        let helper = get_test_helper().await;
+        //language=postgresql
+        helper
+            .execute_not_query(
+                r#"
+        create table my_table(
+            value int,
+            another_value int
+        );
+
+        create index my_table_idx on my_table (value) include (another_value);
+        "#,
+            )
+            .await;
+
+        let db = introspect_schema(&helper).await;
+
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
+                    name: "public".to_string(),
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "value".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: true,
+                                data_type: "integer".to_string(),
+                            },
+                            PostgresColumn {
+                                name: "another_value".to_string(),
+                                ordinal_position: 2,
+                                is_nullable: true,
+                                data_type: "integer".to_string(),
+                            },
+                        ],
+                        constraints: vec![],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "my_table_idx".to_string(),
+                                key_columns: vec![PostgresIndexKeyColumn {
+                                    name: "value".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![
+                                    PostgresIndexIncludedColumn {
+                                        name: "another_value".to_string(),
+                                        ordinal_position: 2,
+                                    }
+                                ],
                             },
                         ],
                     }],

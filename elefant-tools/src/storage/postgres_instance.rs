@@ -140,25 +140,7 @@ mod tests {
         let source = get_test_helper().await;
 
         //language=postgresql
-        source.execute_not_query(r#"
-        create table people(
-            id serial primary key,
-            name text not null unique,
-            age int not null check ( age > 0 ),
-            constraint multi_check check ( name != 'fsgsdfgsdf' and age < 9999 ),
-            constraint multi_unique unique ( name, age )
-        );
-
-        create index people_age_idx on people(age desc);
-
-        insert into people(name, age)
-        values
-            ('foo', 42),
-            ('bar', 89),
-            ('nice', 69),
-            (E'str\nange', 420)
-            ;
-        "#).await;
+        source.execute_not_query(storage::tests::SOURCE_DATABASE_CREATE_SCRIPT).await;
 
 
         let source_schema = introspect_schema(&source).await;
@@ -175,12 +157,7 @@ mod tests {
 
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
 
-        assert_eq!(items, vec![
-            (1, "foo".to_string(), 42),
-            (2, "bar".to_string(), 89),
-            (3, "nice".to_string(), 69),
-            (4, "str\nange".to_string(), 420),
-        ]);
+        assert_eq!(items, storage::tests::get_expected_data());
 
         let destination_schema = introspect_schema(&destination).await;
 

@@ -4,9 +4,10 @@ use crate::{PostgresSchema, PostgresTable};
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresIndex {
     pub name: String,
-    pub columns: Vec<PostgresIndexColumn>,
+    pub key_columns: Vec<PostgresIndexKeyColumn>,
     pub index_type: String,
     pub predicate: Option<String>,
+    pub included_columns: Vec<PostgresIndexIncludedColumn>,
 }
 
 impl Ord for PostgresIndex {
@@ -25,7 +26,7 @@ impl PostgresIndex {
     pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable) -> String {
         let mut command = format!("create index {} on {}.{} using {} (", self.name, schema.name, table.name, self.index_type);
 
-        for (i, column) in self.columns.iter().enumerate() {
+        for (i, column) in self.key_columns.iter().enumerate() {
             if i > 0 {
                 command.push_str(", ");
             }
@@ -53,34 +54,48 @@ impl PostgresIndex {
             }
         }
 
-        command.push_str(")");
+        command.push(')');
+
+        if !self.included_columns.is_empty() {
+            command.push_str(" include (");
+
+            for (i, column) in self.included_columns.iter().enumerate() {
+                if i > 0 {
+                    command.push_str(", ");
+                }
+
+                command.push_str(&column.name);
+            }
+
+            command.push(')');
+        }
 
         if let Some(ref predicate) = self.predicate {
             command.push_str(" where ");
             command.push_str(predicate);
         }
 
-        command.push_str(";");
+        command.push(';');
 
         command
     }
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct PostgresIndexColumn {
+pub struct PostgresIndexKeyColumn {
     pub name: String,
     pub ordinal_position: i32,
     pub direction: Option<PostgresIndexColumnDirection>,
     pub nulls_order: Option<PostgresIndexNullsOrder>,
 }
 
-impl Ord for PostgresIndexColumn {
+impl Ord for PostgresIndexKeyColumn {
     fn cmp(&self, other: &Self) -> Ordering {
         self.ordinal_position.cmp(&other.ordinal_position)
     }
 }
 
-impl PartialOrd for PostgresIndexColumn {
+impl PartialOrd for PostgresIndexKeyColumn {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -96,4 +111,22 @@ pub enum PostgresIndexColumnDirection {
 pub enum PostgresIndexNullsOrder {
     First,
     Last,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PostgresIndexIncludedColumn {
+    pub name: String,
+    pub ordinal_position: i32,
+}
+
+impl Ord for PostgresIndexIncludedColumn {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ordinal_position.cmp(&other.ordinal_position)
+    }
+}
+
+impl PartialOrd for PostgresIndexIncludedColumn {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }

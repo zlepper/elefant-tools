@@ -190,6 +190,7 @@ mod tests {
     use crate::test_helpers::*;
     use tokio::test;
     use crate::copy_data::{copy_data, CopyDataOptions};
+    use crate::storage;
     use crate::storage::postgres_instance::PostgresInstanceStorage;
 
     async fn export_to_string(source: &TestHelper) -> String {
@@ -216,27 +217,7 @@ mod tests {
         let source = get_test_helper().await;
 
         //language=postgresql
-        source.execute_not_query(r#"
-        create table people(
-            id serial primary key,
-            name text not null,
-            age int not null check (age > 0),
-            constraint multi_check check (name != 'fsgsdfgsdf' and age < 9999)
-        );
-
-        create index people_age_idx on people (age desc) where (age % 2 = 0);
-        create index people_age_brin_idx on people using brin (age);
-
-        insert into people(name, age)
-        values
-            ('foo', 42),
-            ('bar', 89),
-            ('nice', 69),
-            (E'str\nange', 420),
-            (E't\t\tap', 421),
-            (E'q''t', 12)
-            ;
-        "#).await;
+        source.execute_not_query(storage::tests::SOURCE_DATABASE_CREATE_SCRIPT).await;
 
 
         let result_file = export_to_string(&source).await;
@@ -261,7 +242,7 @@ mod tests {
             (6, E'q''t', 12);
 
             create index people_age_brin_idx on public.people using brin (age);
-            create index people_age_idx on public.people using btree (age desc nulls first) where (age % 2) = 0;
+            create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
             "#});
 
         let destination = get_test_helper().await;
@@ -270,14 +251,7 @@ mod tests {
 
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
 
-        assert_eq!(items, vec![
-            (1, "foo".to_string(), 42),
-            (2, "bar".to_string(), 89),
-            (3, "nice".to_string(), 69),
-            (4, "str\nange".to_string(), 420),
-            (5, "t\t\tap".to_string(), 421),
-            (6, "q't".to_string(), 12),
-        ]);
+        assert_eq!(items, storage::tests::get_expected_data());
     }
 
 

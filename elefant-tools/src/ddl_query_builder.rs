@@ -51,6 +51,13 @@ impl<'a> DdlTableBuilder<'a> {
         self
     }
 
+    pub fn check_constraint(&mut self, name: &str, expression: &str) -> &mut Self {
+        self.start_new_line();
+        self.query_builder.sql.push_str(&format!("    constraint {} check {}", name, expression));
+
+        self
+    }
+
     fn start_new_line(&mut self) {
         if self.has_first_line {
             self.query_builder.sql.push_str(",\n")
@@ -144,6 +151,42 @@ mod tests {
         create table public.my_table (
             id int not null,
             name varchar(255) not null
+        );
+        "#});
+    }
+
+    #[test]
+    fn check_constraint_single_column() {
+        let mut builder = DdlQueryBuilder::new();
+        let mut table_builder = builder.create_table("public", "my_table");
+        table_builder.column("id", "int");
+        table_builder.column("name", "varchar(255)");
+        table_builder.check_constraint("check_name", "(name != 'foo')");
+        let result = builder.build();
+
+        assert_eq!(result, indoc! {r#"
+        create table public.my_table (
+            id int,
+            name varchar(255),
+            constraint check_name check (name != 'foo')
+        );
+        "#});
+    }
+
+    #[test]
+    fn check_constraint_multiple_column() {
+        let mut builder = DdlQueryBuilder::new();
+        let mut table_builder = builder.create_table("public", "my_table");
+        table_builder.column("id", "int");
+        table_builder.column("name", "varchar(255)");
+        table_builder.check_constraint("check_name", "(name != 'foo' and id > 0)");
+        let result = builder.build();
+
+        assert_eq!(result, indoc! {r#"
+        create table public.my_table (
+            id int,
+            name varchar(255),
+            constraint check_name check (name != 'foo' and id > 0)
         );
         "#});
     }

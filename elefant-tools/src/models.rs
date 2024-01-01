@@ -24,6 +24,7 @@ pub struct PostgresTable {
     pub name: String,
     pub columns: Vec<PostgresColumn>,
     pub primary_key: Option<PostgresPrimaryKey>,
+    pub check_constraints: Vec<PostgresCheckConstraint>,
 }
 
 impl PostgresTable {
@@ -32,6 +33,7 @@ impl PostgresTable {
             name: name.to_string(),
             columns: vec![],
             primary_key: None,
+            check_constraints: vec![],
         }
     }
 
@@ -52,6 +54,10 @@ impl PostgresTable {
             let columns = pk.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
 
             table_builder.primary_key(&pk.name, columns);
+        }
+
+        for check_constraint in &self.check_constraints {
+            table_builder.check_constraint(&check_constraint.name, &check_constraint.check_clause);
         }
 
 
@@ -153,4 +159,10 @@ pub struct PostgresPrimaryKey {
 pub struct PostgresPrimaryKeyColumn {
     pub column_name: String,
     pub ordinal_position: i32,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PostgresCheckConstraint {
+    pub name: String,
+    pub check_clause: String,
 }

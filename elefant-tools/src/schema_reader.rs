@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use tokio_postgres::Row;
 use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
-use crate::Result;
+use crate::{PostgresCheckConstraint, Result};
 use crate::models::{PostgresColumn, PostgresDatabase, PostgresPrimaryKey, PostgresPrimaryKeyColumn, PostgresSchema, PostgresTable};
 
 pub struct SchemaReader<'a> {
@@ -41,7 +41,19 @@ impl SchemaReader<'_> {
             select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type from information_schema.key_column_usage kcu
             join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
             where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'FOREIGN KEY'
-            order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;;
+            order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;
+            "#
+        ).await?;
+
+        //language=postgresql
+        let check_constraints = self.connection.get_results::<CheckConstraintResult>(
+            r#"
+            select distinct t.table_schema, t.table_name, cc.constraint_name, cc.check_clause from information_schema.check_constraints cc
+            join information_schema.table_constraints tc on cc.constraint_schema = tc.constraint_schema and cc.constraint_name = tc.constraint_name
+            join information_schema.tables t on tc.table_schema = t.table_schema and tc.table_name = t.table_name
+            join information_schema.constraint_column_usage ccu on cc.constraint_schema = ccu.constraint_schema and cc.constraint_name = ccu.constraint_name
+            where t.table_schema not in ('pg_catalog', 'information_schema')
+            order by t.table_schema, t.table_name, cc.constraint_name;
             "#
         ).await?;
 
@@ -65,6 +77,8 @@ impl SchemaReader<'_> {
             let columns = columns.iter().filter(|c| c.schema_name == row.schema_name && c.table_name == row.table_name);
 
             let key_columns = key_columns.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
+
+            let check_constraints = check_constraints.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
 
             let mut table = PostgresTable::new(&row.table_name);
 
@@ -96,6 +110,13 @@ impl SchemaReader<'_> {
                 }
             }
 
+            for check_constraint in check_constraints {
+                table.check_constraints.push(PostgresCheckConstraint {
+                    name: check_constraint.constraint_name.clone(),
+                    check_clause: check_constraint.check_clause.clone(),
+                });
+            }
+
             current_schema.tables.push(table);
         }
 
@@ -104,6 +125,7 @@ impl SchemaReader<'_> {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 struct TablesResult {
     schema_name: String,
     table_name: String,
@@ -118,6 +140,7 @@ impl FromRow for TablesResult {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 struct TableColumnsResult {
     schema_name: String,
     table_name: String,
@@ -140,6 +163,7 @@ impl FromRow for TableColumnsResult {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
 struct KeyColumnUsageResult {
     pub table_schema: String,
     pub table_name: String,
@@ -164,6 +188,26 @@ impl FromRow for KeyColumnUsageResult {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+struct CheckConstraintResult {
+    pub table_schema: String,
+    pub table_name: String,
+    pub constraint_name: String,
+    pub check_clause: String,
+}
+
+impl FromRow for CheckConstraintResult {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(CheckConstraintResult {
+            table_schema: row.try_get(0)?,
+            table_name: row.try_get(1)?,
+            constraint_name: row.try_get(2)?,
+            check_clause: row.try_get(3)?,
+        })
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
 enum ConstraintType {
     PrimaryKey,
     ForeignKey,
@@ -206,7 +250,8 @@ pub mod tests {
         create table my_table(
             id serial primary key,
             name text not null,
-            age int not null
+            age int not null check (age > 21),
+            constraint my_multi_check check (age > 21 and age < 65 and name is not null)
         );
         "#).await;
 
@@ -248,6 +293,16 @@ pub mod tests {
                                     }
                                 ],
                             }),
+                            check_constraints: vec![
+                                PostgresCheckConstraint {
+                                    name: "my_multi_check".to_string(),
+                                    check_clause: "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))".to_string(),
+                                },
+                                PostgresCheckConstraint {
+                                    name: "my_table_age_check".to_string(),
+                                    check_clause: "((age > 21))".to_string(),
+                                },
+                            ],
                         }
                     ],
                 }
@@ -272,6 +327,7 @@ pub mod tests {
                             name: "my_table".to_string(),
                             primary_key: None,
                             columns: vec![],
+                            check_constraints: vec![],
                         }
                     ],
                     name: "public".to_string(),
@@ -314,6 +370,7 @@ pub mod tests {
                                 },
                             ],
                             primary_key: None,
+                            check_constraints: vec![],
                         }
                     ],
                 }
@@ -382,6 +439,7 @@ pub mod tests {
                                     },
                                 ],
                             }),
+                            check_constraints: vec![],
                         }
                     ],
                 }

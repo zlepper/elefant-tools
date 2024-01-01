@@ -83,11 +83,6 @@ impl TestHelper {
         &self.main_connection
     }
 
-    pub fn get_current_database_name(&self) -> String {
-        self.test_db_name.clone()
-    }
-
-
     pub async fn copy_in<U>(&self, sql: &str) -> CopyInSink<U>
         where U: Buf + Send + 'static
     {

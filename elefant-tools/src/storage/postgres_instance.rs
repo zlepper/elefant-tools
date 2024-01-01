@@ -122,6 +122,7 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 mod tests {
     use tokio::test;
     use crate::copy_data::{copy_data, CopyDataOptions};
+    use crate::schema_reader::tests::introspect_schema;
     use super::*;
     use crate::test_helpers::*;
 
@@ -134,7 +135,8 @@ mod tests {
         create table people(
             id serial primary key,
             name text not null,
-            age int not null
+            age int not null check ( age > 0 ),
+            constraint multi_check check ( name != 'fsgsdfgsdf' and age < 9999 )
         );
 
         insert into people(name, age)
@@ -147,6 +149,7 @@ mod tests {
         "#).await;
 
 
+        let source_schema = introspect_schema(&source).await;
         let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
 
         let destination = get_test_helper().await;
@@ -166,6 +169,14 @@ mod tests {
             (3, "nice".to_string(), 69),
             (4, "str\nange".to_string(), 420),
         ]);
+
+        let destination_schema = introspect_schema(&destination).await;
+
+        assert_eq!(source_schema, destination_schema);
+
+        // TODO: Make sure primary key auto increments
+        let result = destination.get_conn().execute_non_query("insert into people (id, name, age) values (5, 'new-value', 10000)").await;
+        assert!(result.is_err(), "Expected error, got {:?}", result);
     }
 
 

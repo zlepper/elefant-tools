@@ -8,7 +8,8 @@ mod elefant_file;
 mod sql_file;
 mod postgres_instance;
 
-pub use elefant_file::ElefantFileStorage;
+// pub use elefant_file::ElefantFileDestinationStorage;
+pub use sql_file::SqlFile;
 
 #[async_trait]
 pub trait BaseCopyTarget {

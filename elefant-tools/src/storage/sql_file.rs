@@ -206,7 +206,8 @@ mod tests {
         create table people(
             id serial primary key,
             name text not null,
-            age int not null
+            age int not null check (age > 0),
+            constraint multi_check check (name != 'fsgsdfgsdf' and age < 9999)
         );
 
         insert into people(name, age)
@@ -229,7 +230,9 @@ mod tests {
                 id integer not null,
                 name text not null,
                 age integer not null,
-                constraint people_pkey primary key (id)
+                constraint people_pkey primary key (id),
+                constraint multi_check check (((name <> 'fsgsdfgsdf'::text) AND (age < 9999))),
+                constraint people_age_check check ((age > 0))
             );
 
             insert into public.people (id, name, age) values

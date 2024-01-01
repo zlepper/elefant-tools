@@ -478,6 +478,8 @@ pub mod tests {
             age int not null check (age > 21),
             constraint my_multi_check check (age > 21 and age < 65 and name is not null)
         );
+
+        create index lower_case_name_idx on my_table (lower(name));
         "#,
             )
             .await;
@@ -537,7 +539,20 @@ pub mod tests {
                                 check_clause: "((age > 21))".to_string(),
                             }),
                         ],
-                        indices: vec![],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "lower_case_name_idx".to_string(),
+                                key_columns: vec![PostgresIndexKeyColumn {
+                                    name: "lower(name)".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                            }
+                        ],
                     }],
                 }]
             }

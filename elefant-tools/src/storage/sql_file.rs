@@ -243,6 +243,7 @@ mod tests {
 
             create index people_age_brin_idx on public.people using brin (age);
             create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
+            create index people_name_lower_idx on public.people using btree (lower(name) asc nulls last);
             "#});
 
         let destination = get_test_helper().await;

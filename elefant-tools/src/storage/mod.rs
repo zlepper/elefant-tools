@@ -111,6 +111,7 @@ mod tests {
 
         create index people_age_idx on people (age desc) include (name, id) where (age % 2 = 0);
         create index people_age_brin_idx on people using brin (age);
+        create index people_name_lower_idx on people (lower(name));
 
         insert into people(name, age)
         values

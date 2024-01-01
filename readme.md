@@ -14,12 +14,12 @@
 ➕ Unique constraints
   ❌ Relational null
   ❌ Using explicit unique index
-➕ Indexes
+✅ Indexes
    ✅ Column direction
    ✅ Nulls first/last
    ✅ Index type
    ✅ Filtered index
-   ❌ Expressions
+   ✅ Expressions
    ✅ Included columns
 ❌ Generated columns
 ❌ Row level security

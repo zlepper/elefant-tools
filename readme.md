@@ -1,5 +1,4 @@
 # TODOs:
-* Check constraints
 * Unique constraints
 * Generated columns
 * Indexes
@@ -10,6 +9,7 @@
 * Materialized views
 * Stored procedures
 * Functions
+* Check constraints calling functions
 * Extensions
 * Comments
 * Partitions

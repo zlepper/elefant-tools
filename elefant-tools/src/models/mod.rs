@@ -7,6 +7,7 @@ mod table;
 mod schema;
 mod database;
 mod index;
+mod sequence;
 
 pub use constraint::*;
 pub use unique_constraint::*;
@@ -17,3 +18,4 @@ pub use table::*;
 pub use schema::*;
 pub use database::*;
 pub use index::*;
+pub use sequence::*;

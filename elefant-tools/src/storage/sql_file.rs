@@ -36,7 +36,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
         let file = File::create(path).await?;
         Ok(SqlFile {
             file: BufWriter::new(file),
-            options
+            options,
         })
     }
 }
@@ -86,7 +86,6 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
             match bytes {
                 Ok(bytes) => {
                     if count % self.options.max_rows_per_insert == 0 {
-
                         if count > 0 {
                             file.write_all(b";\n\n").await?;
                         }
@@ -123,7 +122,6 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
 
                         match bytes {
                             Ok(bytes) => {
-
                                 if bytes == [b'\\', b'N'] {
                                     file.write_all(b"null").await?;
                                     continue;
@@ -146,11 +144,9 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                                     SimplifiedDataType::Text => {
                                         file.write_all(b"E'").await?;
                                         if bytes.contains(&b'\'') {
-
                                             let s = std::str::from_utf8(&bytes).unwrap();
                                             let s = s.replace('\'', "''");
                                             file.write_all(s.as_bytes()).await?;
-
                                         } else {
                                             file.write_all(&bytes).await?;
                                         }
@@ -186,23 +182,47 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
         for schema in &db.schemas {
             for (i, table) in schema.tables.iter().enumerate() {
                 if i != 0 {
-                    self.file.write_all("\n".as_bytes()).await?;
+                    self.file.write_all(b"\n").await?;
                 }
 
                 for index in &table.indices {
                     let sql = index.get_create_index_command(schema, table);
                     self.file.write_all(sql.as_bytes()).await?;
-                    self.file.write_all("\n".as_bytes()).await?;
+                    self.file.write_all(b"\n").await?;
                 }
 
                 for constraint in &table.constraints {
                     if let PostgresConstraint::Unique(unique) = constraint {
                         let sql = unique.get_create_statement(schema, table);
                         self.file.write_all(sql.as_bytes()).await?;
-                        self.file.write_all("\n".as_bytes()).await?;
+                        self.file.write_all(b"\n").await?;
                     }
                 }
+            }
 
+            for sequence in schema.sequences.iter() {
+                self.file.write_all(b"\n").await?;
+
+                let sql = sequence.get_create_statement(schema);
+                self.file.write_all(sql.as_bytes()).await?;
+                self.file.write_all(b"\n").await?;
+
+                if let Some(sql) = sequence.get_set_value_statement(schema) {
+                    self.file.write_all(sql.as_bytes()).await?;
+                    self.file.write_all(b"\n").await?;
+                }
+            }
+
+            self.file.write_all(b"\n").await?;
+
+            for table in &schema.tables {
+                for column in &table.columns {
+                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema) {
+                        self.file.write_all(sql.as_bytes()).await?;
+                        self.file.write_all(b"\n").await?;
+
+                    }
+                }
             }
         }
 
@@ -221,7 +241,6 @@ mod tests {
     use crate::storage::postgres_instance::PostgresInstanceStorage;
 
     async fn export_to_string(source: &TestHelper) -> String {
-
         let mut result_file = Vec::<u8>::new();
 
         {
@@ -281,6 +300,14 @@ mod tests {
             create index people_name_lower_idx on public.people using btree (lower(name) asc nulls last);
 
             alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (parent_id, name);
+
+            create sequence public.people_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            select pg_catalog.setval('public.people_id_seq', 6, true);
+
+            create sequence public.tree_node_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
+            alter table public.people alter column id set default nextval('people_id_seq'::regclass);
+            alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
             "#});
 
         let destination = get_test_helper().await;
@@ -294,7 +321,6 @@ mod tests {
         destination.execute_not_query("insert into tree_node(id, name, parent_id) values (1, 'foo', null), (2, 'bar', 1)").await;
         let result = destination.get_conn().execute_non_query("insert into tree_node(id, name, parent_id) values (3, 'foo', null)").await;
         assert_pg_error(result, 23505);
-
     }
 
 
@@ -333,6 +359,7 @@ mod tests {
             ('Infinity', 'Infinity'),
             ('-Infinity', '-Infinity'),
             (null, null);
+
 
             "#});
 

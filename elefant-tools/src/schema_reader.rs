@@ -4,6 +4,7 @@ use crate::Result;
 use itertools::Itertools;
 use std::str::FromStr;
 use tokio_postgres::Row;
+use crate::models::PostgresSequence;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -21,21 +22,13 @@ impl SchemaReader<'_> {
         let check_constraints = self.get_check_constraints().await?;
         let indices = self.get_indices().await?;
         let index_columns = self.get_index_columns().await?;
+        let sequences = self.get_sequences().await?;
 
         let mut db = PostgresDatabase { schemas: vec![] };
 
-        for row in tables {
-            let current_schema = match db.schemas.last_mut() {
-                Some(last) if last.name == row.schema_name => last,
-                _ => {
-                    db.schemas.push(PostgresSchema {
-                        name: row.schema_name.clone(),
-                        tables: vec![],
-                    });
 
-                    db.schemas.last_mut().unwrap()
-                }
-            };
+        for row in tables {
+            let current_schema = db.get_or_create_schema_mut(&row.schema_name);
 
             let table = PostgresTable {
                 name: row.table_name.clone(),
@@ -45,6 +38,24 @@ impl SchemaReader<'_> {
             };
 
             current_schema.tables.push(table);
+        }
+
+        for sequence in sequences {
+            let current_schema = db.get_or_create_schema_mut(&sequence.schema_name);
+
+            let sequence = PostgresSequence {
+                name: sequence.sequence_name.clone(),
+                data_type: sequence.data_type.clone(),
+                start_value: sequence.start_value,
+                increment: sequence.increment_by,
+                min_value: sequence.min_value,
+                max_value: sequence.max_value,
+                cache_size: sequence.cache_size,
+                cycle: sequence.cycle,
+                last_value: sequence.last_value,
+            };
+
+            current_schema.sequences.push(sequence);
         }
 
         Ok(db)
@@ -266,7 +277,7 @@ impl SchemaReader<'_> {
         //language=postgresql
         self.connection.get_results(
             r#"
-            select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type from information_schema.tables t
+            select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type, c.column_default from information_schema.tables t
             join information_schema.columns c on t.table_schema = c.table_schema and t.table_name = c.table_name
             where t.table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and t.table_type = 'BASE TABLE'
             order by c.table_schema, c.table_name, c.ordinal_position;
@@ -281,6 +292,27 @@ impl SchemaReader<'_> {
             select table_schema, table_name from information_schema.tables
             where table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and table_type = 'BASE TABLE'
             order by table_schema, table_name;
+            "#
+        ).await
+    }
+
+    async fn get_sequences(&self) -> Result<Vec<SequenceResult>> {
+        //language=postgresql
+        self.connection.get_results(
+            r#"
+            select s.schemaname,
+                   s.sequencename,
+                   s.data_type::text,
+                   s.start_value,
+                   s.min_value,
+                   s.max_value,
+                   s.increment_by,
+                   s.cycle,
+                   s.cache_size,
+                   s.last_value
+            from pg_sequences s
+            where s.schemaname not in ('pg_catalog', 'pg_toast', 'information_schema')
+            order by s.schemaname, s.sequencename;
             "#
         ).await
     }
@@ -309,6 +341,7 @@ struct TableColumnsResult {
     ordinal_position: i32,
     is_nullable: bool,
     data_type: String,
+    column_default: Option<String>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -320,6 +353,7 @@ impl FromRow for TableColumnsResult {
             ordinal_position: row.try_get(3)?,
             is_nullable: row.try_get::<usize, String>(4)? != "NO",
             data_type: row.try_get(5)?,
+            column_default: row.try_get(6)?,
         })
     }
 }
@@ -331,6 +365,7 @@ impl TableColumnsResult {
             is_nullable: self.is_nullable,
             ordinal_position: self.ordinal_position,
             data_type: self.data_type.clone(),
+            default_value: self.column_default.clone(),
         }
     }
 }
@@ -457,12 +492,43 @@ impl FromRow for IndexResult {
     }
 }
 
+pub struct SequenceResult {
+    schema_name: String,
+    sequence_name: String,
+    data_type: String,
+    start_value: i64,
+    min_value: i64,
+    max_value: i64,
+    increment_by: i64,
+    cycle: bool,
+    cache_size: i64,
+    last_value: Option<i64>,
+}
+
+impl FromRow for SequenceResult {
+    fn from_row(row: Row) -> Result<Self> {
+         Ok(Self {
+             schema_name: row.try_get(0)?,
+             sequence_name: row.try_get(1)?,
+             data_type: row.try_get(2)?,
+             start_value: row.try_get(3)?,
+             min_value: row.try_get(4)?,
+             max_value: row.try_get(5)?,
+             increment_by: row.try_get(6)?,
+             cycle: row.try_get(7)?,
+             cache_size: row.try_get(8)?,
+             last_value: row.try_get(9)?,
+         })
+    }
+}
+
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
     use crate::test_helpers::{get_test_helper, TestHelper};
     use tokio::test;
+    use crate::default;
 
     pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
         let conn = test_helper.get_conn();
@@ -484,6 +550,8 @@ pub mod tests {
         );
 
         create index lower_case_name_idx on my_table (lower(name));
+
+        insert into my_table(name, age) values ('foo', 42), ('bar', 22);
         "#,
             )
             .await;
@@ -503,18 +571,21 @@ pub mod tests {
                                 ordinal_position: 1,
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
+                                default_value: Some("nextval('my_table_id_seq'::regclass)".to_string()),
                             },
                             PostgresColumn {
                                 name: "name".to_string(),
                                 ordinal_position: 2,
                                 is_nullable: false,
                                 data_type: "text".to_string(),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "age".to_string(),
                                 ordinal_position: 3,
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                         ],
                         constraints: vec![
@@ -559,6 +630,17 @@ pub mod tests {
                             }
                         ],
                     }],
+                    sequences: vec![PostgresSequence {
+                        name: "my_table_id_seq".to_string(),
+                        data_type: "integer".to_string(),
+                        start_value: 1,
+                        increment: 1,
+                        min_value: 1,
+                        max_value: 2147483647,
+                        cache_size: 1,
+                        cycle: false,
+                        last_value: Some(2),
+                    }],
                 }]
             }
         )
@@ -588,6 +670,7 @@ pub mod tests {
                         indices: vec![],
                     }],
                     name: "public".to_string(),
+                    sequences: vec![],
                 }]
             }
         )
@@ -622,17 +705,20 @@ pub mod tests {
                                 ordinal_position: 1,
                                 is_nullable: false,
                                 data_type: "text".to_string(),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "age".to_string(),
                                 ordinal_position: 2,
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                         ],
                         constraints: vec![],
                         indices: vec![],
                     }],
+                    sequences: vec![],
                 }]
             }
         )
@@ -670,24 +756,28 @@ pub mod tests {
                                 ordinal_position: 1,
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "id_part_2".to_string(),
                                 ordinal_position: 2,
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "name".to_string(),
                                 ordinal_position: 3,
                                 is_nullable: true,
                                 data_type: "text".to_string(),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "age".to_string(),
                                 ordinal_position: 4,
                                 is_nullable: true,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                         ],
                         constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
@@ -705,6 +795,7 @@ pub mod tests {
                         }), ],
                         indices: vec![],
                     }],
+                    sequences: vec![],
                 }]
             }
         )
@@ -743,6 +834,7 @@ pub mod tests {
                             ordinal_position: 1,
                             is_nullable: true,
                             data_type: "integer".to_string(),
+                            ..default()
                         }, ],
                         constraints: vec![],
                         indices: vec![
@@ -796,6 +888,7 @@ pub mod tests {
                             },
                         ],
                     }],
+                    sequences: vec![],
                 }]
             }
         )
@@ -831,6 +924,7 @@ pub mod tests {
                             ordinal_position: 1,
                             is_nullable: true,
                             data_type: "tsvector".to_string(),
+                            ..default()
                         }, ],
                         constraints: vec![],
                         indices: vec![
@@ -860,6 +954,7 @@ pub mod tests {
                             },
                         ],
                     }],
+                    sequences: vec![],
                 }]
             }
         )
@@ -894,6 +989,7 @@ pub mod tests {
                             ordinal_position: 1,
                             is_nullable: true,
                             data_type: "integer".to_string(),
+                            ..default()
                         }, ],
                         constraints: vec![],
                         indices: vec![
@@ -911,6 +1007,7 @@ pub mod tests {
                             },
                         ],
                     }],
+                    sequences: vec![],
                 }]
             }
         )
@@ -948,12 +1045,14 @@ pub mod tests {
                                 ordinal_position: 1,
                                 is_nullable: true,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "another_value".to_string(),
                                 ordinal_position: 2,
                                 is_nullable: true,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                         ],
                         constraints: vec![],
@@ -977,6 +1076,7 @@ pub mod tests {
                             },
                         ],
                     }],
+                    sequences: vec![],
                 }]
             }
         )
@@ -1011,6 +1111,7 @@ pub mod tests {
                                 ordinal_position: 1,
                                 is_nullable: true,
                                 data_type: "integer".to_string(),
+                                ..default()
                             },
                         ],
                         constraints: vec![
@@ -1025,6 +1126,7 @@ pub mod tests {
                         ],
                         indices: vec![],
                     }],
+                    sequences: vec![],
                 }]
             }
         )

@@ -29,7 +29,6 @@ impl<'a> PostgresInstanceStorage<'a> {
 
 #[async_trait]
 impl BaseCopyTarget for PostgresInstanceStorage<'_> {
-
     async fn supported_data_format(&self) -> Result<Vec<DataFormat>> {
         Ok(vec![
             DataFormat::Text,
@@ -64,13 +63,13 @@ impl<'a> CopySource for PostgresInstanceStorage<'a> {
                 Ok(TableData::Text {
                     data: stream
                 })
-            },
+            }
             DataFormat::PostgresBinary { .. } => {
                 Ok(TableData::PostgresBinary {
                     postgres_version: self.postgres_version.clone(),
                     data: stream,
                 })
-            },
+            }
         }
     }
 }
@@ -80,7 +79,6 @@ impl<'a> CopySource for PostgresInstanceStorage<'a> {
 impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
     async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
-
             self.connection.execute_non_query(&schema.get_create_statement()).await?;
 
             for table in &schema.tables {
@@ -126,6 +124,22 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
                     }
                 }
             }
+
+            for sequence in &schema.sequences {
+                self.connection.execute_non_query(&sequence.get_create_statement(schema)).await?;
+                if let Some(sql) = sequence.get_set_value_statement(schema) {
+                    self.connection.execute_non_query(&sql).await?;
+                }
+            }
+
+
+            for table in &schema.tables {
+                for column in &table.columns {
+                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema) {
+                        self.connection.execute_non_query(&sql).await?;
+                    }
+                }
+            }
         }
 
         Ok(())
@@ -157,7 +171,6 @@ mod tests {
         copy_data(&source, &mut destination_worker, CopyDataOptions {
             data_format: Some(data_format)
         }).await.expect("Failed to copy data");
-
 
 
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
@@ -193,5 +206,4 @@ mod tests {
     async fn copies_between_databases_text_format() {
         test_copy(DataFormat::Text).await;
     }
-
 }

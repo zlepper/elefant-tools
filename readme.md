@@ -8,7 +8,8 @@
 
 ```
 ✅ Primary keys
-❌ Sequences
+✅ Sequences
+  ❌ owned by
 ❌ Foreign keys
 ✅ Not null constraints
 ➕ Check constraints
@@ -39,7 +40,7 @@
 ✅ Schemas
 ❌ Roles
 ❌ Users
-❌ Defaults
+✅ Default values
 ❌ Quoted identifier names
 ❌ Array columns
 ```

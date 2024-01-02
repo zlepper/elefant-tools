@@ -17,7 +17,9 @@ pub use ddl_query_builder::*;
 pub use models::*;
 
 
-
+pub(crate) fn default<T: Default>() -> T {
+    T::default()
+}
 
 
 

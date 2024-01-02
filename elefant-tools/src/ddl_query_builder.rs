@@ -78,6 +78,14 @@ impl<'a> DdlTableColumnBuilder<'a> {
 
         self
     }
+
+    pub fn generated(&mut self, expression: &str) -> &mut Self {
+        self.sql.push_str(" generated always as (");
+        self.sql.push_str(expression);
+        self.sql.push_str(") stored");
+
+        self
+    }
 }
 
 
@@ -187,6 +195,21 @@ mod tests {
             id int,
             name varchar(255),
             constraint check_name check (name != 'foo' and id > 0)
+        );
+        "#});
+    }
+    #[test]
+    fn generated_column() {
+        let mut builder = DdlQueryBuilder::new();
+        let mut table_builder = builder.create_table("public", "my_table");
+        table_builder.column("name", "text");
+        table_builder.column("search", "tsvector").generated("to_tsvector('english', name)");
+        let result = builder.build();
+
+        assert_eq!(result, indoc! {r#"
+        create table public.my_table (
+            name text,
+            search tsvector generated always as (to_tsvector('english', name)) stored
         );
         "#});
     }

@@ -40,6 +40,10 @@ impl PostgresTable {
             if !column.is_nullable {
                 column_builder.not_null();
             }
+
+            if let Some(generated) = &column.generated {
+                column_builder.generated(generated);
+            }
         }
 
         for constraint in &self.constraints {
@@ -73,10 +77,7 @@ impl PostgresTable {
 
         s.push_str(" (");
 
-        let cols = self.columns.iter()
-            .sorted_by_key(|c| c.ordinal_position)
-            .map(|c| c.name.as_str())
-            .join(", ");
+        let cols = self.get_copy_columns_expression();
 
         s.push_str(&cols);
 
@@ -102,10 +103,7 @@ impl PostgresTable {
 
         s.push_str(" (");
 
-        let cols = self.columns.iter()
-            .sorted_by_key(|c| c.ordinal_position)
-            .map(|c| c.name.as_str())
-            .join(", ");
+        let cols = self.get_copy_columns_expression();
 
         s.push_str(&cols);
         s.push_str(") ");
@@ -122,5 +120,13 @@ impl PostgresTable {
         s.push_str(", header false, encoding 'utf-8');");
 
         s
+    }
+
+    fn get_copy_columns_expression(&self) -> String {
+        self.columns.iter()
+            .filter(|c| c.generated.is_none())
+            .sorted_by_key(|c| c.ordinal_position)
+            .map(|c| c.name.as_str())
+            .join(", ")
     }
 }

@@ -355,7 +355,7 @@ impl SchemaReader<'_> {
         //language=postgresql
         self.connection.get_results(
             r#"
-            select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type, c.column_default from information_schema.tables t
+            select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type, c.column_default, c.generation_expression from information_schema.tables t
             join information_schema.columns c on t.table_schema = c.table_schema and t.table_name = c.table_name
             where t.table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and t.table_type = 'BASE TABLE'
             order by c.table_schema, c.table_name, c.ordinal_position;
@@ -474,6 +474,7 @@ struct TableColumnsResult {
     is_nullable: bool,
     data_type: String,
     column_default: Option<String>,
+    generated: Option<String>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -486,6 +487,7 @@ impl FromRow for TableColumnsResult {
             is_nullable: row.try_get::<usize, String>(4)? != "NO",
             data_type: row.try_get(5)?,
             column_default: row.try_get(6)?,
+            generated: row.try_get(7)?,
         })
     }
 }
@@ -498,6 +500,7 @@ impl TableColumnsResult {
             ordinal_position: self.ordinal_position,
             data_type: self.data_type.clone(),
             default_value: self.column_default.clone(),
+            generated: self.generated.clone(),
         }
     }
 }

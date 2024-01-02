@@ -7,6 +7,7 @@ pub struct PostgresColumn {
     pub is_nullable: bool,
     pub data_type: String,
     pub default_value: Option<String>,
+    pub generated: Option<String>,
 }
 
 impl PostgresColumn {
@@ -32,7 +33,8 @@ impl Default for PostgresColumn {
             ordinal_position: 0,
             is_nullable: true,
             data_type: "".to_string(),
-            default_value: None
+            default_value: None,
+            generated: None,
         }
     }
 }

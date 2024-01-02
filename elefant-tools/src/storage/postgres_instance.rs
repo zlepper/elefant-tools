@@ -284,4 +284,11 @@ mod tests {
             FOREIGN KEY (tenant_id, author_id) REFERENCES users ON DELETE SET NULL (author_id)
         );
     "#);
+
+    test_round_trip!(generated_columns, r#"
+    CREATE TABLE people (
+        height_cm numeric,
+        height_in numeric GENERATED ALWAYS AS (height_cm / 2.54) STORED
+    );
+    "#);
 }

@@ -26,7 +26,7 @@
    ✅ Expressions
    ✅ Included columns
    ❌ Index storage parameters
-❌ Generated columns
+✅ Generated columns
 ❌ Row level security
 ❌ Triggers
 ❌ Views

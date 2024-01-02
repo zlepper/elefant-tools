@@ -45,6 +45,7 @@ async fn reads_simple_schema() {
                             is_nullable: false,
                             data_type: "integer".to_string(),
                             default_value: Some("nextval('my_table_id_seq'::regclass)".to_string()),
+                            ..default()
                         },
                         PostgresColumn {
                             name: "name".to_string(),
@@ -627,6 +628,7 @@ async fn foreign_keys() {
                             is_nullable: false,
                             data_type: "integer".to_string(),
                             default_value: Some("nextval('items_id_seq'::regclass)".to_string()),
+                            ..default()
                         },],
                         constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
                             name: "items_pkey".to_string(),
@@ -648,6 +650,7 @@ async fn foreign_keys() {
                                 default_value: Some(
                                     "nextval('users_id_seq'::regclass)".to_string()
                                 ),
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "item_id".to_string(),
@@ -754,6 +757,7 @@ async fn foreign_key_constraints() {
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
                                 default_value: None,
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "order_id".to_string(),
@@ -761,6 +765,7 @@ async fn foreign_key_constraints() {
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
                                 default_value: None,
+                                ..default()
                             },
                         ],
                         constraints: vec![
@@ -820,6 +825,7 @@ async fn foreign_key_constraints() {
                             is_nullable: false,
                             data_type: "integer".to_string(),
                             default_value: None,
+                            ..default()
                         }],
                         constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
                             name: "orders_pkey".to_string(),
@@ -838,6 +844,7 @@ async fn foreign_key_constraints() {
                             is_nullable: false,
                             data_type: "integer".to_string(),
                             default_value: None,
+                            ..default()
                         },],
                         constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
                             name: "products_pkey".to_string(),
@@ -853,4 +860,55 @@ async fn foreign_key_constraints() {
             }]
         }
     )
+}
+
+#[test]
+async fn generated_column() {
+
+    let helper = get_test_helper("helper").await;
+    //language=postgresql
+    helper
+        .execute_not_query(
+            r#"
+    CREATE TABLE products (
+        name text not null,
+        search tsvector not null GENERATED ALWAYS AS (to_tsvector('english', name)) STORED
+    );
+    "#,
+        )
+        .await;
+
+    let db = introspect_schema(&helper).await;
+
+    assert_eq!(db, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                sequences: vec![],
+                tables: vec![
+                    PostgresTable {
+                        name: "products".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "search".to_string(),
+                                ordinal_position: 2,
+                                is_nullable: false,
+                                data_type: "tsvector".to_string(),
+                                generated: Some("to_tsvector('english'::regconfig, name)".to_string()),
+                                ..default()
+                            },
+                        ],
+                        ..default()
+                    }
+                ]
+            }
+        ]
+    })
 }

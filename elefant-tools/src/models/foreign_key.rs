@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::str::FromStr;
 use itertools::Itertools;
 use crate::{PostgresSchema, PostgresTable};
 
@@ -8,7 +9,23 @@ pub struct PostgresForeignKey {
     pub columns: Vec<PostgresForeignKeyColumn>,
     pub referenced_schema: Option<String>,
     pub referenced_table: String,
-    pub referenced_columns: Vec<PostgresForeignKeyColumn>,
+    pub referenced_columns: Vec<PostgresForeignKeyReferencedColumn>,
+    pub update_action: ReferenceAction,
+    pub delete_action: ReferenceAction,
+}
+
+impl Default for PostgresForeignKey {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            columns: Vec::new(),
+            referenced_schema: None,
+            referenced_table: String::new(),
+            referenced_columns: Vec::new(),
+            update_action: ReferenceAction::NoAction,
+            delete_action: ReferenceAction::NoAction,
+        }
+    }
 }
 
 impl PostgresForeignKey {
@@ -35,7 +52,43 @@ impl PostgresForeignKey {
             .join(", ");
 
         sql.push_str(&referenced_columns);
-        sql.push_str(");");
+        sql.push(')');
+
+
+        if self.update_action != ReferenceAction::NoAction {
+            sql.push_str(" on update ");
+            sql.push_str(match self.update_action {
+                ReferenceAction::NoAction => unreachable!(),
+                ReferenceAction::Restrict => "restrict",
+                ReferenceAction::Cascade => "cascade",
+                ReferenceAction::SetNull => "set null",
+                ReferenceAction::SetDefault => "set default",
+            });
+        }
+
+        if self.delete_action != ReferenceAction::NoAction {
+            sql.push_str(" on delete ");
+            sql.push_str(match self.delete_action {
+                ReferenceAction::NoAction => unreachable!(),
+                ReferenceAction::Restrict => "restrict",
+                ReferenceAction::Cascade => "cascade",
+                ReferenceAction::SetNull => "set null",
+                ReferenceAction::SetDefault => "set default",
+            });
+        }
+
+        if self.columns.iter().any(|c| !c.affected_by_delete_action)  {
+            let affected_columns = self.columns.iter().filter(|c| c.affected_by_delete_action)
+                .map(|c| c.name.as_str())
+                .join(", ");
+
+            sql.push('(');
+            sql.push_str(&affected_columns);
+            sql.push(')');
+        }
+
+        sql.push(';');
+
 
         sql
     }
@@ -57,6 +110,7 @@ impl PartialOrd for PostgresForeignKey {
 pub struct PostgresForeignKeyColumn {
     pub name: String,
     pub ordinal_position: i32,
+    pub affected_by_delete_action: bool,
 }
 
 impl Ord for PostgresForeignKeyColumn {
@@ -68,5 +122,47 @@ impl Ord for PostgresForeignKeyColumn {
 impl PartialOrd for PostgresForeignKeyColumn {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PostgresForeignKeyReferencedColumn {
+    pub name: String,
+    pub ordinal_position: i32,
+}
+
+impl Ord for PostgresForeignKeyReferencedColumn {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ordinal_position.cmp(&other.ordinal_position)
+    }
+}
+
+impl PartialOrd for PostgresForeignKeyReferencedColumn {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum ReferenceAction {
+    NoAction,
+    Restrict,
+    Cascade,
+    SetNull,
+    SetDefault,
+}
+
+impl FromStr for ReferenceAction {
+    type Err = crate::ElefantToolsError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "a"|"NO ACTION" => Ok(ReferenceAction::NoAction),
+            "r"|"RESTRICT" => Ok(ReferenceAction::Restrict),
+            "c"|"CASCADE" => Ok(ReferenceAction::Cascade),
+            "n"|"SET NULL" => Ok(ReferenceAction::SetNull),
+            "d"|"SET DEFAULT" => Ok(ReferenceAction::SetDefault),
+            _ => Err(crate::ElefantToolsError::UnknownForeignKeyAction(s.to_string())),
+        }
     }
 }

@@ -22,6 +22,9 @@ pub enum ElefantToolsError {
     #[error("Unknown constraint type '{0}'")]
     UnknownConstraintType(String),
 
+    #[error("Unknown foreign key action '{0}'")]
+    UnknownForeignKeyAction(String),
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

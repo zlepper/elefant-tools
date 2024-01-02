@@ -215,4 +215,73 @@ mod tests {
     async fn copies_between_databases_text_format() {
         test_copy(DataFormat::Text).await;
     }
+
+    async fn test_round_trip(sql: &str) {
+        let source = get_test_helper("source").await;
+
+        source.execute_not_query(sql).await;
+
+        let source_schema = introspect_schema(&source).await;
+        let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
+
+        let destination = get_test_helper("destination").await;
+        let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn()).await.unwrap();
+
+        copy_data(&source, &mut destination_worker, CopyDataOptions {
+            data_format: None
+        }).await.expect("Failed to copy data");
+
+        let destination_schema = introspect_schema(&destination).await;
+
+        assert_eq!(source_schema, destination_schema);
+    }
+
+    macro_rules! test_round_trip {
+        ($name:ident, $sql:expr) => {
+            #[test]
+            async fn $name() {
+                test_round_trip($sql).await;
+            }
+        };
+    }
+
+    test_round_trip!(foreign_key_actions_are_preserved, r#"
+        CREATE TABLE products (
+            product_no integer PRIMARY KEY,
+            name text,
+            price numeric
+        );
+
+        CREATE TABLE orders (
+            order_id integer PRIMARY KEY,
+            shipping_address text
+        );
+
+        CREATE TABLE order_items (
+            product_no integer REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
+            order_id integer REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
+            quantity integer,
+            PRIMARY KEY (product_no, order_id)
+        );
+    "#);
+
+    test_round_trip!(filtered_foreign_key_set_null, r#"
+        CREATE TABLE tenants (
+            tenant_id integer PRIMARY KEY
+        );
+
+        CREATE TABLE users (
+            tenant_id integer REFERENCES tenants ON DELETE CASCADE,
+            user_id integer NOT NULL,
+            PRIMARY KEY (tenant_id, user_id)
+        );
+
+        CREATE TABLE posts (
+            tenant_id integer REFERENCES tenants ON DELETE CASCADE,
+            post_id integer NOT NULL,
+            author_id integer,
+            PRIMARY KEY (tenant_id, post_id),
+            FOREIGN KEY (tenant_id, author_id) REFERENCES users ON DELETE SET NULL (author_id)
+        );
+    "#);
 }

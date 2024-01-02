@@ -104,7 +104,7 @@ mod tests {
     pub static SOURCE_DATABASE_CREATE_SCRIPT: &str = r#"
         create table people(
             id serial primary key,
-            name text not null,
+            name text not null unique,
             age int not null check (age > 0),
             constraint multi_check check (name != 'fsgsdfgsdf' and age < 9999)
         );
@@ -123,12 +123,18 @@ mod tests {
             (E'q''t', 12)
             ;
 
+        create table field(
+            id serial primary key
+        );
+
         create table tree_node(
             id serial primary key,
+            field_id int not null references field(id),
             name text not null,
-            -- parent_id int references tree_node(id),
             parent_id int,
-            constraint unique_name_per_level unique nulls not distinct (parent_id, name)
+            constraint field_id_id_unique unique (field_id, id),
+            foreign key (field_id, parent_id) references tree_node(field_id, id),
+            constraint unique_name_per_level unique nulls not distinct (field_id, parent_id, name)
         );
     "#;
 

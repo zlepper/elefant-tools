@@ -223,6 +223,14 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
 
                     }
                 }
+
+                for constraint in &table.constraints {
+                    if let PostgresConstraint::ForeignKey(fk) = constraint {
+                        let sql = fk.get_create_statement(table, schema);
+                        self.file.write_all(sql.as_bytes()).await?;
+                        self.file.write_all(b"\n").await?;
+                    }
+                }
             }
         }
 
@@ -236,6 +244,7 @@ mod tests {
     use super::*;
     use crate::test_helpers::*;
     use tokio::test;
+    use tokio_postgres::error::SqlState;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::storage;
     use crate::storage::postgres_instance::PostgresInstanceStorage;
@@ -261,7 +270,7 @@ mod tests {
 
     #[test]
     async fn exports_to_fake_file() {
-        let source = get_test_helper().await;
+        let source = get_test_helper("source").await;
 
         //language=postgresql
         source.execute_not_query(storage::tests::SOURCE_DATABASE_CREATE_SCRIPT).await;
@@ -271,6 +280,11 @@ mod tests {
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             create schema if not exists public;
+            create table public.field (
+                id integer not null,
+                constraint field_pkey primary key (id)
+            );
+
             create table public.people (
                 id integer not null,
                 name text not null,
@@ -282,6 +296,7 @@ mod tests {
 
             create table public.tree_node (
                 id integer not null,
+                field_id integer not null,
                 name text not null,
                 parent_id integer,
                 constraint tree_node_pkey primary key (id)
@@ -295,22 +310,30 @@ mod tests {
             (5, E't\t\tap', 421),
             (6, E'q''t', 12);
 
+
             create index people_age_brin_idx on public.people using brin (age);
             create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
             create index people_name_lower_idx on public.people using btree (lower(name) asc nulls last);
+            alter table public.people add constraint people_name_key unique (name);
 
-            alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (parent_id, name);
+            alter table public.tree_node add constraint field_id_id_unique unique (field_id, id);
+            alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (field_id, parent_id, name);
+
+            create sequence public.field_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
             create sequence public.people_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
             select pg_catalog.setval('public.people_id_seq', 6, true);
 
             create sequence public.tree_node_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
+            alter table public.field alter column id set default nextval('field_id_seq'::regclass);
             alter table public.people alter column id set default nextval('people_id_seq'::regclass);
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
+            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);
             "#});
 
-        let destination = get_test_helper().await;
+        let destination = get_test_helper("destination").await;
         destination.execute_not_query(&result_file).await;
 
 
@@ -318,15 +341,17 @@ mod tests {
 
         assert_eq!(items, storage::tests::get_expected_data());
 
-        destination.execute_not_query("insert into tree_node(id, name, parent_id) values (1, 'foo', null), (2, 'bar', 1)").await;
-        let result = destination.get_conn().execute_non_query("insert into tree_node(id, name, parent_id) values (3, 'foo', null)").await;
-        assert_pg_error(result, 23505);
+        destination.execute_not_query("insert into field(id) values (1);").await;
+
+        destination.execute_not_query("insert into tree_node(id, field_id, name, parent_id) values (1, 1, 'foo', null), (2, 1, 'bar', 1)").await;
+        let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (3, 1, 'foo', null)").await;
+        assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
     }
 
 
     #[test]
     async fn edge_case_values_floats() {
-        let source = get_test_helper().await;
+        let source = get_test_helper("source").await;
 
         //language=postgresql
         source.execute_not_query(r#"
@@ -363,7 +388,7 @@ mod tests {
 
             "#});
 
-        let destination = get_test_helper().await;
+        let destination = get_test_helper("destination").await;
         destination.execute_not_query(&result_file).await;
 
 

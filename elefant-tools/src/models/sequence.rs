@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use crate::{PostgresColumn, PostgresSchema, PostgresTable};
+use crate::{PostgresSchema};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresSequence {

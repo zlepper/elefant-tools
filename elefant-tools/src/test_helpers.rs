@@ -9,12 +9,13 @@ use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 pub struct TestHelper {
     test_db_name: String,
     main_connection: PostgresClientWrapper,
+    helper_name: String,
 }
 
 impl Drop for TestHelper {
     fn drop(&mut self) {
         if std::thread::panicking() {
-            eprintln!("Thread is panicking when dropping test helper. Leaving database '{}' around to be inspected", self.test_db_name);
+            eprintln!("Thread is panicking when dropping test helper. Leaving database '{}' ({}) around to be inspected", self.test_db_name, self.helper_name);
         } else {
             let db_name = self.test_db_name.clone();
             std::thread::spawn(move || {
@@ -34,7 +35,8 @@ impl RefUnwindSafe for TestHelper {}
 
 impl UnwindSafe for TestHelper {}
 
-pub async fn get_test_helper() -> TestHelper {
+pub async fn get_test_helper(name: &str) -> TestHelper {
+
     let id = Uuid::new_v4().simple().to_string();
 
     let test_db_name = format!("test_db_{}", id);
@@ -50,6 +52,7 @@ pub async fn get_test_helper() -> TestHelper {
     TestHelper {
         test_db_name,
         main_connection: conn,
+        helper_name: name.to_string(),
     }
 }
 
@@ -94,7 +97,7 @@ async fn cleanup(db_name: &str) {
 }
 
 
-pub fn assert_pg_error(result: crate::Result, code: u16) {
+pub fn assert_pg_error(result: crate::Result, code: SqlState) {
     match result {
         Err(ElefantToolsError::PostgresErrorWithQuery {
                 source,
@@ -102,7 +105,7 @@ pub fn assert_pg_error(result: crate::Result, code: u16) {
             }) => {
 
 
-            assert_eq!(*source.as_db_error().unwrap().code(), SqlState::from_code(&code.to_string()));
+            assert_eq!(*source.as_db_error().unwrap().code(), code);
 
         },
         _ => {
@@ -122,7 +125,7 @@ mod tests {
     #[test]
     async fn creates_and_drops_database() {
         let test_database_name = {
-            let helper = get_test_helper().await;
+            let helper = get_test_helper("helper").await;
             let test_database_name = helper.test_db_name.clone();
             let db_name: String = helper.get_single_result("select current_database();").await;
             assert_eq!(db_name, helper.test_db_name);
@@ -142,7 +145,7 @@ mod tests {
 
     #[test]
     async fn database_if_left_around_on_panic() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         let test_database_name = helper.test_db_name.clone();
 
         catch_unwind(move || {

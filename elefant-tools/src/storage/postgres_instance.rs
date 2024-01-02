@@ -139,6 +139,13 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
                         self.connection.execute_non_query(&sql).await?;
                     }
                 }
+
+                for constraint in &table.constraints {
+                    if let PostgresConstraint::ForeignKey(fk) = constraint {
+                        let sql = fk.get_create_statement(table, schema);
+                        self.connection.execute_non_query(&sql).await?;
+                    }
+                }
             }
         }
 
@@ -149,6 +156,7 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 #[cfg(test)]
 mod tests {
     use tokio::test;
+    use tokio_postgres::error::SqlState;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
     use super::*;
@@ -156,16 +164,14 @@ mod tests {
 
 
     async fn test_copy(data_format: DataFormat) {
-        let source = get_test_helper().await;
+        let source = get_test_helper("source").await;
 
-        //language=postgresql
         source.execute_not_query(storage::tests::SOURCE_DATABASE_CREATE_SCRIPT).await;
-
 
         let source_schema = introspect_schema(&source).await;
         let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
 
-        let destination = get_test_helper().await;
+        let destination = get_test_helper("destination").await;
         let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn()).await.unwrap();
 
         copy_data(&source, &mut destination_worker, CopyDataOptions {
@@ -181,17 +187,20 @@ mod tests {
 
         assert_eq!(source_schema, destination_schema);
 
-        // TODO: Make sure primary key auto increments
-        let result = destination.get_conn().execute_non_query("insert into people (id, name, age) values (5, 'new-value', 10000)").await;
-        assert_pg_error(result, 23514);
+        let result = destination.get_conn().execute_non_query("insert into people (name, age) values ('new-value', 10000)").await;
+        assert_pg_error(result, SqlState::CHECK_VIOLATION);
 
-        let result = destination.get_conn().execute_non_query("insert into people (id, name, age) values (5, 'foo', 100)").await;
-        assert_pg_error(result, 23505);
+        let result = destination.get_conn().execute_non_query("insert into people (name, age) values ('foo', 100)").await;
+        assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
 
+        destination.execute_not_query("insert into field (id) values (1);").await;
 
-        destination.execute_not_query("insert into tree_node(id, name, parent_id) values (1, 'foo', null), (2, 'bar', 1)").await;
-        let result = destination.get_conn().execute_non_query("insert into tree_node(id, name, parent_id) values (3, 'foo', null)").await;
-        assert_pg_error(result, 23505);
+        destination.execute_not_query("insert into tree_node(id, field_id, name, parent_id) values (1, 1, 'foo', null), (2, 1, 'bar', 1)").await;
+        let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (3, 1, 'foo', null)").await;
+        assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
+
+        let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (9999, 9999, 'foobarbaz', null)").await;
+        assert_pg_error(result, SqlState::FOREIGN_KEY_VIOLATION);
     }
 
 

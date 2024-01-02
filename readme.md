@@ -10,7 +10,8 @@
 ✅ Primary keys
 ✅ Sequences
   ❌ owned by
-❌ Foreign keys
+➕ Foreign keys
+  ❌ Update/Delete cascade rules
 ✅ Not null constraints
 ➕ Check constraints
   ❌ Check constraints calling functions

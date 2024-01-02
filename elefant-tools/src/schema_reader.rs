@@ -1,10 +1,10 @@
+use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 use crate::Result;
 use itertools::Itertools;
 use std::str::FromStr;
 use tokio_postgres::Row;
-use crate::models::PostgresSequence;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -23,9 +23,10 @@ impl SchemaReader<'_> {
         let indices = self.get_indices().await?;
         let index_columns = self.get_index_columns().await?;
         let sequences = self.get_sequences().await?;
+        let foreign_keys = self.get_foreign_keys().await?;
+        let foreign_key_columns = self.get_foreign_key_columns().await?;
 
         let mut db = PostgresDatabase { schemas: vec![] };
-
 
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
@@ -33,7 +34,13 @@ impl SchemaReader<'_> {
             let table = PostgresTable {
                 name: row.table_name.clone(),
                 columns: Self::add_columns(&columns, &row),
-                constraints: Self::add_constraints(&key_columns, &check_constraints, &row),
+                constraints: Self::add_constraints(
+                    &key_columns,
+                    &check_constraints,
+                    &foreign_keys,
+                    &foreign_key_columns,
+                    &row,
+                ),
                 indices: Self::add_indices(&indices, &index_columns, &row),
             };
 
@@ -72,6 +79,8 @@ impl SchemaReader<'_> {
     fn add_constraints(
         key_columns: &[KeyColumnUsageResult],
         check_constraints: &[CheckConstraintResult],
+        foreign_keys: &[ForeignKeyResult],
+        foreign_key_columns: &[ForeignKeyColumnResult],
         row: &TablesResult,
     ) -> Vec<PostgresConstraint> {
         let key_columns = key_columns
@@ -80,7 +89,7 @@ impl SchemaReader<'_> {
             .group_by(|c| (c.constraint_name.clone(), c.key_type));
         let mut constraints: Vec<PostgresConstraint> = key_columns
             .into_iter()
-            .map(|g| (g.0.0, g.0.1, g.1.collect_vec()))
+            .map(|g| (g.0 .0, g.0 .1, g.1.collect_vec()))
             .map(
                 |(constraint_name, constraint_type, key_columns)| match constraint_type {
                     ConstraintType::PrimaryKey => PostgresPrimaryKey {
@@ -93,9 +102,10 @@ impl SchemaReader<'_> {
                             })
                             .collect(),
                     }
-                        .into(),
+                    .into(),
                     ConstraintType::ForeignKey => {
-                        todo!()
+                        // These are handled separately, and thus this panic should never execute
+                        unreachable!("Unexpected foreign key when handling key columns");
                     }
                     ConstraintType::Check => {
                         // These are handled separately, and thus this panic should never execute
@@ -103,7 +113,9 @@ impl SchemaReader<'_> {
                     }
                     ConstraintType::Unique => PostgresUniqueConstraint {
                         name: constraint_name.clone(),
-                        distinct_nulls: key_columns.iter().any(|c| c.nulls_distinct.is_some_and(|v| v)),
+                        distinct_nulls: key_columns
+                            .iter()
+                            .any(|c| c.nulls_distinct.is_some_and(|v| v)),
                         columns: key_columns
                             .iter()
                             .map(|c| PostgresUniqueConstraintColumn {
@@ -112,7 +124,7 @@ impl SchemaReader<'_> {
                             })
                             .collect(),
                     }
-                        .into(),
+                    .into(),
                 },
             )
             .collect();
@@ -125,25 +137,84 @@ impl SchemaReader<'_> {
                     name: check_constraint.constraint_name.clone(),
                     check_clause: check_constraint.check_clause.clone(),
                 }
-                    .into()
+                .into()
             })
             .collect();
 
         constraints.append(&mut check_constraints);
+
+        let mut foreign_key_constraints = foreign_keys
+            .iter()
+            .filter(|fk| {
+                fk.source_table_schema_name == row.schema_name
+                    && fk.source_table_name == row.table_name
+            })
+            .map(|fk| {
+                PostgresForeignKey {
+                    name: fk.constraint_name.clone(),
+                    referenced_table: fk.target_table_name.clone(),
+                    referenced_schema: if fk.source_table_schema_name == fk.target_table_schema_name
+                    {
+                        None
+                    } else {
+                        Some(fk.target_table_schema_name.clone())
+                    },
+                    columns: foreign_key_columns
+                        .iter()
+                        .filter(|c| {
+                            c.source_table_name == row.table_name
+                                && c.source_schema_name == row.schema_name
+                                && c.constraint_name == fk.constraint_name
+                        })
+                        .enumerate()
+                        .map(|(index, c)| PostgresForeignKeyColumn {
+                            name: c.source_table_column_name.clone(),
+                            ordinal_position: index as i32 + 1,
+                        })
+                        .collect(),
+                    referenced_columns: foreign_key_columns
+                        .iter()
+                        .filter(|c| {
+                            c.source_table_name == row.table_name
+                                && c.source_schema_name == row.schema_name
+                                && c.constraint_name == fk.constraint_name
+                        })
+                        .enumerate()
+                        .map(|(index, c)| PostgresForeignKeyColumn {
+                            name: c.target_table_column_name.clone(),
+                            ordinal_position: index as i32 + 1,
+                        })
+                        .collect(),
+                }
+                .into()
+            })
+            .collect();
+
+        constraints.append(&mut foreign_key_constraints);
 
         constraints.sort();
 
         constraints
     }
 
-    fn add_indices(indices: &[IndexResult], index_columns: &[IndexColumnResult], row: &TablesResult) -> Vec<PostgresIndex> {
+    fn add_indices(
+        indices: &[IndexResult],
+        index_columns: &[IndexColumnResult],
+        row: &TablesResult,
+    ) -> Vec<PostgresIndex> {
         let mut result = vec![];
 
-        let indices = indices.iter().filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
+        let indices = indices
+            .iter()
+            .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name);
         for index in indices {
             let index_columns = index_columns
                 .iter()
-                .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name && c.index_name == index.index_name)
+                .filter(|c| {
+                    c.table_schema == row.schema_name
+                        && c.table_name == row.table_name
+                        && c.index_name == index.index_name
+                })
                 .collect_vec();
             let mut key_columns = index_columns
                 .iter()
@@ -228,7 +299,9 @@ impl SchemaReader<'_> {
 
     async fn get_indices(&self) -> Result<Vec<IndexResult>> {
         //language=postgresql
-        self.connection.get_results(r#"
+        self.connection
+            .get_results(
+                r#"
             select n.nspname           as table_schema,
                    table_class.relname as table_name,
                    index_class.relname as index_name,
@@ -244,7 +317,9 @@ impl SchemaReader<'_> {
             where n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
               and not i.indisprimary
               and not i.indisunique
-        "#).await
+        "#,
+            )
+            .await
     }
 
     async fn get_check_constraints(&self) -> Result<Vec<CheckConstraintResult>> {
@@ -267,7 +342,7 @@ impl SchemaReader<'_> {
             r#"
             select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type, tc.nulls_distinct from information_schema.key_column_usage kcu
             join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
-            where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'FOREIGN KEY' or tc.constraint_type = 'UNIQUE'
+            where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'UNIQUE'
             order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;
             "#
         ).await
@@ -298,8 +373,9 @@ impl SchemaReader<'_> {
 
     async fn get_sequences(&self) -> Result<Vec<SequenceResult>> {
         //language=postgresql
-        self.connection.get_results(
-            r#"
+        self.connection
+            .get_results(
+                r#"
             select s.schemaname,
                    s.sequencename,
                    s.data_type::text,
@@ -313,8 +389,58 @@ impl SchemaReader<'_> {
             from pg_sequences s
             where s.schemaname not in ('pg_catalog', 'pg_toast', 'information_schema')
             order by s.schemaname, s.sequencename;
-            "#
-        ).await
+            "#,
+            )
+            .await
+    }
+
+    async fn get_foreign_keys(&self) -> Result<Vec<ForeignKeyResult>> {
+        //language=postgresql
+        self.connection
+            .get_results(
+                r#"
+            select con.conname       as constraint_name,
+                   con_ns.nspname    as constraint_schema_name,
+                   tab.relname       as source_table_name,
+                   tab_ns.nspname    as source_schema_name,
+                   target.relname    as target_table_name,
+                   target_ns.nspname as target_schema_name
+            from pg_catalog.pg_constraint con
+                     left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
+                     join pg_catalog.pg_class tab on con.conrelid = tab.oid
+                     left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
+                     join pg_catalog.pg_class target on con.confrelid = target.oid
+                     left join pg_namespace target_ns on target_ns.oid = target.relnamespace
+            where con.contype = 'f';
+            "#,
+            )
+            .await
+    }
+
+    async fn get_foreign_key_columns(&self) -> Result<Vec<ForeignKeyColumnResult>> {
+        //language=postgresql
+        self.connection
+            .get_results(
+                r#"
+            select con.conname       as constraint_name,
+                   con_ns.nspname    as constraint_schema_name,
+                   tab.relname       as source_table_name,
+                   tab_ns.nspname    as source_schema_name,
+                   source_table_attr.attname as source_table_column_name,
+                   target_table_attr.attname as target_table_column_name
+            from pg_constraint con
+                     left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
+                     join pg_catalog.pg_class tab on con.conrelid = tab.oid
+                     left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
+                     join unnest(con.conkey, con.confkey) as cols (conkey, confkey) on true
+                     left join pg_attribute source_table_attr
+                               on source_table_attr.attrelid = con.conrelid and source_table_attr.attnum = cols.conkey
+                     left join pg_attribute target_table_attr
+                               on target_table_attr.attrelid = con.confrelid and target_table_attr.attnum = cols.confkey
+            where con.contype = 'f'
+            "#,
+            )
+            .await
     }
 }
 
@@ -492,7 +618,7 @@ impl FromRow for IndexResult {
     }
 }
 
-pub struct SequenceResult {
+struct SequenceResult {
     schema_name: String,
     sequence_name: String,
     data_type: String,
@@ -507,28 +633,71 @@ pub struct SequenceResult {
 
 impl FromRow for SequenceResult {
     fn from_row(row: Row) -> Result<Self> {
-         Ok(Self {
-             schema_name: row.try_get(0)?,
-             sequence_name: row.try_get(1)?,
-             data_type: row.try_get(2)?,
-             start_value: row.try_get(3)?,
-             min_value: row.try_get(4)?,
-             max_value: row.try_get(5)?,
-             increment_by: row.try_get(6)?,
-             cycle: row.try_get(7)?,
-             cache_size: row.try_get(8)?,
-             last_value: row.try_get(9)?,
-         })
+        Ok(Self {
+            schema_name: row.try_get(0)?,
+            sequence_name: row.try_get(1)?,
+            data_type: row.try_get(2)?,
+            start_value: row.try_get(3)?,
+            min_value: row.try_get(4)?,
+            max_value: row.try_get(5)?,
+            increment_by: row.try_get(6)?,
+            cycle: row.try_get(7)?,
+            cache_size: row.try_get(8)?,
+            last_value: row.try_get(9)?,
+        })
     }
 }
 
+struct ForeignKeyResult {
+    constraint_name: String,
+    constraint_schema_name: String,
+    source_table_name: String,
+    source_table_schema_name: String,
+    target_table_name: String,
+    target_table_schema_name: String,
+}
+
+impl FromRow for ForeignKeyResult {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(Self {
+            constraint_name: row.try_get(0)?,
+            constraint_schema_name: row.try_get(1)?,
+            source_table_name: row.try_get(2)?,
+            source_table_schema_name: row.try_get(3)?,
+            target_table_name: row.try_get(4)?,
+            target_table_schema_name: row.try_get(5)?,
+        })
+    }
+}
+
+struct ForeignKeyColumnResult {
+    constraint_name: String,
+    constraint_schema_name: String,
+    source_table_name: String,
+    source_schema_name: String,
+    source_table_column_name: String,
+    target_table_column_name: String,
+}
+
+impl FromRow for ForeignKeyColumnResult {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(Self {
+            constraint_name: row.try_get(0)?,
+            constraint_schema_name: row.try_get(1)?,
+            source_table_name: row.try_get(2)?,
+            source_schema_name: row.try_get(3)?,
+            source_table_column_name: row.try_get(4)?,
+            target_table_column_name: row.try_get(5)?,
+        })
+    }
+}
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::default;
     use crate::test_helpers::{get_test_helper, TestHelper};
     use tokio::test;
-    use crate::default;
 
     pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
         let conn = test_helper.get_conn();
@@ -538,7 +707,7 @@ pub mod tests {
 
     #[test]
     async fn reads_simple_schema() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -571,7 +740,9 @@ pub mod tests {
                                 ordinal_position: 1,
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
-                                default_value: Some("nextval('my_table_id_seq'::regclass)".to_string()),
+                                default_value: Some(
+                                    "nextval('my_table_id_seq'::regclass)".to_string()
+                                ),
                             },
                             PostgresColumn {
                                 name: "name".to_string(),
@@ -607,28 +778,26 @@ pub mod tests {
                             PostgresConstraint::Check(PostgresCheckConstraint {
                                 name: "my_multi_check".to_string(),
                                 check_clause:
-                                "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))"
-                                    .to_string(),
+                                    "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))"
+                                        .to_string(),
                             }),
                             PostgresConstraint::Check(PostgresCheckConstraint {
                                 name: "my_table_age_check".to_string(),
                                 check_clause: "((age > 21))".to_string(),
                             }),
                         ],
-                        indices: vec![
-                            PostgresIndex {
-                                name: "lower_case_name_idx".to_string(),
-                                key_columns: vec![PostgresIndexKeyColumn {
-                                    name: "lower(name)".to_string(),
-                                    ordinal_position: 1,
-                                    direction: Some(PostgresIndexColumnDirection::Ascending),
-                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
-                                }],
-                                index_type: "btree".to_string(),
-                                predicate: None,
-                                included_columns: vec![],
-                            }
-                        ],
+                        indices: vec![PostgresIndex {
+                            name: "lower_case_name_idx".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "lower(name)".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                        }],
                     }],
                     sequences: vec![PostgresSequence {
                         name: "my_table_id_seq".to_string(),
@@ -648,7 +817,7 @@ pub mod tests {
 
     #[test]
     async fn table_without_columns() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -678,7 +847,7 @@ pub mod tests {
 
     #[test]
     async fn table_without_primary_key() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -726,7 +895,7 @@ pub mod tests {
 
     #[test]
     async fn composite_primary_keys() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -792,7 +961,7 @@ pub mod tests {
                                     ordinal_position: 2,
                                 },
                             ],
-                        }), ],
+                        }),],
                         indices: vec![],
                     }],
                     sequences: vec![],
@@ -803,7 +972,7 @@ pub mod tests {
 
     #[test]
     async fn indices() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -835,7 +1004,7 @@ pub mod tests {
                             is_nullable: true,
                             data_type: "integer".to_string(),
                             ..default()
-                        }, ],
+                        },],
                         constraints: vec![],
                         indices: vec![
                             PostgresIndex {
@@ -896,7 +1065,7 @@ pub mod tests {
 
     #[test]
     async fn index_types() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -925,7 +1094,7 @@ pub mod tests {
                             is_nullable: true,
                             data_type: "tsvector".to_string(),
                             ..default()
-                        }, ],
+                        },],
                         constraints: vec![],
                         indices: vec![
                             PostgresIndex {
@@ -962,7 +1131,7 @@ pub mod tests {
 
     #[test]
     async fn filtered_index() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         helper
             .execute_not_query(
                 r#"
@@ -990,22 +1159,20 @@ pub mod tests {
                             is_nullable: true,
                             data_type: "integer".to_string(),
                             ..default()
-                        }, ],
+                        },],
                         constraints: vec![],
-                        indices: vec![
-                            PostgresIndex {
-                                name: "my_table_idx".to_string(),
-                                key_columns: vec![PostgresIndexKeyColumn {
-                                    name: "value".to_string(),
-                                    ordinal_position: 1,
-                                    direction: Some(PostgresIndexColumnDirection::Ascending),
-                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
-                                }],
-                                index_type: "btree".to_string(),
-                                predicate: Some("(value % 2) = 0".to_string()),
-                                included_columns: vec![],
-                            },
-                        ],
+                        indices: vec![PostgresIndex {
+                            name: "my_table_idx".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "value".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: Some("(value % 2) = 0".to_string()),
+                            included_columns: vec![],
+                        },],
                     }],
                     sequences: vec![],
                 }]
@@ -1015,7 +1182,7 @@ pub mod tests {
 
     #[test]
     async fn index_with_include() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         //language=postgresql
         helper
             .execute_not_query(
@@ -1056,25 +1223,21 @@ pub mod tests {
                             },
                         ],
                         constraints: vec![],
-                        indices: vec![
-                            PostgresIndex {
-                                name: "my_table_idx".to_string(),
-                                key_columns: vec![PostgresIndexKeyColumn {
-                                    name: "value".to_string(),
-                                    ordinal_position: 1,
-                                    direction: Some(PostgresIndexColumnDirection::Ascending),
-                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
-                                }],
-                                index_type: "btree".to_string(),
-                                predicate: None,
-                                included_columns: vec![
-                                    PostgresIndexIncludedColumn {
-                                        name: "another_value".to_string(),
-                                        ordinal_position: 2,
-                                    }
-                                ],
-                            },
-                        ],
+                        indices: vec![PostgresIndex {
+                            name: "my_table_idx".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "value".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![PostgresIndexIncludedColumn {
+                                name: "another_value".to_string(),
+                                ordinal_position: 2,
+                            }],
+                        },],
                     }],
                     sequences: vec![],
                 }]
@@ -1084,7 +1247,7 @@ pub mod tests {
 
     #[test]
     async fn table_with_non_distinct_nulls() {
-        let helper = get_test_helper().await;
+        let helper = get_test_helper("helper").await;
         //language=postgresql
         helper
             .execute_not_query(
@@ -1105,28 +1268,145 @@ pub mod tests {
                     name: "public".to_string(),
                     tables: vec![PostgresTable {
                         name: "my_table".to_string(),
-                        columns: vec![
-                            PostgresColumn {
-                                name: "value".to_string(),
+                        columns: vec![PostgresColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: true,
+                            data_type: "integer".to_string(),
+                            ..default()
+                        },],
+                        constraints: vec![PostgresConstraint::Unique(PostgresUniqueConstraint {
+                            name: "my_table_value_key".to_string(),
+                            columns: vec![PostgresUniqueConstraintColumn {
+                                column_name: "value".to_string(),
                                 ordinal_position: 1,
-                                is_nullable: true,
-                                data_type: "integer".to_string(),
-                                ..default()
-                            },
-                        ],
-                        constraints: vec![
-                            PostgresConstraint::Unique(PostgresUniqueConstraint {
-                                name: "my_table_value_key".to_string(),
-                                columns: vec![PostgresUniqueConstraintColumn {
-                                    column_name: "value".to_string(),
-                                    ordinal_position: 1,
-                                }],
-                                distinct_nulls: false,
-                            })
-                        ],
+                            }],
+                            distinct_nulls: false,
+                        })],
                         indices: vec![],
                     }],
                     sequences: vec![],
+                }]
+            }
+        )
+    }
+
+    #[test]
+    async fn foreign_keys() {
+        let helper = get_test_helper("helper").await;
+        //language=postgresql
+        helper
+            .execute_not_query(
+                r#"
+        create table items(
+            id serial primary key
+        );
+
+        create table users(
+            id serial primary key,
+            item_id int not null references items(id)
+        );
+        "#,
+            )
+            .await;
+
+        let db = introspect_schema(&helper).await;
+
+        assert_eq!(
+            db,
+            PostgresDatabase {
+                schemas: vec![PostgresSchema {
+                    name: "public".to_string(),
+                    tables: vec![
+                        PostgresTable {
+                            name: "items".to_string(),
+                            columns: vec![PostgresColumn {
+                                name: "id".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                                default_value: Some(
+                                    "nextval('items_id_seq'::regclass)".to_string()
+                                ),
+                            },],
+                            constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
+                                name: "items_pkey".to_string(),
+                                columns: vec![PostgresPrimaryKeyColumn {
+                                    column_name: "id".to_string(),
+                                    ordinal_position: 1,
+                                }],
+                            }),],
+                            ..default()
+                        },
+                        PostgresTable {
+                            name: "users".to_string(),
+                            columns: vec![
+                                PostgresColumn {
+                                    name: "id".to_string(),
+                                    ordinal_position: 1,
+                                    is_nullable: false,
+                                    data_type: "integer".to_string(),
+                                    default_value: Some(
+                                        "nextval('users_id_seq'::regclass)".to_string()
+                                    ),
+                                },
+                                PostgresColumn {
+                                    name: "item_id".to_string(),
+                                    ordinal_position: 2,
+                                    is_nullable: false,
+                                    data_type: "integer".to_string(),
+                                    ..default()
+                                },
+                            ],
+                            constraints: vec![
+                                PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
+                                    name: "users_pkey".to_string(),
+                                    columns: vec![PostgresPrimaryKeyColumn {
+                                        column_name: "id".to_string(),
+                                        ordinal_position: 1,
+                                    }],
+                                }),
+                                PostgresConstraint::ForeignKey(PostgresForeignKey {
+                                    name: "users_item_id_fkey".to_string(),
+                                    columns: vec![PostgresForeignKeyColumn {
+                                        name: "item_id".to_string(),
+                                        ordinal_position: 1,
+                                    }],
+                                    referenced_schema: None,
+                                    referenced_table: "items".to_string(),
+                                    referenced_columns: vec![PostgresForeignKeyColumn {
+                                        name: "id".to_string(),
+                                        ordinal_position: 1,
+                                    }],
+                                }),
+                            ],
+                            ..default()
+                        },
+                    ],
+                    sequences: vec![
+                        PostgresSequence {
+                            name: "items_id_seq".to_string(),
+                            data_type: "integer".to_string(),
+                            start_value: 1,
+                            increment: 1,
+                            min_value: 1,
+                            max_value: 2147483647,
+                            cache_size: 1,
+                            cycle: false,
+                            last_value: None,
+                        },
+                        PostgresSequence {
+                            name: "users_id_seq".to_string(),
+                            data_type: "integer".to_string(),
+                            start_value: 1,
+                            increment: 1,
+                            min_value: 1,
+                            max_value: 2147483647,
+                            cache_size: 1,
+                            cycle: false,
+                            last_value: None,
+                        },
+                    ],
                 }]
             }
         )

@@ -13,6 +13,12 @@ pub struct PostgresTable {
     pub indices: Vec<PostgresIndex>,
 }
 
+impl Default for PostgresTable {
+    fn default() -> Self {
+        Self::new("")
+    }
+}
+
 impl PostgresTable {
     pub fn new(name: &str) -> Self {
         PostgresTable {
@@ -47,6 +53,9 @@ impl PostgresTable {
                     table_builder.check_constraint(&check.name, &check.check_clause);
                 }
                 PostgresConstraint::Unique(_) => {
+                    // Deferred until last part of the transaction
+                },
+                PostgresConstraint::ForeignKey(_) => {
                     // Deferred until last part of the transaction
                 }
             }

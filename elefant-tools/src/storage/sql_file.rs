@@ -200,7 +200,10 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                 }
             }
 
+            let mut printed_code = false;
+
             for sequence in schema.sequences.iter() {
+                printed_code = true;
                 self.file.write_all(b"\n").await?;
 
                 let sql = sequence.get_create_statement(schema);
@@ -213,24 +216,38 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                 }
             }
 
-            self.file.write_all(b"\n").await?;
+            if printed_code {
+                self.file.write_all(b"\n").await?;
+                printed_code = false;
+            }
 
             for table in &schema.tables {
                 for column in &table.columns {
                     if let Some(sql) = column.get_alter_table_set_default_statement(table, schema) {
+                        printed_code = true;
                         self.file.write_all(sql.as_bytes()).await?;
                         self.file.write_all(b"\n").await?;
-
                     }
                 }
 
                 for constraint in &table.constraints {
                     if let PostgresConstraint::ForeignKey(fk) = constraint {
+                        printed_code = true;
                         let sql = fk.get_create_statement(table, schema);
                         self.file.write_all(sql.as_bytes()).await?;
                         self.file.write_all(b"\n").await?;
                     }
                 }
+            }
+
+            if printed_code {
+                self.file.write_all(b"\n").await?;
+            }
+
+            for view in &schema.views {
+                let sql = view.get_create_view_sql(schema);
+                self.file.write_all(sql.as_bytes()).await?;
+                self.file.write_all(b"\n").await?;
             }
         }
 
@@ -331,6 +348,12 @@ mod tests {
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
             alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
             alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);
+
+            create view public.people_who_cant_drink (id, name, age) as  SELECT people.id,
+                people.name,
+                people.age
+               FROM people
+              WHERE people.age < 18;
             "#});
 
         let destination = get_test_helper("destination").await;
@@ -384,7 +407,6 @@ mod tests {
             ('Infinity', 'Infinity'),
             ('-Infinity', '-Infinity'),
             (null, null);
-
 
             "#});
 

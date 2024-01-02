@@ -25,6 +25,8 @@ impl SchemaReader<'_> {
         let sequences = self.get_sequences().await?;
         let foreign_keys = self.get_foreign_keys().await?;
         let foreign_key_columns = self.get_foreign_key_columns().await?;
+        let views = self.get_views().await?;
+        let view_columns = self.get_view_columns().await?;
 
         let mut db = PostgresDatabase { schemas: vec![] };
 
@@ -64,6 +66,23 @@ impl SchemaReader<'_> {
 
             current_schema.sequences.push(sequence);
         }
+        
+        for view in &views {
+            
+            let current_schema = db.get_or_create_schema_mut(&view.schema_name);
+            
+            let view = PostgresView {
+                name: view.view_name.clone(),
+                definition: view.definition.clone(),
+                columns: view_columns.iter().filter(|c| c.view_name == view.view_name && c.schema_name == view.schema_name).map(|c| PostgresViewColumn {
+                    name: c.column_name.clone(),
+                    ordinal_position: c.ordinal_position,
+                }).collect(),
+            };
+            
+            current_schema.views.push(view);
+            
+        }
 
         Ok(db)
     }
@@ -89,7 +108,7 @@ impl SchemaReader<'_> {
             .group_by(|c| (c.constraint_name.clone(), c.key_type));
         let mut constraints: Vec<PostgresConstraint> = key_columns
             .into_iter()
-            .map(|g| (g.0 .0, g.0 .1, g.1.collect_vec()))
+            .map(|g| (g.0.0, g.0.1, g.1.collect_vec()))
             .map(
                 |(constraint_name, constraint_type, key_columns)| match constraint_type {
                     ConstraintType::PrimaryKey => PostgresPrimaryKey {
@@ -102,7 +121,7 @@ impl SchemaReader<'_> {
                             })
                             .collect(),
                     }
-                    .into(),
+                        .into(),
                     ConstraintType::ForeignKey => {
                         // These are handled separately, and thus this panic should never execute
                         unreachable!("Unexpected foreign key when handling key columns");
@@ -124,7 +143,7 @@ impl SchemaReader<'_> {
                             })
                             .collect(),
                     }
-                    .into(),
+                        .into(),
                 },
             )
             .collect();
@@ -137,7 +156,7 @@ impl SchemaReader<'_> {
                     name: check_constraint.constraint_name.clone(),
                     check_clause: check_constraint.check_clause.clone(),
                 }
-                .into()
+                    .into()
             })
             .collect();
 
@@ -189,7 +208,7 @@ impl SchemaReader<'_> {
                         })
                         .collect(),
                 }
-                .into()
+                    .into()
             })
             .collect();
 
@@ -450,6 +469,43 @@ impl SchemaReader<'_> {
     }
 }
 
+
+macro_rules! define_working_query {
+    ($fn_name:ident, $result:ident, $query:literal) => {
+        impl SchemaReader<'_> {
+            async fn $fn_name(&self) -> Result<Vec<$result>> {
+                self.connection.get_results($query).await
+            }
+        }
+    };
+}
+
+//language=postgresql
+define_working_query!(get_views, ViewResult, r#"
+select tab.relname                   as view_name,
+       ns.nspname                    as schema_name,
+       pg_get_viewdef(tab.oid, true) as def
+from pg_class tab
+         join pg_namespace ns on tab.relnamespace = ns.oid
+where ns.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+  and tab.relkind = 'v';
+
+"#);
+
+//language=postgresql
+define_working_query!(get_view_columns, ViewColumnResult, r#"
+select tab.relname  as view_name,
+       ns.nspname   as schema_name,
+       attr.attname as column_name,
+       attr.attnum::int4  as ordinal_position
+from pg_class tab
+         join pg_namespace ns on tab.relnamespace = ns.oid
+         join pg_attribute attr on attr.attrelid = tab.oid
+where ns.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+  and tab.relkind = 'v';
+"#);
+
+
 #[derive(Debug, Eq, PartialEq)]
 struct TablesResult {
     schema_name: String,
@@ -703,6 +759,40 @@ impl FromRow for ForeignKeyColumnResult {
             source_table_column_name: row.try_get(4)?,
             target_table_column_name: row.try_get(5)?,
             affected_by_delete_action: row.try_get(6)?,
+        })
+    }
+}
+
+struct ViewResult {
+    view_name: String,
+    schema_name: String,
+    definition: String,
+}
+
+impl FromRow for ViewResult {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(Self {
+            view_name: row.try_get(0)?,
+            schema_name: row.try_get(1)?,
+            definition: row.try_get(2)?,
+        })
+    }
+}
+
+struct ViewColumnResult {
+    view_name: String,
+    schema_name: String,
+    column_name: String,
+    ordinal_position: i32,
+}
+
+impl FromRow for ViewColumnResult {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(Self {
+            view_name: row.try_get(0)?,
+            schema_name: row.try_get(1)?,
+            column_name: row.try_get(2)?,
+            ordinal_position: row.try_get(3)?,
         })
     }
 }

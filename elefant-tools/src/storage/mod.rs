@@ -136,6 +136,8 @@ mod tests {
             foreign key (field_id, parent_id) references tree_node(field_id, id),
             constraint unique_name_per_level unique nulls not distinct (field_id, parent_id, name)
         );
+
+        create view people_who_cant_drink as select * from people where age < 18;
     "#;
 
     pub fn get_expected_data() -> Vec<(i32, String, i32)> {

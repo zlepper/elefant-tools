@@ -29,7 +29,7 @@
 ✅ Generated columns
 ❌ Row level security
 ❌ Triggers
-❌ Views
+✅ Views
 ❌ Materialized views
 ❌ Functions/Stored procedures
 ❌ Extensions

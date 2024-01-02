@@ -14,6 +14,7 @@ impl PostgresDatabase {
                 name: schema_name.to_string(),
                 tables: Vec::new(),
                 sequences: Vec::new(),
+                views: Vec::new(),
             };
 
             self.schemas.push(new_schema);

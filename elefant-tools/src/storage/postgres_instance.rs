@@ -147,6 +147,10 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
                     }
                 }
             }
+
+            for view in &schema.views {
+                self.connection.execute_non_query(&view.get_create_view_sql(schema)).await?;
+            }
         }
 
         Ok(())
@@ -201,6 +205,9 @@ mod tests {
 
         let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (9999, 9999, 'foobarbaz', null)").await;
         assert_pg_error(result, SqlState::FOREIGN_KEY_VIOLATION);
+
+        let people_who_cant_drink = destination.get_results::<(i32, String, i32)>("select id, name, age from people_who_cant_drink;").await;
+        assert_eq!(people_who_cant_drink, vec![(6, "q't".to_string(), 12)]);
     }
 
 

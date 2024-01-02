@@ -112,6 +112,7 @@ async fn reads_simple_schema() {
                     cycle: false,
                     last_value: Some(2),
                 }],
+                ..default()
             }]
         }
     )
@@ -136,12 +137,10 @@ async fn table_without_columns() {
             schemas: vec![PostgresSchema {
                 tables: vec![PostgresTable {
                     name: "my_table".to_string(),
-                    columns: vec![],
-                    constraints: vec![],
-                    indices: vec![],
+                    ..default()
                 }],
                 name: "public".to_string(),
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -186,10 +185,9 @@ async fn table_without_primary_key() {
                             ..default()
                         },
                     ],
-                    constraints: vec![],
-                    indices: vec![],
+                    ..default()
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -264,9 +262,9 @@ async fn composite_primary_keys() {
                             },
                         ],
                     }),],
-                    indices: vec![],
+                    ..default()
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -359,7 +357,7 @@ async fn indices() {
                         },
                     ],
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -397,7 +395,6 @@ async fn index_types() {
                         data_type: "tsvector".to_string(),
                         ..default()
                     },],
-                    constraints: vec![],
                     indices: vec![
                         PostgresIndex {
                             name: "my_table_gin".to_string(),
@@ -424,8 +421,9 @@ async fn index_types() {
                             included_columns: vec![],
                         },
                     ],
+                    ..default()
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -462,7 +460,6 @@ async fn filtered_index() {
                         data_type: "integer".to_string(),
                         ..default()
                     },],
-                    constraints: vec![],
                     indices: vec![PostgresIndex {
                         name: "my_table_idx".to_string(),
                         key_columns: vec![PostgresIndexKeyColumn {
@@ -475,8 +472,9 @@ async fn filtered_index() {
                         predicate: Some("(value % 2) = 0".to_string()),
                         included_columns: vec![],
                     },],
+                    ..default()
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -524,7 +522,6 @@ async fn index_with_include() {
                             ..default()
                         },
                     ],
-                    constraints: vec![],
                     indices: vec![PostgresIndex {
                         name: "my_table_idx".to_string(),
                         key_columns: vec![PostgresIndexKeyColumn {
@@ -540,8 +537,9 @@ async fn index_with_include() {
                             ordinal_position: 2,
                         }],
                     },],
+                    ..default()
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -585,9 +583,9 @@ async fn table_with_non_distinct_nulls() {
                         }],
                         distinct_nulls: false,
                     })],
-                    indices: vec![],
+                    ..default()
                 }],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -711,6 +709,7 @@ async fn foreign_keys() {
                         last_value: None,
                     },
                 ],
+                ..default()
             }]
         }
     )
@@ -854,9 +853,9 @@ async fn foreign_key_constraints() {
                             }],
                         }),],
                         ..default()
-                    }
+                    },
                 ],
-                sequences: vec![],
+                ..default()
             }]
         }
     )
@@ -864,7 +863,6 @@ async fn foreign_key_constraints() {
 
 #[test]
 async fn generated_column() {
-
     let helper = get_test_helper("helper").await;
     //language=postgresql
     helper
@@ -880,35 +878,92 @@ async fn generated_column() {
 
     let db = introspect_schema(&helper).await;
 
-    assert_eq!(db, PostgresDatabase {
-        schemas: vec![
-            PostgresSchema {
+    assert_eq!(
+        db,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 sequences: vec![],
-                tables: vec![
-                    PostgresTable {
-                        name: "products".to_string(),
+                tables: vec![PostgresTable {
+                    name: "products".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "search".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "tsvector".to_string(),
+                            generated: Some("to_tsvector('english'::regconfig, name)".to_string()),
+                            ..default()
+                        },
+                    ],
+                    ..default()
+                }],
+                ..default()
+            }]
+        }
+    )
+}
+
+#[test]
+async fn test_views() {
+
+    let helper = get_test_helper("helper").await;
+    //language=postgresql
+    helper
+        .execute_not_query(
+            r#"
+    CREATE TABLE products (
+        name text not null
+    );
+
+    create view products_view (product_name) as select name from products where name like 'a%';
+    "#,
+        )
+        .await;
+
+    let db = introspect_schema(&helper).await;
+
+    assert_eq!(
+        db,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![PostgresTable {
+                    name: "products".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    ..default()
+                }],
+                views: vec![
+                    PostgresView {
+                        name: "products_view".to_string(),
+                        definition: " SELECT products.name AS product_name
+   FROM products
+  WHERE products.name ~~ 'a%'::text;".to_string(),
                         columns: vec![
-                            PostgresColumn {
-                                name: "name".to_string(),
+                            PostgresViewColumn {
+                                name: "product_name".to_string(),
                                 ordinal_position: 1,
-                                is_nullable: false,
-                                data_type: "text".to_string(),
-                                ..default()
-                            },
-                            PostgresColumn {
-                                name: "search".to_string(),
-                                ordinal_position: 2,
-                                is_nullable: false,
-                                data_type: "tsvector".to_string(),
-                                generated: Some("to_tsvector('english'::regconfig, name)".to_string()),
-                                ..default()
                             },
                         ],
-                        ..default()
                     }
-                ]
-            }
-        ]
-    })
+                ],
+                ..default()
+            }]
+        }
+    )
 }

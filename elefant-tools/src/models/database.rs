@@ -1,3 +1,4 @@
+use crate::default;
 use crate::models::schema::PostgresSchema;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -12,9 +13,7 @@ impl PostgresDatabase {
         } else {
             let new_schema = PostgresSchema {
                 name: schema_name.to_string(),
-                tables: Vec::new(),
-                sequences: Vec::new(),
-                views: Vec::new(),
+                ..default()
             };
 
             self.schemas.push(new_schema);

@@ -180,6 +180,17 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
 
     async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
+            for (i, function) in schema.functions.iter().enumerate() {
+                if i != 0 {
+                    self.file.write_all(b"\n").await?;
+                }
+
+                let sql = function.get_create_statement();
+                self.file.write_all(sql.as_bytes()).await?;
+                self.file.write_all(b"\n").await?;
+            }
+
+
             for (i, table) in schema.tables.iter().enumerate() {
                 if i != 0 {
                     self.file.write_all(b"\n").await?;

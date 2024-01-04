@@ -25,6 +25,15 @@ pub enum ElefantToolsError {
     #[error("Unknown foreign key action '{0}'")]
     UnknownForeignKeyAction(String),
 
+    #[error("Unknown function kind '{0}'")]
+    UnknownFunctionKind(String),
+
+    #[error("Unknown volatility '{0}'")]
+    UnknownVolatility(String),
+
+    #[error("Unknown parallel '{0}'")]
+    UnknownParallel(String),
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 use std::str::FromStr;
 use itertools::Itertools;
-use crate::{PostgresSchema, PostgresTable};
+use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
+use crate::postgres_client_wrapper::FromPgChar;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresForeignKey {
@@ -163,6 +164,19 @@ impl FromStr for ReferenceAction {
             "n"|"SET NULL" => Ok(ReferenceAction::SetNull),
             "d"|"SET DEFAULT" => Ok(ReferenceAction::SetDefault),
             _ => Err(crate::ElefantToolsError::UnknownForeignKeyAction(s.to_string())),
+        }
+    }
+}
+
+impl FromPgChar for ReferenceAction {
+    fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
+        match c {
+            'a' => Ok(ReferenceAction::NoAction),
+            'r' => Ok(ReferenceAction::Restrict),
+            'c' => Ok(ReferenceAction::Cascade),
+            'n' => Ok(ReferenceAction::SetNull),
+            'd' => Ok(ReferenceAction::SetDefault),
+            _ => Err(ElefantToolsError::UnknownForeignKeyAction(c.to_string())),
         }
     }
 }

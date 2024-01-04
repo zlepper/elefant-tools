@@ -1,10 +1,35 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
-use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
+use crate::postgres_client_wrapper::{PostgresClientWrapper};
 use crate::Result;
 use itertools::Itertools;
-use std::str::FromStr;
-use tokio_postgres::Row;
+use ordered_float::NotNan;
+use crate::schema_reader::table::TablesResult;
+use crate::schema_reader::check_contraint::CheckConstraintResult;
+use crate::schema_reader::foreign_key::ForeignKeyResult;
+use crate::schema_reader::foreign_key_column::ForeignKeyColumnResult;
+use crate::schema_reader::index::IndexResult;
+use crate::schema_reader::index_column::IndexColumnResult;
+use crate::schema_reader::key_column_usage::{ConstraintType, KeyColumnUsageResult};
+use crate::schema_reader::table_column::TableColumnsResult;
+
+
+
+#[cfg(test)]
+pub mod tests;
+mod table;
+mod table_column;
+mod key_column_usage;
+mod check_contraint;
+mod index_column;
+mod index;
+mod sequence;
+mod foreign_key;
+mod foreign_key_column;
+mod view;
+mod view_column;
+mod function;
+
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -27,6 +52,7 @@ impl SchemaReader<'_> {
         let foreign_key_columns = self.get_foreign_key_columns().await?;
         let views = self.get_views().await?;
         let view_columns = self.get_view_columns().await?;
+        let functions = self.get_functions().await?;
 
         let mut db = PostgresDatabase { schemas: vec![] };
 
@@ -66,11 +92,10 @@ impl SchemaReader<'_> {
 
             current_schema.sequences.push(sequence);
         }
-        
+
         for view in &views {
-            
             let current_schema = db.get_or_create_schema_mut(&view.schema_name);
-            
+
             let view = PostgresView {
                 name: view.view_name.clone(),
                 definition: view.definition.clone(),
@@ -79,9 +104,33 @@ impl SchemaReader<'_> {
                     ordinal_position: c.ordinal_position,
                 }).collect(),
             };
-            
+
             current_schema.views.push(view);
-            
+        }
+
+        for function in &functions {
+            let current_schema = db.get_or_create_schema_mut(&function.schema_name);
+
+            let function = PostgresFunction {
+                function_name: function.function_name.clone(),
+                language: function.language_name.clone(),
+                estimated_cost: NotNan::new(function.estimated_cost).unwrap_or(NotNan::new(100.0).unwrap()),
+                estimated_rows: NotNan::new(function.estimated_rows).unwrap_or(NotNan::new(1000.0).unwrap()),
+                support_function: function.support_function_name.clone(),
+                kind: function.function_kind,
+                security_definer: function.security_definer,
+                leak_proof: function.leak_proof,
+                strict: function.strict,
+                returns_set: function.returns_set,
+                volatility: function.volatility,
+                parallel: function.parallel,
+                sql_body: function.sql_body.clone(),
+                configuration: function.configuration.clone(),
+                arguments: function.arguments.clone(),
+                result: function.result.clone(),
+            };
+
+            current_schema.functions.push(function);
         }
 
         Ok(db)
@@ -289,513 +338,16 @@ impl SchemaReader<'_> {
 
         result
     }
-
-    async fn get_index_columns(&self) -> Result<Vec<IndexColumnResult>> {
-        //language=postgresql
-        self.connection
-            .get_results(
-                r#"
-                select n.nspname                                              as table_schema,
-                      table_class.relname                                    as table_name,
-                      index_class.relname                                    as index_name,
-                      a.attnum <= i.indnkeyatts                              as is_key,
-                      pg_catalog.pg_get_indexdef(a.attrelid, a.attnum, true) as indexdef,
-                      i.indoption[a.attnum - 1] & 1 <> 0                     as is_desc,
-                      i.indoption[a.attnum - 1] & 2 <> 0                     as nulls_first,
-                      a.attnum::int                                               as ordinal_position
-               from pg_index i
-                        join pg_class table_class on table_class.oid = i.indrelid
-                        join pg_class index_class on index_class.oid = i.indexrelid
-                        left join pg_namespace n on n.oid = table_class.relnamespace
-                        left join pg_tablespace ts on ts.oid = index_class.reltablespace
-                        join pg_catalog.pg_attribute a on a.attrelid = index_class.oid
-               where a.attnum > 0
-                 and not a.attisdropped
-                 and n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
-                 and not i.indisprimary and not i.indisunique
-               order by table_schema, table_name, index_name, ordinal_position
-            "#,
-            )
-            .await
-    }
-
-    async fn get_indices(&self) -> Result<Vec<IndexResult>> {
-        //language=postgresql
-        self.connection
-            .get_results(
-                r#"
-            select n.nspname           as table_schema,
-                   table_class.relname as table_name,
-                   index_class.relname as index_name,
-                   pa.amname           as index_type,
-                   pg_indexam_has_property(pa.oid, 'can_order') as can_sort,
-                   pg_catalog.pg_get_expr(i.indpred, i.indrelid, true) as index_predicate
-            from pg_index i
-                     join pg_class table_class on table_class.oid = i.indrelid
-                     join pg_class index_class on index_class.oid = i.indexrelid
-                     left join pg_namespace n on n.oid = table_class.relnamespace
-                     left join pg_tablespace ts on ts.oid = index_class.reltablespace
-                     join pg_catalog.pg_am pa on index_class.relam = pa.oid
-            where n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
-              and not i.indisprimary
-              and not i.indisunique
-        "#,
-            )
-            .await
-    }
-
-    async fn get_check_constraints(&self) -> Result<Vec<CheckConstraintResult>> {
-        //language=postgresql
-        self.connection.get_results(
-            r#"
-            select distinct t.table_schema, t.table_name, cc.constraint_name, cc.check_clause from information_schema.check_constraints cc
-            join information_schema.table_constraints tc on cc.constraint_schema = tc.constraint_schema and cc.constraint_name = tc.constraint_name
-            join information_schema.tables t on tc.table_schema = t.table_schema and tc.table_name = t.table_name
-            join information_schema.constraint_column_usage ccu on cc.constraint_schema = ccu.constraint_schema and cc.constraint_name = ccu.constraint_name
-            where t.table_schema not in ('pg_catalog', 'pg_toast', 'information_schema')
-            order by t.table_schema, t.table_name, cc.constraint_name;
-            "#
-        ).await
-    }
-
-    async fn get_key_columns(&self) -> Result<Vec<KeyColumnUsageResult>> {
-        //language=postgresql
-        self.connection.get_results(
-            r#"
-            select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type, tc.nulls_distinct from information_schema.key_column_usage kcu
-            join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
-            where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'UNIQUE'
-            order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;
-            "#
-        ).await
-    }
-
-    async fn get_columns(&self) -> Result<Vec<TableColumnsResult>> {
-        //language=postgresql
-        self.connection.get_results(
-            r#"
-            select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type, c.column_default, c.generation_expression from information_schema.tables t
-            join information_schema.columns c on t.table_schema = c.table_schema and t.table_name = c.table_name
-            where t.table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and t.table_type = 'BASE TABLE'
-            order by c.table_schema, c.table_name, c.ordinal_position;
-            "#
-        ).await
-    }
-
-    async fn get_tables(&self) -> Result<Vec<TablesResult>> {
-        //language=postgresql
-        self.connection.get_results(
-            r#"
-            select table_schema, table_name from information_schema.tables
-            where table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and table_type = 'BASE TABLE'
-            order by table_schema, table_name;
-            "#
-        ).await
-    }
-
-    async fn get_sequences(&self) -> Result<Vec<SequenceResult>> {
-        //language=postgresql
-        self.connection
-            .get_results(
-                r#"
-            select s.schemaname,
-                   s.sequencename,
-                   s.data_type::text,
-                   s.start_value,
-                   s.min_value,
-                   s.max_value,
-                   s.increment_by,
-                   s.cycle,
-                   s.cache_size,
-                   s.last_value
-            from pg_sequences s
-            where s.schemaname not in ('pg_catalog', 'pg_toast', 'information_schema')
-            order by s.schemaname, s.sequencename;
-            "#,
-            )
-            .await
-    }
-
-    async fn get_foreign_keys(&self) -> Result<Vec<ForeignKeyResult>> {
-        //language=postgresql
-        self.connection
-            .get_results(
-                r#"
-            select con.conname              as constraint_name,
-                   con_ns.nspname           as constraint_schema_name,
-                   tab.relname              as source_table_name,
-                   tab_ns.nspname           as source_schema_name,
-                   target.relname           as target_table_name,
-                   target_ns.nspname        as target_schema_name,
-                   con.confupdtype::text    as update_action,
-                   con.confdeltype::text    as delete_action
-            from pg_catalog.pg_constraint con
-                     left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
-                     join pg_catalog.pg_class tab on con.conrelid = tab.oid
-                     left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
-                     join pg_catalog.pg_class target on con.confrelid = target.oid
-                     left join pg_namespace target_ns on target_ns.oid = target.relnamespace
-            where con.contype = 'f';
-            "#,
-            )
-            .await
-    }
-
-    async fn get_foreign_key_columns(&self) -> Result<Vec<ForeignKeyColumnResult>> {
-        //language=postgresql
-        self.connection
-            .get_results(
-                r#"
-            select con.conname       as constraint_name,
-                   con_ns.nspname    as constraint_schema_name,
-                   tab.relname       as source_table_name,
-                   tab_ns.nspname    as source_schema_name,
-                   source_table_attr.attname as source_table_column_name,
-                   target_table_attr.attname as target_table_column_name,
-                   (con.confdelsetcols is null or source_table_attr.attnum=any(con.confdelsetcols)) as affected_by_delete_action
-            from pg_constraint con
-                     left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
-                     join pg_catalog.pg_class tab on con.conrelid = tab.oid
-                     left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
-                     join unnest(con.conkey, con.confkey) as cols (conkey, confkey) on true
-                     left join pg_attribute source_table_attr
-                               on source_table_attr.attrelid = con.conrelid and source_table_attr.attnum = cols.conkey
-                     left join pg_attribute target_table_attr
-                               on target_table_attr.attrelid = con.confrelid and target_table_attr.attnum = cols.confkey
-            where con.contype = 'f'
-            "#,
-            )
-            .await
-    }
 }
-
 
 macro_rules! define_working_query {
     ($fn_name:ident, $result:ident, $query:literal) => {
-        impl SchemaReader<'_> {
-            async fn $fn_name(&self) -> Result<Vec<$result>> {
+        impl $crate::schema_reader::SchemaReader<'_> {
+            pub(in crate::schema_reader) async fn $fn_name(&self) -> $crate::Result<Vec<$result>> {
                 self.connection.get_results($query).await
             }
         }
     };
 }
 
-//language=postgresql
-define_working_query!(get_views, ViewResult, r#"
-select tab.relname                   as view_name,
-       ns.nspname                    as schema_name,
-       pg_get_viewdef(tab.oid, true) as def
-from pg_class tab
-         join pg_namespace ns on tab.relnamespace = ns.oid
-where ns.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
-  and tab.relkind = 'v';
-
-"#);
-
-//language=postgresql
-define_working_query!(get_view_columns, ViewColumnResult, r#"
-select tab.relname  as view_name,
-       ns.nspname   as schema_name,
-       attr.attname as column_name,
-       attr.attnum::int4  as ordinal_position
-from pg_class tab
-         join pg_namespace ns on tab.relnamespace = ns.oid
-         join pg_attribute attr on attr.attrelid = tab.oid
-where ns.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
-  and tab.relkind = 'v';
-"#);
-
-
-#[derive(Debug, Eq, PartialEq)]
-struct TablesResult {
-    schema_name: String,
-    table_name: String,
-}
-
-impl FromRow for TablesResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(TablesResult {
-            schema_name: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-        })
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct TableColumnsResult {
-    schema_name: String,
-    table_name: String,
-    column_name: String,
-    ordinal_position: i32,
-    is_nullable: bool,
-    data_type: String,
-    column_default: Option<String>,
-    generated: Option<String>,
-}
-
-impl FromRow for TableColumnsResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(TableColumnsResult {
-            schema_name: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            column_name: row.try_get(2)?,
-            ordinal_position: row.try_get(3)?,
-            is_nullable: row.try_get::<usize, String>(4)? != "NO",
-            data_type: row.try_get(5)?,
-            column_default: row.try_get(6)?,
-            generated: row.try_get(7)?,
-        })
-    }
-}
-
-impl TableColumnsResult {
-    fn to_postgres_column(&self) -> PostgresColumn {
-        PostgresColumn {
-            name: self.column_name.clone(),
-            is_nullable: self.is_nullable,
-            ordinal_position: self.ordinal_position,
-            data_type: self.data_type.clone(),
-            default_value: self.column_default.clone(),
-            generated: self.generated.clone(),
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct KeyColumnUsageResult {
-    pub table_schema: String,
-    pub table_name: String,
-    pub constraint_name: String,
-    pub column_name: String,
-    pub ordinal_position: i32,
-    pub position_in_unique_constraint: Option<i32>,
-    pub key_type: ConstraintType,
-    pub nulls_distinct: Option<bool>,
-}
-
-impl FromRow for KeyColumnUsageResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(KeyColumnUsageResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            constraint_name: row.try_get(2)?,
-            column_name: row.try_get(3)?,
-            ordinal_position: row.try_get(4)?,
-            position_in_unique_constraint: row.try_get(5)?,
-            key_type: ConstraintType::from_str(row.try_get(6)?)?,
-            nulls_distinct: match row.try_get::<usize, Option<&str>>(7)? {
-                Some("YES") => Some(true),
-                Some("NO") => Some(false),
-                _ => None,
-            },
-        })
-    }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-struct CheckConstraintResult {
-    pub table_schema: String,
-    pub table_name: String,
-    pub constraint_name: String,
-    pub check_clause: String,
-}
-
-impl FromRow for CheckConstraintResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(CheckConstraintResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            constraint_name: row.try_get(2)?,
-            check_clause: row.try_get(3)?,
-        })
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-enum ConstraintType {
-    PrimaryKey,
-    ForeignKey,
-    Check,
-    Unique,
-}
-
-impl FromStr for ConstraintType {
-    type Err = crate::ElefantToolsError;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        match s {
-            "PRIMARY KEY" => Ok(ConstraintType::PrimaryKey),
-            "FOREIGN KEY" => Ok(ConstraintType::ForeignKey),
-            "CHECK" => Ok(ConstraintType::Check),
-            "UNIQUE" => Ok(ConstraintType::Unique),
-            _ => Err(crate::ElefantToolsError::UnknownConstraintType(
-                s.to_string(),
-            )),
-        }
-    }
-}
-
-struct IndexColumnResult {
-    table_schema: String,
-    table_name: String,
-    index_name: String,
-    is_key: bool,
-    column_expression: String,
-    is_desc: Option<bool>,
-    nulls_first: Option<bool>,
-    ordinal_position: i32,
-}
-
-impl FromRow for IndexColumnResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(IndexColumnResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            index_name: row.try_get(2)?,
-            is_key: row.try_get(3)?,
-            column_expression: row.try_get(4)?,
-            is_desc: row.try_get(5)?,
-            nulls_first: row.try_get(6)?,
-            ordinal_position: row.try_get(7)?,
-        })
-    }
-}
-
-struct IndexResult {
-    table_schema: String,
-    table_name: String,
-    index_name: String,
-    index_type: String,
-    can_sort: bool,
-    index_predicate: Option<String>,
-}
-
-impl FromRow for IndexResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(IndexResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            index_name: row.try_get(2)?,
-            index_type: row.try_get(3)?,
-            can_sort: row.try_get(4)?,
-            index_predicate: row.try_get(5)?,
-        })
-    }
-}
-
-struct SequenceResult {
-    schema_name: String,
-    sequence_name: String,
-    data_type: String,
-    start_value: i64,
-    min_value: i64,
-    max_value: i64,
-    increment_by: i64,
-    cycle: bool,
-    cache_size: i64,
-    last_value: Option<i64>,
-}
-
-impl FromRow for SequenceResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(Self {
-            schema_name: row.try_get(0)?,
-            sequence_name: row.try_get(1)?,
-            data_type: row.try_get(2)?,
-            start_value: row.try_get(3)?,
-            min_value: row.try_get(4)?,
-            max_value: row.try_get(5)?,
-            increment_by: row.try_get(6)?,
-            cycle: row.try_get(7)?,
-            cache_size: row.try_get(8)?,
-            last_value: row.try_get(9)?,
-        })
-    }
-}
-
-struct ForeignKeyResult {
-    constraint_name: String,
-    constraint_schema_name: String,
-    source_table_name: String,
-    source_table_schema_name: String,
-    target_table_name: String,
-    target_table_schema_name: String,
-    update_action: ReferenceAction,
-    delete_action: ReferenceAction,
-}
-
-impl FromRow for ForeignKeyResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(Self {
-            constraint_name: row.try_get(0)?,
-            constraint_schema_name: row.try_get(1)?,
-            source_table_name: row.try_get(2)?,
-            source_table_schema_name: row.try_get(3)?,
-            target_table_name: row.try_get(4)?,
-            target_table_schema_name: row.try_get(5)?,
-            update_action: ReferenceAction::from_str(row.try_get(6)?)?,
-            delete_action: ReferenceAction::from_str(row.try_get(7)?)?,
-        })
-    }
-}
-
-struct ForeignKeyColumnResult {
-    constraint_name: String,
-    constraint_schema_name: String,
-    source_table_name: String,
-    source_schema_name: String,
-    source_table_column_name: String,
-    target_table_column_name: String,
-    affected_by_delete_action: bool,
-}
-
-impl FromRow for ForeignKeyColumnResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(Self {
-            constraint_name: row.try_get(0)?,
-            constraint_schema_name: row.try_get(1)?,
-            source_table_name: row.try_get(2)?,
-            source_schema_name: row.try_get(3)?,
-            source_table_column_name: row.try_get(4)?,
-            target_table_column_name: row.try_get(5)?,
-            affected_by_delete_action: row.try_get(6)?,
-        })
-    }
-}
-
-struct ViewResult {
-    view_name: String,
-    schema_name: String,
-    definition: String,
-}
-
-impl FromRow for ViewResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(Self {
-            view_name: row.try_get(0)?,
-            schema_name: row.try_get(1)?,
-            definition: row.try_get(2)?,
-        })
-    }
-}
-
-struct ViewColumnResult {
-    view_name: String,
-    schema_name: String,
-    column_name: String,
-    ordinal_position: i32,
-}
-
-impl FromRow for ViewColumnResult {
-    fn from_row(row: Row) -> Result<Self> {
-        Ok(Self {
-            view_name: row.try_get(0)?,
-            schema_name: row.try_get(1)?,
-            column_name: row.try_get(2)?,
-            ordinal_position: row.try_get(3)?,
-        })
-    }
-}
-
-#[cfg(test)]
-pub mod tests;
+pub(crate) use define_working_query;

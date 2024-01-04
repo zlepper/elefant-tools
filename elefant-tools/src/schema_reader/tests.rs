@@ -1,7 +1,6 @@
 use super::*;
 use crate::default;
 use crate::test_helpers::{get_test_helper, TestHelper};
-use tokio::test;
 
 pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
     let conn = test_helper.get_conn();
@@ -9,12 +8,25 @@ pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
     reader.introspect_database().await.unwrap()
 }
 
+fn test_introspection(create_table_statement: &str, expected: PostgresDatabase) {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let helper = get_test_helper("helper").await;
+            helper.execute_not_query(create_table_statement).await;
+
+            let db = introspect_schema(&helper).await;
+
+            assert_eq!(db, expected)
+        });
+}
+
 #[test]
-async fn reads_simple_schema() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn reads_simple_schema() {
+    test_introspection(
+        r#"
     create table my_table(
         id serial primary key,
         name text not null unique,
@@ -26,13 +38,6 @@ async fn reads_simple_schema() {
 
     insert into my_table(name, age) values ('foo', 42), ('bar', 22);
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -113,26 +118,17 @@ async fn reads_simple_schema() {
                     last_value: Some(2),
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn table_without_columns() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn table_without_columns() {
+    test_introspection(
+        r#"
     create table my_table();
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 tables: vec![PostgresTable {
@@ -141,29 +137,20 @@ async fn table_without_columns() {
                 }],
                 name: "public".to_string(),
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn table_without_primary_key() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn table_without_primary_key() {
+    test_introspection(
+        r#"
     create table my_table(
         name text not null,
         age int not null
     );
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -188,17 +175,15 @@ async fn table_without_primary_key() {
                     ..default()
                 }],
                 ..default()
-            }]
-        }
+            }],
+        },
     )
 }
 
 #[test]
-async fn composite_primary_keys() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn composite_primary_keys() {
+    test_introspection(
+        r#"
     create table my_table(
         id_part_1 int not null,
         id_part_2 int not null,
@@ -207,13 +192,6 @@ async fn composite_primary_keys() {
         constraint my_table_pk primary key (id_part_1, id_part_2)
     );
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -261,21 +239,19 @@ async fn composite_primary_keys() {
                                 ordinal_position: 2,
                             },
                         ],
-                    }),],
+                    })],
                     ..default()
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn indices() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn indices() {
+    test_introspection(
+        r#"
     create table my_table(
         value int
     );
@@ -286,13 +262,6 @@ async fn indices() {
     create index my_table_value_desc_nulls_last on my_table(value desc nulls last);
 
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -304,7 +273,7 @@ async fn indices() {
                         is_nullable: true,
                         data_type: "integer".to_string(),
                         ..default()
-                    },],
+                    }],
                     constraints: vec![],
                     indices: vec![
                         PostgresIndex {
@@ -358,17 +327,15 @@ async fn indices() {
                     ],
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn index_types() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn index_types() {
+    test_introspection(
+        r#"
     create table my_table(
         free_text tsvector
     );
@@ -376,13 +343,6 @@ async fn index_types() {
     create index my_table_gist on my_table using gist (free_text);
     create index my_table_gin on my_table using gin (free_text);
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -394,7 +354,7 @@ async fn index_types() {
                         is_nullable: true,
                         data_type: "tsvector".to_string(),
                         ..default()
-                    },],
+                    }],
                     indices: vec![
                         PostgresIndex {
                             name: "my_table_gin".to_string(),
@@ -424,30 +384,21 @@ async fn index_types() {
                     ..default()
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn filtered_index() {
-    let helper = get_test_helper("helper").await;
-    helper
-        .execute_not_query(
-            r#"
+fn filtered_index() {
+    test_introspection(
+        r#"
     create table my_table(
         value int
     );
 
     create index my_table_idx on my_table (value) where (value % 2 = 0);
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -459,7 +410,7 @@ async fn filtered_index() {
                         is_nullable: true,
                         data_type: "integer".to_string(),
                         ..default()
-                    },],
+                    }],
                     indices: vec![PostgresIndex {
                         name: "my_table_idx".to_string(),
                         key_columns: vec![PostgresIndexKeyColumn {
@@ -471,22 +422,19 @@ async fn filtered_index() {
                         index_type: "btree".to_string(),
                         predicate: Some("(value % 2) = 0".to_string()),
                         included_columns: vec![],
-                    },],
+                    }],
                     ..default()
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn index_with_include() {
-    let helper = get_test_helper("helper").await;
-    //language=postgresql
-    helper
-        .execute_not_query(
-            r#"
+fn index_with_include() {
+    test_introspection(
+        r#"
     create table my_table(
         value int,
         another_value int
@@ -494,13 +442,6 @@ async fn index_with_include() {
 
     create index my_table_idx on my_table (value) include (another_value);
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -536,33 +477,23 @@ async fn index_with_include() {
                             name: "another_value".to_string(),
                             ordinal_position: 2,
                         }],
-                    },],
+                    }],
                     ..default()
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn table_with_non_distinct_nulls() {
-    let helper = get_test_helper("helper").await;
-    //language=postgresql
-    helper
-        .execute_not_query(
-            r#"
+fn table_with_non_distinct_nulls() {
+    test_introspection(
+        r#"
     create table my_table(
         value int unique nulls not distinct
     );
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -574,7 +505,7 @@ async fn table_with_non_distinct_nulls() {
                         is_nullable: true,
                         data_type: "integer".to_string(),
                         ..default()
-                    },],
+                    }],
                     constraints: vec![PostgresConstraint::Unique(PostgresUniqueConstraint {
                         name: "my_table_value_key".to_string(),
                         columns: vec![PostgresUniqueConstraintColumn {
@@ -586,18 +517,15 @@ async fn table_with_non_distinct_nulls() {
                     ..default()
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn foreign_keys() {
-    let helper = get_test_helper("helper").await;
-    //language=postgresql
-    helper
-        .execute_not_query(
-            r#"
+fn foreign_keys() {
+    test_introspection(
+        r#"
     create table items(
         id serial primary key
     );
@@ -607,13 +535,6 @@ async fn foreign_keys() {
         item_id int not null references items(id)
     );
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -627,14 +548,14 @@ async fn foreign_keys() {
                             data_type: "integer".to_string(),
                             default_value: Some("nextval('items_id_seq'::regclass)".to_string()),
                             ..default()
-                        },],
+                        }],
                         constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
                             name: "items_pkey".to_string(),
                             columns: vec![PostgresPrimaryKeyColumn {
                                 column_name: "id".to_string(),
                                 ordinal_position: 1,
                             }],
-                        }),],
+                        })],
                         ..default()
                     },
                     PostgresTable {
@@ -646,7 +567,7 @@ async fn foreign_keys() {
                                 is_nullable: false,
                                 data_type: "integer".to_string(),
                                 default_value: Some(
-                                    "nextval('users_id_seq'::regclass)".to_string()
+                                    "nextval('users_id_seq'::regclass)".to_string(),
                                 ),
                                 ..default()
                             },
@@ -710,39 +631,29 @@ async fn foreign_keys() {
                     },
                 ],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn foreign_key_constraints() {
-    let helper = get_test_helper("helper").await;
-    //language=postgresql
-    helper
-        .execute_not_query(
-            r#"
+fn foreign_key_constraints() {
+    test_introspection(
+        r#"
     CREATE TABLE products (
         product_no integer PRIMARY KEY
     );
-    
+
     CREATE TABLE orders (
         order_id integer PRIMARY KEY
     );
-    
+
     CREATE TABLE order_items (
         product_no integer REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
         order_id integer REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
         PRIMARY KEY (product_no, order_id)
     );
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -832,7 +743,7 @@ async fn foreign_key_constraints() {
                                 column_name: "order_id".to_string(),
                                 ordinal_position: 1,
                             }],
-                        }),],
+                        })],
                         ..default()
                     },
                     PostgresTable {
@@ -844,42 +755,32 @@ async fn foreign_key_constraints() {
                             data_type: "integer".to_string(),
                             default_value: None,
                             ..default()
-                        },],
+                        }],
                         constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
                             name: "products_pkey".to_string(),
                             columns: vec![PostgresPrimaryKeyColumn {
                                 column_name: "product_no".to_string(),
                                 ordinal_position: 1,
                             }],
-                        }),],
+                        })],
                         ..default()
                     },
                 ],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn generated_column() {
-    let helper = get_test_helper("helper").await;
-    //language=postgresql
-    helper
-        .execute_not_query(
-            r#"
+fn generated_column() {
+    test_introspection(
+        r#"
     CREATE TABLE products (
         name text not null,
         search tsvector not null GENERATED ALWAYS AS (to_tsvector('english', name)) STORED
     );
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
@@ -906,64 +807,139 @@ async fn generated_column() {
                     ..default()
                 }],
                 ..default()
-            }]
-        }
-    )
+            }],
+        },
+    );
 }
 
 #[test]
-async fn test_views() {
-
-    let helper = get_test_helper("helper").await;
-    //language=postgresql
-    helper
-        .execute_not_query(
-            r#"
+fn test_views() {
+    test_introspection(
+        r#"
     CREATE TABLE products (
         name text not null
     );
 
     create view products_view (product_name) as select name from products where name like 'a%';
     "#,
-        )
-        .await;
-
-    let db = introspect_schema(&helper).await;
-
-    assert_eq!(
-        db,
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
                     name: "products".to_string(),
-                    columns: vec![
-                        PostgresColumn {
-                            name: "name".to_string(),
-                            ordinal_position: 1,
-                            is_nullable: false,
-                            data_type: "text".to_string(),
-                            ..default()
-                        },
-                    ],
+                    columns: vec![PostgresColumn {
+                        name: "name".to_string(),
+                        ordinal_position: 1,
+                        is_nullable: false,
+                        data_type: "text".to_string(),
+                        ..default()
+                    }],
                     ..default()
                 }],
-                views: vec![
-                    PostgresView {
-                        name: "products_view".to_string(),
-                        definition: " SELECT products.name AS product_name
+                views: vec![PostgresView {
+                    name: "products_view".to_string(),
+                    definition: " SELECT products.name AS product_name
    FROM products
-  WHERE products.name ~~ 'a%'::text;".to_string(),
-                        columns: vec![
-                            PostgresViewColumn {
-                                name: "product_name".to_string(),
-                                ordinal_position: 1,
-                            },
-                        ],
-                    }
+  WHERE products.name ~~ 'a%'::text;"
+                        .to_string(),
+                    columns: vec![PostgresViewColumn {
+                        name: "product_name".to_string(),
+                        ordinal_position: 1,
+                    }],
+                }],
+                ..default()
+            }],
+        },
+    );
+}
+
+#[test]
+fn test_functions() {
+    test_introspection(
+        r#"
+
+    create function add(a integer, b integer) returns integer as $$
+        begin
+            return a + b;
+        end;
+    $$ language plpgsql;
+
+    create function filter_stuff(value text) returns table(id int, name text) as
+        $$
+        begin
+
+        create temp table temp_table(id int, name text);
+
+        insert into temp_table(id, name) values (1, 'foo'), (2, 'bar');
+
+        return query select * from temp_table where name = value;
+
+        end;
+
+        $$ language plpgsql;
+
+
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                functions: vec![
+                    PostgresFunction {
+                        function_name: "add".to_string(),
+                        language: "plpgsql".to_string(),
+                        estimated_cost: NotNan::new(100.0).unwrap(),
+                        estimated_rows: NotNan::new(0.0).unwrap(),
+                        support_function: None,
+                        kind: FunctionKind::Function,
+                        security_definer: false,
+                        leak_proof: false,
+                        strict: false,
+                        returns_set: false,
+                        volatility: Volatility::Volatile,
+                        parallel: Parallel::Unsafe,
+                        sql_body: r#"
+        begin
+            return a + b;
+        end;
+    "#
+                        .to_string(),
+                        configuration: None,
+                        arguments: "a integer, b integer".to_string(),
+                        result: Some("integer".to_string()),
+                    },
+                    PostgresFunction {
+                        function_name: "filter_stuff".to_string(),
+                        language: "plpgsql".to_string(),
+                        estimated_cost: NotNan::new(100.0).unwrap(),
+                        estimated_rows: NotNan::new(1000.0).unwrap(),
+                        support_function: None,
+                        kind: FunctionKind::Function,
+                        security_definer: false,
+                        leak_proof: false,
+                        strict: false,
+                        returns_set: true,
+                        volatility: Volatility::Volatile,
+                        parallel: Parallel::Unsafe,
+                        sql_body: r#"
+        begin
+
+        create temp table temp_table(id int, name text);
+
+        insert into temp_table(id, name) values (1, 'foo'), (2, 'bar');
+
+        return query select * from temp_table where name = value;
+
+        end;
+
+        "#
+                        .to_string(),
+                        configuration: None,
+                        arguments: "value text".to_string(),
+                        result: Some("TABLE(id integer, name text)".to_string()),
+                    },
                 ],
                 ..default()
-            }]
-        }
+            }],
+        },
     )
 }

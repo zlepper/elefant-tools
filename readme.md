@@ -32,6 +32,7 @@
 ✅ Views
 ❌ Materialized views
 ❌ Functions/Stored procedures
+   ❌ Transforms
 ❌ Extensions
 ❌ Comments
 ❌ Partitions

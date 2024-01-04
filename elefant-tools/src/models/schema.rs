@@ -1,12 +1,14 @@
 use crate::models::sequence::PostgresSequence;
 use crate::models::table::PostgresTable;
 use crate::models::view::PostgresView;
+use crate::PostgresFunction;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresSchema {
     pub tables: Vec<PostgresTable>,
     pub sequences: Vec<PostgresSequence>,
     pub views: Vec<PostgresView>,
+    pub functions: Vec<PostgresFunction>,
     pub name: String,
 }
 
@@ -23,6 +25,7 @@ impl Default for PostgresSchema {
             name: "".to_string(),
             tables: vec![],
             sequences: vec![],
+            functions: vec![],
         }
     }
 }

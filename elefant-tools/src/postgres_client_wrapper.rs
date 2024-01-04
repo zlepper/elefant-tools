@@ -1,8 +1,10 @@
+use std::fmt::Display;
 use tokio::task::JoinHandle;
 use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
 use tokio_postgres::types::{FromSqlOwned};
 use crate::Result;
 use bytes::Buf;
+use tokio_postgres::row::RowIndex;
 
 pub struct PostgresClientWrapper {
     client: Client,
@@ -133,6 +135,21 @@ impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned> FromRow for (T1, T2, 
 }
 
 
+pub(crate) trait FromPgChar: Sized {
+    fn from_pg_char(c: char) -> std::result::Result<Self, crate::ElefantToolsError>;
+}
+
+pub(crate) trait RowEnumExt {
+    fn try_get_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<T>;
+}
+
+impl RowEnumExt for Row {
+    fn try_get_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<T> {
+        let value: i8 = self.try_get(idx)?;
+        let c = value as u8 as char;
+        T::from_pg_char(c)
+    }
+}
 
 #[cfg(test)]
 mod tests {

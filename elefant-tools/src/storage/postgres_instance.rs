@@ -113,6 +113,10 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 
     async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
+            for function in &schema.functions {
+                self.connection.execute_non_query(&function.get_create_statement()).await?;
+            }
+
             for table in &schema.tables {
                 for index in &table.indices {
                     self.connection.execute_non_query(&index.get_create_index_command(schema, table)).await?;
@@ -297,5 +301,28 @@ mod tests {
         height_cm numeric,
         height_in numeric GENERATED ALWAYS AS (height_cm / 2.54) STORED
     );
+    "#);
+
+    test_round_trip!(functions, r#"
+
+    create function add(a integer, b integer) returns integer as $$
+        begin
+            return a + b;
+        end;
+    $$ language plpgsql;
+
+    create function filter_stuff(value text) returns table(id int, name text) as
+        $$
+        begin
+
+        create temp table temp_table(id int, name text);
+
+        insert into temp_table(id, name) values (1, 'foo'), (2, 'bar');
+
+        return query select * from temp_table where name = value;
+
+        end;
+
+        $$ language plpgsql;
     "#);
 }

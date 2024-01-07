@@ -13,6 +13,7 @@ use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
 use crate::storage::{BaseCopyTarget, CopyDestination, DataFormat, TableData};
 use crate::{PostgresConstraint, Result};
+use crate::quoting::IdentifierQuoter;
 
 pub struct SqlFileOptions {
     pub max_rows_per_insert: usize,
@@ -26,41 +27,43 @@ impl Default for SqlFileOptions {
     }
 }
 
-pub struct SqlFile<F: AsyncWrite + Unpin + Send + Sync> {
+pub struct SqlFile<'q, F: AsyncWrite + Unpin + Send + Sync> {
     file: F,
     options: SqlFileOptions,
+    quoter: &'q IdentifierQuoter
 }
 
-impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
-    pub async fn new(path: &str, options: SqlFileOptions) -> Result<SqlFile<BufWriter<File>>> {
+impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile<'q, F> {
+    pub async fn new(path: &str, identifier_quoter: &'q IdentifierQuoter, options: SqlFileOptions) -> Result<SqlFile<'q, BufWriter<File>>> {
         let file = File::create(path).await?;
         Ok(SqlFile {
             file: BufWriter::new(file),
             options,
+            quoter: identifier_quoter,
         })
     }
 }
 
 #[async_trait]
-impl<F: AsyncWrite + Unpin + Send + Sync> BaseCopyTarget for SqlFile<F> {
+impl<F: AsyncWrite + Unpin + Send + Sync> BaseCopyTarget for SqlFile<'_, F> {
     async fn supported_data_format(&self) -> Result<Vec<DataFormat>> {
         Ok(vec![DataFormat::Text])
     }
 }
 
 #[async_trait]
-impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
+impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<'_, F> {
     async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         let file = &mut self.file;
 
         for schema in &db.schemas {
-            let sql = schema.get_create_statement();
+            let sql = schema.get_create_statement(self.quoter);
             file.write_all(sql.as_bytes()).await?;
 
             file.write_all("\n".as_bytes()).await?;
 
             for table in &schema.tables {
-                let sql = table.get_create_statement(schema);
+                let sql = table.get_create_statement(schema, self.quoter);
                 file.write_all(sql.as_bytes()).await?;
 
                 file.write_all("\n".as_bytes()).await?;
@@ -185,7 +188,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                     self.file.write_all(b"\n").await?;
                 }
 
-                let sql = function.get_create_statement();
+                let sql = function.get_create_statement(self.quoter);
                 self.file.write_all(sql.as_bytes()).await?;
                 self.file.write_all(b"\n").await?;
             }
@@ -197,14 +200,14 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                 }
 
                 for index in &table.indices {
-                    let sql = index.get_create_index_command(schema, table);
+                    let sql = index.get_create_index_command(schema, table, self.quoter);
                     self.file.write_all(sql.as_bytes()).await?;
                     self.file.write_all(b"\n").await?;
                 }
 
                 for constraint in &table.constraints {
                     if let PostgresConstraint::Unique(unique) = constraint {
-                        let sql = unique.get_create_statement(schema, table);
+                        let sql = unique.get_create_statement(schema, table, self.quoter);
                         self.file.write_all(sql.as_bytes()).await?;
                         self.file.write_all(b"\n").await?;
                     }
@@ -217,11 +220,11 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                 printed_code = true;
                 self.file.write_all(b"\n").await?;
 
-                let sql = sequence.get_create_statement(schema);
+                let sql = sequence.get_create_statement(schema, self.quoter);
                 self.file.write_all(sql.as_bytes()).await?;
                 self.file.write_all(b"\n").await?;
 
-                if let Some(sql) = sequence.get_set_value_statement(schema) {
+                if let Some(sql) = sequence.get_set_value_statement(schema, self.quoter) {
                     self.file.write_all(sql.as_bytes()).await?;
                     self.file.write_all(b"\n").await?;
                 }
@@ -234,7 +237,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
 
             for table in &schema.tables {
                 for column in &table.columns {
-                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema) {
+                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema, self.quoter) {
                         printed_code = true;
                         self.file.write_all(sql.as_bytes()).await?;
                         self.file.write_all(b"\n").await?;
@@ -244,7 +247,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
                 for constraint in &table.constraints {
                     if let PostgresConstraint::ForeignKey(fk) = constraint {
                         printed_code = true;
-                        let sql = fk.get_create_statement(table, schema);
+                        let sql = fk.get_create_statement(table, schema, self.quoter);
                         self.file.write_all(sql.as_bytes()).await?;
                         self.file.write_all(b"\n").await?;
                     }
@@ -256,7 +259,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
             }
 
             for view in &schema.views {
-                let sql = view.get_create_view_sql(schema);
+                let sql = view.get_create_view_sql(schema, self.quoter);
                 self.file.write_all(sql.as_bytes()).await?;
                 self.file.write_all(b"\n").await?;
             }
@@ -280,10 +283,13 @@ mod tests {
     async fn export_to_string(source: &TestHelper) -> String {
         let mut result_file = Vec::<u8>::new();
 
+        let quoter = IdentifierQuoter::empty();
+
         {
             let mut sql_file = SqlFile {
                 file: &mut result_file,
                 options: SqlFileOptions::default(),
+                quoter: &quoter,
             };
 
             let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();

@@ -10,19 +10,26 @@ use crate::storage::{BaseCopyTarget, CopyDestination, CopySource, DataFormat, Ta
 use crate::*;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
+use crate::quoting::IdentifierQuoter;
 
 pub struct PostgresInstanceStorage<'a> {
     connection: &'a PostgresClientWrapper,
     postgres_version: String,
+    identifier_quoter: IdentifierQuoter,
 }
 
 impl<'a> PostgresInstanceStorage<'a> {
     pub async fn new(connection: &'a PostgresClientWrapper) -> Result<Self> {
         let postgres_version = connection.get_single_result("select version()").await?;
 
+        let keywords = connection.get_single_results("select word from pg_get_keywords() where catcode <> 'U'").await?;
+
+        let quoter = IdentifierQuoter::new(keywords.into_iter().collect());
+
         Ok(PostgresInstanceStorage {
             connection,
             postgres_version,
+            identifier_quoter: quoter,
         })
     }
 }
@@ -53,7 +60,7 @@ impl<'a> CopySource for PostgresInstanceStorage<'a> {
     }
 
     async fn get_data(&self, schema: &PostgresSchema, table: &PostgresTable, data_format: &DataFormat) -> Result<TableData<Self::DataStream>> {
-        let copy_command = table.get_copy_out_command(schema, data_format);
+        let copy_command = table.get_copy_out_command(schema, data_format, &self.identifier_quoter);
         let copy_out_stream = self.connection.copy_out(&copy_command).await?;
 
         let stream = copy_out_stream.map_err(tokio_postgres_error_to_crate_error as fn(tokio_postgres::Error) -> ElefantToolsError);
@@ -79,10 +86,10 @@ impl<'a> CopySource for PostgresInstanceStorage<'a> {
 impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
     async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
-            self.connection.execute_non_query(&schema.get_create_statement()).await?;
+            self.connection.execute_non_query(&schema.get_create_statement(&self.identifier_quoter)).await?;
 
             for table in &schema.tables {
-                self.connection.execute_non_query(&table.get_create_statement(schema)).await?;
+                self.connection.execute_non_query(&table.get_create_statement(schema, &self.identifier_quoter)).await?;
             }
         }
 
@@ -92,7 +99,7 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
     async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()> {
         let data_format = data.get_data_format();
 
-        let copy_statement = table.get_copy_in_command(schema, &data_format);
+        let copy_statement = table.get_copy_in_command(schema, &data_format, &self.identifier_quoter);
 
         let sink = self.connection.copy_in::<Bytes>(&copy_statement).await?;
         pin_mut!(sink);
@@ -114,24 +121,24 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
     async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
             for function in &schema.functions {
-                self.connection.execute_non_query(&function.get_create_statement()).await?;
+                self.connection.execute_non_query(&function.get_create_statement(&self.identifier_quoter)).await?;
             }
 
             for table in &schema.tables {
                 for index in &table.indices {
-                    self.connection.execute_non_query(&index.get_create_index_command(schema, table)).await?;
+                    self.connection.execute_non_query(&index.get_create_index_command(schema, table, &self.identifier_quoter)).await?;
                 }
 
                 for constraint in &table.constraints {
                     if let PostgresConstraint::Unique(unique) = constraint {
-                        self.connection.execute_non_query(&unique.get_create_statement(schema, table)).await?;
+                        self.connection.execute_non_query(&unique.get_create_statement(schema, table, &self.identifier_quoter)).await?;
                     }
                 }
             }
 
             for sequence in &schema.sequences {
-                self.connection.execute_non_query(&sequence.get_create_statement(schema)).await?;
-                if let Some(sql) = sequence.get_set_value_statement(schema) {
+                self.connection.execute_non_query(&sequence.get_create_statement(schema, &self.identifier_quoter)).await?;
+                if let Some(sql) = sequence.get_set_value_statement(schema, &self.identifier_quoter) {
                     self.connection.execute_non_query(&sql).await?;
                 }
             }
@@ -139,21 +146,21 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 
             for table in &schema.tables {
                 for column in &table.columns {
-                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema) {
+                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema, &self.identifier_quoter) {
                         self.connection.execute_non_query(&sql).await?;
                     }
                 }
 
                 for constraint in &table.constraints {
                     if let PostgresConstraint::ForeignKey(fk) = constraint {
-                        let sql = fk.get_create_statement(table, schema);
+                        let sql = fk.get_create_statement(table, schema, &self.identifier_quoter);
                         self.connection.execute_non_query(&sql).await?;
                     }
                 }
             }
 
             for view in &schema.views {
-                self.connection.execute_non_query(&view.get_create_view_sql(schema)).await?;
+                self.connection.execute_non_query(&view.get_create_view_sql(schema, &self.identifier_quoter)).await?;
             }
         }
 
@@ -324,5 +331,14 @@ mod tests {
         end;
 
         $$ language plpgsql;
+    "#);
+
+    test_round_trip!(qouted_identifier_name, r#"
+        create table "MyTable" (
+            "MyColumn" int,
+            "MyTextColumn" text
+        );
+
+        create index "MyIndex" on "MyTable" (lower("MyTextColumn"));
     "#);
 }

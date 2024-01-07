@@ -31,7 +31,7 @@
 ❌ Triggers
 ✅ Views
 ❌ Materialized views
-❌ Functions/Stored procedures
+➕ Functions/Stored procedures
    ❌ Transforms
 ❌ Extensions
 ❌ Comments
@@ -43,7 +43,7 @@
 ❌ Roles
 ❌ Users
 ✅ Default values
-❌ Quoted identifier names
+✅ Quoted identifier names
 ❌ Array columns
 ❌ Exclusion constraints
 ```

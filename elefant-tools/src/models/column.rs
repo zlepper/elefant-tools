@@ -1,4 +1,5 @@
 use crate::{PostgresSchema, PostgresTable};
+use crate::quoting::{IdentifierQuoter, Quotable};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresColumn {
@@ -11,8 +12,8 @@ pub struct PostgresColumn {
 }
 
 impl PostgresColumn {
-    pub fn get_alter_table_set_default_statement(&self, table: &PostgresTable, schema: &PostgresSchema) -> Option<String> {
-        self.default_value.as_ref().map(|default_value| format!("alter table {}.{} alter column {} set default {};", schema.name, table.name, self.name, default_value))
+    pub fn get_alter_table_set_default_statement(&self, table: &PostgresTable, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
+        self.default_value.as_ref().map(|default_value| format!("alter table {}.{} alter column {} set default {};", schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.name.quote(identifier_quoter), default_value))
     }
 }
 

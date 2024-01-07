@@ -2,6 +2,7 @@ use crate::models::sequence::PostgresSequence;
 use crate::models::table::PostgresTable;
 use crate::models::view::PostgresView;
 use crate::PostgresFunction;
+use crate::quoting::{IdentifierQuoter, Quotable};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresSchema {
@@ -13,8 +14,8 @@ pub struct PostgresSchema {
 }
 
 impl PostgresSchema {
-    pub fn get_create_statement(&self) -> String {
-        format!("create schema if not exists {};", self.name)
+    pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
+        format!("create schema if not exists {};", self.name.quote(identifier_quoter))
     }
 }
 

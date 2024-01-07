@@ -3,6 +3,7 @@ use std::str::FromStr;
 use itertools::Itertools;
 use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
 use crate::postgres_client_wrapper::FromPgChar;
+use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresForeignKey {
@@ -30,26 +31,28 @@ impl Default for PostgresForeignKey {
 }
 
 impl PostgresForeignKey {
-    pub fn get_create_statement(&self, table: &PostgresTable, schema: &PostgresSchema) -> String {
+    pub fn get_create_statement(&self, table: &PostgresTable, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
         let mut sql = format!("alter table {}.{} add constraint {} foreign key (",
-                              schema.name, table.name, self.name);
+                              schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.name.quote(identifier_quoter));
 
         let columns = self.columns.iter()
             .sorted_by_key(|c| c.ordinal_position)
             .map(|c| c.name.as_str())
+            .quote(identifier_quoter)
             .join(", ");
 
         sql.push_str(&columns);
         sql.push_str(") references ");
         let referenced_schema = self.referenced_schema.as_ref().unwrap_or(&schema.name);
-        sql.push_str(referenced_schema);
+        sql.push_str(&referenced_schema.quote(identifier_quoter));
         sql.push('.');
-        sql.push_str(&self.referenced_table);
+        sql.push_str(&self.referenced_table.quote(identifier_quoter));
         sql.push_str(" (");
 
         let referenced_columns = self.referenced_columns.iter()
             .sorted_by_key(|c| c.ordinal_position)
             .map(|c| c.name.as_str())
+            .quote(identifier_quoter)
             .join(", ");
 
         sql.push_str(&referenced_columns);
@@ -81,6 +84,7 @@ impl PostgresForeignKey {
         if self.columns.iter().any(|c| !c.affected_by_delete_action)  {
             let affected_columns = self.columns.iter().filter(|c| c.affected_by_delete_action)
                 .map(|c| c.name.as_str())
+                .quote(identifier_quoter)
                 .join(", ");
 
             sql.push('(');

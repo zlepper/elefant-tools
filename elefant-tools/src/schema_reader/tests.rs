@@ -943,3 +943,51 @@ fn test_functions() {
         },
     )
 }
+
+#[test]
+fn test_qouted_identifier_names() {
+    test_introspection(r#"
+        create table "MyTable" (int serial primary key);
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![
+                    PostgresTable {
+                        name: "MyTable".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "int".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "integer".to_string(),
+                                default_value: Some("nextval('\"MyTable_int_seq\"'::regclass)".to_string()),
+                                ..default()
+                            }
+                        ],
+                        constraints: vec![
+                            PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
+                                name: "MyTable_pkey".to_string(),
+                                columns: vec![
+                                    PostgresPrimaryKeyColumn {
+                                        column_name: "int".to_string(),
+                                        ordinal_position: 1,
+                                    }
+                                ]
+                            })
+                        ],
+                        ..default()
+                    }
+                ],
+                sequences: vec![
+                    PostgresSequence {
+                        name: "MyTable_int_seq".to_string(),
+                        data_type: "integer".to_string(),
+                        ..default()
+                    }
+                ],
+                ..default()
+            }
+        ]
+    })
+}

@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
+use crate::quoting::{IdentifierQuoter, Quotable};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresUniqueConstraint {
@@ -21,8 +22,8 @@ impl Ord for PostgresUniqueConstraint {
 }
 
 impl PostgresUniqueConstraint {
-    pub fn get_create_statement(&self, schema: &PostgresSchema, table: &PostgresTable) -> String {
-        let mut s = format!("alter table {}.{} add constraint {} unique ", schema.name, table.name, self.name);
+    pub fn get_create_statement(&self, schema: &PostgresSchema, table: &PostgresTable, identifier_quoter: &IdentifierQuoter) -> String {
+        let mut s = format!("alter table {}.{} add constraint {} unique ", schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.name.quote(identifier_quoter));
 
 
         if !self.distinct_nulls {
@@ -35,7 +36,7 @@ impl PostgresUniqueConstraint {
             if index != 0 {
                 s.push_str(", ");
             }
-            s.push_str(&column.column_name);
+            s.push_str(&column.column_name.quote(identifier_quoter));
         }
 
         s.push_str(");");

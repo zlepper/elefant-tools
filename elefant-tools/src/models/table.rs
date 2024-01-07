@@ -4,6 +4,7 @@ use crate::models::constraint::PostgresConstraint;
 use crate::{DataFormat, DdlQueryBuilder};
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
+use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresTable {
@@ -29,8 +30,8 @@ impl PostgresTable {
         }
     }
 
-    pub fn get_create_statement(&self, schema: &PostgresSchema) -> String {
-        let mut query_builder = DdlQueryBuilder::new();
+    pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
+        let mut query_builder = DdlQueryBuilder::new(identifier_quoter);
         let mut table_builder = query_builder.create_table(&schema.name, &self.name);
 
 
@@ -69,15 +70,15 @@ impl PostgresTable {
         query_builder.build()
     }
 
-    pub fn get_copy_in_command(&self, schema: &PostgresSchema, data_format: &DataFormat) -> String {
+    pub fn get_copy_in_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {
         let mut s = "copy ".to_string();
-        s.push_str(&schema.name);
+        s.push_str(&schema.name.quote(identifier_quoter));
         s.push('.');
-        s.push_str(&self.name);
+        s.push_str(&self.name.quote(identifier_quoter));
 
         s.push_str(" (");
 
-        let cols = self.get_copy_columns_expression();
+        let cols = self.get_copy_columns_expression(identifier_quoter);
 
         s.push_str(&cols);
 
@@ -95,15 +96,15 @@ impl PostgresTable {
         s
     }
 
-    pub fn get_copy_out_command(&self, schema: &PostgresSchema, data_format: &DataFormat) -> String {
+    pub fn get_copy_out_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {
         let mut s = "copy ".to_string();
-        s.push_str(&schema.name);
+        s.push_str(&schema.name.quote(identifier_quoter));
         s.push('.');
-        s.push_str(&self.name);
+        s.push_str(&self.name.quote(identifier_quoter));
 
         s.push_str(" (");
 
-        let cols = self.get_copy_columns_expression();
+        let cols = self.get_copy_columns_expression(identifier_quoter);
 
         s.push_str(&cols);
         s.push_str(") ");
@@ -122,11 +123,12 @@ impl PostgresTable {
         s
     }
 
-    fn get_copy_columns_expression(&self) -> String {
+    fn get_copy_columns_expression(&self, identifier_quoter: &IdentifierQuoter) -> String {
         self.columns.iter()
             .filter(|c| c.generated.is_none())
             .sorted_by_key(|c| c.ordinal_position)
             .map(|c| c.name.as_str())
+            .quote(identifier_quoter)
             .join(", ")
     }
 }

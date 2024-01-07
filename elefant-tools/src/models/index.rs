@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
+use crate::quoting::{IdentifierQuoter, Quotable};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresIndex {
@@ -23,8 +24,8 @@ impl PartialOrd for PostgresIndex {
 }
 
 impl PostgresIndex {
-    pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable) -> String {
-        let mut command = format!("create index {} on {}.{} using {} (", self.name, schema.name, table.name, self.index_type);
+    pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable, identifier_quoter: &IdentifierQuoter) -> String {
+        let mut command = format!("create index {} on {}.{} using {} (", self.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.index_type);
 
         for (i, column) in self.key_columns.iter().enumerate() {
             if i > 0 {

@@ -1,6 +1,7 @@
 use crate::ElefantToolsError;
 use crate::postgres_client_wrapper::FromPgChar;
 use ordered_float::NotNan;
+use crate::quoting::IdentifierQuoter;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum FunctionKind {
@@ -79,8 +80,9 @@ pub struct PostgresFunction {
 }
 
 impl PostgresFunction {
-    pub fn get_create_statement(&self) -> String {
-        let mut sql = format!("create function {} ({})", self.function_name, self.arguments);
+    pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
+        let fn_name = identifier_quoter.quote(&self.function_name);
+        let mut sql = format!("create function {} ({})", fn_name, self.arguments);
 
         if let Some(result) = &self.result {
             sql.push_str(" returns ");

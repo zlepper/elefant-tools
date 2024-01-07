@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema};
+use crate::quoting::{IdentifierQuoter, Quotable};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresSequence {
@@ -14,10 +15,26 @@ pub struct PostgresSequence {
     pub last_value: Option<i64>,
 }
 
+impl Default for PostgresSequence {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            data_type: String::new(),
+            start_value: 1,
+            increment: 1,
+            min_value: 1,
+            max_value: 2147483647,
+            cache_size: 1,
+            cycle: false,
+            last_value: None
+        }
+    }
+}
+
 impl PostgresSequence {
-    pub fn get_create_statement(&self, schema: &PostgresSchema) -> String {
+    pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
         let mut sql = format!("create sequence {}.{} as {} increment by {} minvalue {} maxvalue {} start {} cache {}",
-                              schema.name, self.name, self.data_type, self.increment, self.min_value, self.max_value, self.start_value, self.cache_size);
+                              schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), self.data_type, self.increment, self.min_value, self.max_value, self.start_value, self.cache_size);
 
         if self.cycle {
             sql.push_str(" cycle");
@@ -28,8 +45,8 @@ impl PostgresSequence {
         sql
     }
 
-    pub fn get_set_value_statement(&self, schema: &PostgresSchema) -> Option<String> {
-        self.last_value.map(|last_value| format!("select pg_catalog.setval('{}.{}', {}, true);", schema.name, self.name, last_value))
+    pub fn get_set_value_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
+        self.last_value.map(|last_value| format!("select pg_catalog.setval('{}.{}', {}, true);", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), last_value))
     }
 }
 

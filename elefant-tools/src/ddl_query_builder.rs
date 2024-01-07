@@ -1,18 +1,25 @@
+use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter};
 use itertools::Itertools;
 
-pub struct DdlQueryBuilder {
+pub struct DdlQueryBuilder<'q> {
     sql: String,
+    identifier_quoter: &'q IdentifierQuoter,
 }
 
-impl DdlQueryBuilder {
-    pub fn new() -> Self {
+impl<'a> DdlQueryBuilder<'a> {
+    pub fn new(identifier_quoter: &'a IdentifierQuoter) -> Self {
         Self {
             sql: String::new(),
+            identifier_quoter,
         }
     }
 
-    pub fn create_table(&mut self, schema: &str, table: &str) -> DdlTableBuilder {
-        self.sql.push_str(&format!("create table {}.{} (", schema, table));
+    pub fn create_table(&mut self, schema: &str, table: &str) -> DdlTableBuilder<'a, '_> {
+        self.sql.push_str(&format!(
+            "create table {}.{} (",
+            schema.quote(self.identifier_quoter),
+            table.quote(self.identifier_quoter)
+        ));
 
         DdlTableBuilder {
             query_builder: self,
@@ -27,33 +34,50 @@ impl DdlQueryBuilder {
     }
 }
 
-pub struct DdlTableBuilder<'a> {
-    query_builder: &'a mut DdlQueryBuilder,
+pub struct DdlTableBuilder<'q, 'b> {
+    query_builder: &'b mut DdlQueryBuilder<'q>,
     has_first_line: bool,
 }
 
-impl<'a> DdlTableBuilder<'a> {
-    pub fn column<'b>(&'b mut self, name: &str, data_type: &str) -> DdlTableColumnBuilder<'b>
-    {
+impl<'a, 'q> DdlTableBuilder<'a, 'q> {
+    pub fn column<'b>(&'b mut self, name: &str, data_type: &str) -> DdlTableColumnBuilder<'b> {
+        let name = self.query_builder.identifier_quoter.quote(name);
         self.start_new_line();
-        self.query_builder.sql.push_str(&format!("    {} {}", name, data_type));
+        self.query_builder
+            .sql
+            .push_str(&format!("    {} {}", name, data_type));
 
         DdlTableColumnBuilder {
             sql: &mut self.query_builder.sql,
         }
     }
 
-    pub fn primary_key<'i>(&mut self, name: &str, columns: impl IntoIterator<Item=&'i str>) -> &mut Self {
+    pub fn primary_key<'i, S: AsRef<str>>(
+        &mut self,
+        name: &str,
+        columns: impl IntoIterator<Item = S>,
+    ) -> &mut Self {
         self.start_new_line();
-        let cols = columns.into_iter().join(", ");
-        self.query_builder.sql.push_str(&format!("    constraint {} primary key ({})", name, cols));
+        let cols = columns
+            .into_iter()
+            .quote(self.query_builder.identifier_quoter)
+            .join(", ");
+        self.query_builder.sql.push_str(&format!(
+            "    constraint {} primary key ({})",
+            name.quote(self.query_builder.identifier_quoter),
+            cols
+        ));
 
         self
     }
 
     pub fn check_constraint(&mut self, name: &str, expression: &str) -> &mut Self {
         self.start_new_line();
-        self.query_builder.sql.push_str(&format!("    constraint {} check {}", name, expression));
+        self.query_builder.sql.push_str(&format!(
+            "    constraint {} check {}",
+            name.quote(self.query_builder.identifier_quoter),
+            expression
+        ));
 
         self
     }
@@ -88,7 +112,6 @@ impl<'a> DdlTableColumnBuilder<'a> {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -96,121 +119,150 @@ mod tests {
 
     #[test]
     fn builds_create_table_expression() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("id", "int");
         table_builder.column("name", "varchar(255)");
         table_builder.primary_key("pk_table", vec!["id"]);
         let result = builder.build();
 
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             id int,
             name varchar(255),
             constraint pk_table primary key (id)
         );
-        "#});
+        "#}
+        );
     }
 
     #[test]
     fn multiple_primary_keys() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("id", "int");
         table_builder.column("name", "varchar(255)");
         table_builder.primary_key("pk_table", vec!["id", "name"]);
         let result = builder.build();
 
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             id int,
             name varchar(255),
             constraint pk_table primary key (id, name)
         );
-        "#});
+        "#}
+        );
     }
 
     #[test]
     fn columns_only() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("id", "int");
         table_builder.column("name", "varchar(255)");
         let result = builder.build();
 
-
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             id int,
             name varchar(255)
         );
-        "#});
+        "#}
+        );
     }
 
     #[test]
     fn not_null_columns() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("id", "int").not_null();
         table_builder.column("name", "varchar(255)").not_null();
         let result = builder.build();
 
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             id int not null,
             name varchar(255) not null
         );
-        "#});
+        "#}
+        );
     }
 
     #[test]
     fn check_constraint_single_column() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("id", "int");
         table_builder.column("name", "varchar(255)");
         table_builder.check_constraint("check_name", "(name != 'foo')");
         let result = builder.build();
 
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             id int,
             name varchar(255),
             constraint check_name check (name != 'foo')
         );
-        "#});
+        "#}
+        );
     }
 
     #[test]
     fn check_constraint_multiple_column() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("id", "int");
         table_builder.column("name", "varchar(255)");
         table_builder.check_constraint("check_name", "(name != 'foo' and id > 0)");
         let result = builder.build();
 
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             id int,
             name varchar(255),
             constraint check_name check (name != 'foo' and id > 0)
         );
-        "#});
+        "#}
+        );
     }
     #[test]
     fn generated_column() {
-        let mut builder = DdlQueryBuilder::new();
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
         let mut table_builder = builder.create_table("public", "my_table");
         table_builder.column("name", "text");
-        table_builder.column("search", "tsvector").generated("to_tsvector('english', name)");
+        table_builder
+            .column("search", "tsvector")
+            .generated("to_tsvector('english', name)");
         let result = builder.build();
 
-        assert_eq!(result, indoc! {r#"
+        assert_eq!(
+            result,
+            indoc! {r#"
         create table public.my_table (
             name text,
             search tsvector generated always as (to_tsvector('english', name)) stored
         );
-        "#});
+        "#}
+        );
     }
 }

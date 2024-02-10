@@ -33,7 +33,7 @@
 ❌ Materialized views
 ➕ Functions/Stored procedures
    ❌ Transforms
-❌ Extensions
+✅ Extensions
 ❌ Comments
 ❌ Partitions
 ❌ Inheritance

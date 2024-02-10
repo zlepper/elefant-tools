@@ -29,6 +29,7 @@ mod foreign_key_column;
 mod view;
 mod view_column;
 mod function;
+mod extension;
 
 
 pub struct SchemaReader<'a> {
@@ -53,8 +54,9 @@ impl SchemaReader<'_> {
         let views = self.get_views().await?;
         let view_columns = self.get_view_columns().await?;
         let functions = self.get_functions().await?;
+        let extensions = self.get_extensions().await?;
 
-        let mut db = PostgresDatabase { schemas: vec![] };
+        let mut db = PostgresDatabase::default();
 
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
@@ -131,6 +133,17 @@ impl SchemaReader<'_> {
             };
 
             current_schema.functions.push(function);
+        }
+
+        for extension in &extensions {
+            let extension = PostgresExtension {
+                name: extension.extension_name.clone(),
+                schema_name: extension.extension_schema_name.clone(),
+                version: extension.extension_version.clone(),
+                relocatable: extension.extension_relocatable,
+            };
+
+            db.enabled_extensions.push(extension);
         }
 
         Ok(db)

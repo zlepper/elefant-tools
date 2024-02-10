@@ -102,6 +102,8 @@ impl<S: Stream<Item=Result<Bytes>> + Send> TableData<S> {
 #[cfg(test)]
 mod tests {
     pub static SOURCE_DATABASE_CREATE_SCRIPT: &str = r#"
+        create extension btree_gin;
+
         create table people(
             id serial primary key,
             name text not null unique,
@@ -138,6 +140,14 @@ mod tests {
         );
 
         create view people_who_cant_drink as select * from people where age < 18;
+
+        create table ext_test_table(
+            id serial primary key,
+            name text not null,
+            search_vector tsvector generated always as (to_tsvector('english', name)) stored
+        );
+
+        create index ext_test_table_name_idx on ext_test_table using gin (id, search_vector);
     "#;
 
     pub fn get_expected_data() -> Vec<(i32, String, i32)> {

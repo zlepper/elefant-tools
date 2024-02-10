@@ -71,7 +71,9 @@ from pg_proc proc
          join pg_language pl on proc.prolang = pl.oid
          left join pg_type variadic_type on proc.provariadic = variadic_type.oid
          left join pg_proc support_function on proc.prosupport = support_function.oid
-        join pg_type return_type on proc.prorettype = return_type.oid
-where ns.nspname = 'public';
+         join pg_type return_type on proc.prorettype = return_type.oid
+         left join pg_depend dep on proc.oid = dep.objid and dep.deptype = 'e'
+         left join pg_extension ext on dep.refobjid = ext.oid
+where ns.nspname = 'public' and ext.extname is null;
 "#);
 

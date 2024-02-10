@@ -1,9 +1,11 @@
 use crate::default;
+use crate::models::extension::PostgresExtension;
 use crate::models::schema::PostgresSchema;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresDatabase {
     pub schemas: Vec<PostgresSchema>,
+    pub enabled_extensions: Vec<PostgresExtension>,
 }
 
 impl PostgresDatabase {

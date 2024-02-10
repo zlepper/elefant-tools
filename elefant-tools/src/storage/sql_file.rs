@@ -61,7 +61,16 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<'_, F> {
             file.write_all(sql.as_bytes()).await?;
 
             file.write_all("\n".as_bytes()).await?;
+        }
 
+        for ext in &db.enabled_extensions {
+            let sql = ext.get_create_statement(self.quoter);
+            file.write_all(sql.as_bytes()).await?;
+
+            file.write_all("\n".as_bytes()).await?;
+        }
+
+        for schema in &db.schemas {
             for table in &schema.tables {
                 let sql = table.get_create_statement(schema, self.quoter);
                 file.write_all(sql.as_bytes()).await?;
@@ -314,6 +323,14 @@ mod tests {
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             create schema if not exists public;
+            create extension if not exists btree_gin;
+            create table public.ext_test_table (
+                id integer not null,
+                name text not null,
+                search_vector tsvector generated always as (to_tsvector('english'::regconfig, name)) stored,
+                constraint ext_test_table_pkey primary key (id)
+            );
+
             create table public.field (
                 id integer not null,
                 constraint field_pkey primary key (id)
@@ -344,6 +361,8 @@ mod tests {
             (5, E't\t\tap', 421),
             (6, E'q''t', 12);
 
+            create index ext_test_table_name_idx on public.ext_test_table using gin (id, search_vector);
+
 
             create index people_age_brin_idx on public.people using brin (age);
             create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
@@ -353,6 +372,8 @@ mod tests {
             alter table public.tree_node add constraint field_id_id_unique unique (field_id, id);
             alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (field_id, parent_id, name);
 
+            create sequence public.ext_test_table_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
             create sequence public.field_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
             create sequence public.people_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
@@ -360,6 +381,7 @@ mod tests {
 
             create sequence public.tree_node_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
+            alter table public.ext_test_table alter column id set default nextval('ext_test_table_id_seq'::regclass);
             alter table public.field alter column id set default nextval('field_id_seq'::regclass);
             alter table public.people alter column id set default nextval('people_id_seq'::regclass);
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);

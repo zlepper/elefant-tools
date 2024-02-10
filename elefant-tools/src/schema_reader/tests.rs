@@ -119,6 +119,7 @@ fn reads_simple_schema() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -138,6 +139,7 @@ fn table_without_columns() {
                 name: "public".to_string(),
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -176,6 +178,7 @@ fn table_without_primary_key() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     )
 }
@@ -244,6 +247,7 @@ fn composite_primary_keys() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -328,6 +332,7 @@ fn indices() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -385,6 +390,7 @@ fn index_types() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -427,6 +433,7 @@ fn filtered_index() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -482,6 +489,7 @@ fn index_with_include() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -518,6 +526,7 @@ fn table_with_non_distinct_nulls() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -632,6 +641,7 @@ fn foreign_keys() {
                 ],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -768,6 +778,7 @@ fn foreign_key_constraints() {
                 ],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -808,6 +819,7 @@ fn generated_column() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -849,6 +861,7 @@ fn test_views() {
                 }],
                 ..default()
             }],
+            ..default()
         },
     );
 }
@@ -940,6 +953,7 @@ fn test_functions() {
                 ],
                 ..default()
             }],
+            ..default()
         },
     )
 }
@@ -988,6 +1002,24 @@ fn test_qouted_identifier_names() {
                 ],
                 ..default()
             }
-        ]
+        ],
+        ..default()
+    })
+}
+
+#[test]
+fn test_extensions() {
+    test_introspection(r#"
+        create extension "btree_gin";
+    "#, PostgresDatabase {
+        enabled_extensions: vec![
+            PostgresExtension {
+                name: "btree_gin".to_string(),
+                schema_name: "public".to_string(),
+                version: "1.3".to_string(),
+                relocatable: true,
+            }
+        ],
+        ..default()
     })
 }

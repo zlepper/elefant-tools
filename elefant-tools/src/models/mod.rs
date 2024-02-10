@@ -11,6 +11,7 @@ mod sequence;
 mod foreign_key;
 mod view;
 mod function;
+mod extension;
 
 pub use constraint::*;
 pub use unique_constraint::*;
@@ -25,3 +26,4 @@ pub use sequence::*;
 pub use foreign_key::*;
 pub use view::*;
 pub use function::*;
+pub use extension::*;

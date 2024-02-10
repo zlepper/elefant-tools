@@ -87,7 +87,13 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
     async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
         for schema in &db.schemas {
             self.connection.execute_non_query(&schema.get_create_statement(&self.identifier_quoter)).await?;
+        }
 
+        for ext in &db.enabled_extensions {
+            self.connection.execute_non_query(&ext.get_create_statement(&self.identifier_quoter)).await?;
+        }
+
+        for schema in &db.schemas {
             for table in &schema.tables {
                 self.connection.execute_non_query(&table.get_create_statement(schema, &self.identifier_quoter)).await?;
             }

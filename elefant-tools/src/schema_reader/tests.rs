@@ -1324,3 +1324,36 @@ fn comments_on_stuff() {
         ..default()
     })
 }
+
+#[test]
+fn array_columns() {
+    test_introspection(r#"
+        create table my_table(
+            int_array int4[]
+        );
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![
+                    PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "int_array".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: true,
+                                data_type: "int4".to_string(),
+                                array_dimensions: 1,
+                                ..default()
+                            }
+                        ],
+                        ..default()
+                    }
+                ],
+                ..default()
+            }
+        ],
+        ..default()
+    })
+}

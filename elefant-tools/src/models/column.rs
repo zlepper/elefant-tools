@@ -10,6 +10,7 @@ pub struct PostgresColumn {
     pub default_value: Option<String>,
     pub generated: Option<String>,
     pub comment: Option<String>,
+    pub array_dimensions: i32,
 }
 
 impl PostgresColumn {
@@ -20,6 +21,9 @@ impl PostgresColumn {
 
 impl PostgresColumn {
     pub fn get_simplified_data_type(&self) -> SimplifiedDataType {
+        if self.array_dimensions > 0 {
+            return SimplifiedDataType::Text;
+        }
         match self.data_type.as_str() {
             "int2"|"int4"|"int8"|"float4"|"float8" => SimplifiedDataType::Number,
             "boolean" => SimplifiedDataType::Bool,
@@ -38,6 +42,7 @@ impl Default for PostgresColumn {
             default_value: None,
             generated: None,
             comment: None,
+            array_dimensions: 0,
         }
     }
 }

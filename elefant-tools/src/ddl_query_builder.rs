@@ -110,6 +110,14 @@ impl<'a> DdlTableColumnBuilder<'a> {
 
         self
     }
+
+    pub fn as_array(&mut self, dimensions: i32) -> &mut Self {
+        for _ in 0..dimensions {
+            self.sql.push_str("[]");
+        }
+
+        self
+    }
 }
 
 #[cfg(test)]
@@ -255,6 +263,23 @@ mod tests {
         create table public.my_table (
             name text,
             search tsvector generated always as (to_tsvector('english', name)) stored
+        );"#}
+        );
+    }
+
+    #[test]
+    fn array_column() {
+        let quoter = IdentifierQuoter::empty();
+        let mut builder = DdlQueryBuilder::new(&quoter);
+        let mut table_builder = builder.create_table("public", "my_table");
+        table_builder.column("value", "int").as_array(3);
+        let result = builder.build();
+
+        assert_eq!(
+            result,
+            indoc! {r#"
+        create table public.my_table (
+            value int[][][]
         );"#}
         );
     }

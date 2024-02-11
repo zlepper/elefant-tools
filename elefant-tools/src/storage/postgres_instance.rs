@@ -145,7 +145,7 @@ mod tests {
 
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
 
-        assert_eq!(items, storage::tests::get_expected_data());
+        assert_eq!(items, storage::tests::get_expected_people_data());
 
         let destination_schema = introspect_schema(&destination).await;
 
@@ -168,6 +168,10 @@ mod tests {
 
         let people_who_cant_drink = destination.get_results::<(i32, String, i32)>("select id, name, age from people_who_cant_drink;").await;
         assert_eq!(people_who_cant_drink, vec![(6, "q't".to_string(), 12)]);
+
+        let array_test_data = destination.get_results::<(Vec<String>,)>("select name from array_test;").await;
+
+        assert_eq!(array_test_data, storage::tests::get_expected_array_test_data());
     }
 
 
@@ -392,5 +396,12 @@ mod tests {
         comment on index my_table_another_value_key is 'This is an index';
         comment on constraint my_table_another_value_key on my_table is 'This is a unique constraint';
 
+    "#);
+
+    test_round_trip!(array_columns, r#"
+        create table my_table(
+            id serial primary key,
+            names text[]
+        );
     "#);
 }

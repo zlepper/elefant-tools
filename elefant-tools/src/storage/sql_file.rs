@@ -31,10 +31,10 @@ pub struct SqlFile<F: AsyncWrite + Unpin + Send + Sync> {
     file: F,
     is_empty: bool,
     options: SqlFileOptions,
-    quoter: Arc<IdentifierQuoter>
+    quoter: Arc<IdentifierQuoter>,
 }
 
-impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile< F> {
+impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     pub async fn new(path: &str, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<SqlFile<BufWriter<File>>> {
         let file = File::create(path).await?;
         Ok(SqlFile {
@@ -165,7 +165,6 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
     }
 
     async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()> {
-
         if self.is_empty {
             self.file.write_all(statement.as_bytes()).await?;
             self.is_empty = false;
@@ -232,6 +231,10 @@ mod tests {
 
             create extension if not exists btree_gin;
 
+            create table public.array_test (
+                name text[] not null
+            );
+
             create table public.ext_test_table (
                 id int4 not null,
                 name text not null,
@@ -260,6 +263,11 @@ mod tests {
                 parent_id int4,
                 constraint tree_node_pkey primary key (id)
             );
+
+            insert into public.array_test (name) values
+            (E'{foo,bar}'),
+            (E'{baz,qux}'),
+            (E'{quux,corge}');
 
             insert into public.people (id, name, age) values
             (1, E'foo', 42),
@@ -323,13 +331,18 @@ mod tests {
 
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
 
-        assert_eq!(items, storage::tests::get_expected_data());
+        assert_eq!(items, storage::tests::get_expected_people_data());
 
         destination.execute_not_query("insert into field(id) values (1);").await;
 
         destination.execute_not_query("insert into tree_node(id, field_id, name, parent_id) values (1, 1, 'foo', null), (2, 1, 'bar', 1)").await;
         let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (3, 1, 'foo', null)").await;
         assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
+
+
+        let array_test_data = destination.get_results::<(Vec<String>,)>("select name from array_test;").await;
+
+        assert_eq!(array_test_data, storage::tests::get_expected_array_test_data());
     }
 
 
@@ -385,5 +398,44 @@ mod tests {
 
         assert!(nan_tuple.0.unwrap().is_nan());
         assert!(nan_tuple.1.unwrap().is_nan());
+    }
+
+    #[test]
+    async fn copy_array_values() {
+        let source = get_test_helper("source").await;
+
+        //language=postgresql
+        source.execute_not_query(r#"
+        create table array_values(
+            values int4[]
+        );
+
+        insert into array_values(values)
+        values (array[1, 2, 3]),
+               (array[4, 5, 6]);
+        "#).await;
+
+        let result_file = export_to_string(&source).await;
+
+        similar_asserts::assert_eq!(result_file, indoc! {r#"
+            create schema if not exists public;
+
+            create table public.array_values (
+                values int4[]
+            );
+
+            insert into public.array_values (values) values
+            (E'{1,2,3}'),
+            (E'{4,5,6}');"#});
+
+        let destination = get_test_helper("destination").await;
+        destination.execute_not_query(&result_file).await;
+
+
+        let items = destination.get_results::<(Vec<i32>,)>("select values from array_values;").await;
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].0, vec![1, 2, 3]);
+        assert_eq!(items[1].0, vec![4, 5, 6]);
     }
 }

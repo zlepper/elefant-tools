@@ -150,8 +150,3 @@ impl RowEnumExt for Row {
         T::from_pg_char(c)
     }
 }
-
-#[cfg(test)]
-mod tests {
-
-}

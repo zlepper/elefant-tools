@@ -40,6 +40,10 @@ impl PostgresTable {
         for column in &self.columns {
             let mut column_builder = table_builder.column(&column.name, &column.data_type);
 
+            if column.array_dimensions > 0 {
+                column_builder.as_array(column.array_dimensions);
+            }
+
             if !column.is_nullable {
                 column_builder.not_null();
             }

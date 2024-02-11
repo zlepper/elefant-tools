@@ -44,6 +44,6 @@
 ❌ Users
 ✅ Default values
 ✅ Quoted identifier names
-❌ Array columns
+✅ Array columns
 ❌ Exclusion constraints
 ```

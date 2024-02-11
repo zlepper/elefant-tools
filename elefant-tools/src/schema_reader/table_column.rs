@@ -14,6 +14,7 @@ pub struct TableColumnsResult {
     pub column_default: Option<String>,
     pub generated: Option<String>,
     pub comment: Option<String>,
+    pub array_dimensions: i32,
 }
 
 impl FromRow for TableColumnsResult {
@@ -28,6 +29,7 @@ impl FromRow for TableColumnsResult {
             column_default: row.try_get(6)?,
             generated: row.try_get(7)?,
             comment: row.try_get(8)?,
+            array_dimensions: row.try_get(9)?,
         })
     }
 }
@@ -43,6 +45,7 @@ impl TableColumnsResult {
             default_value: self.column_default.clone(),
             generated: self.generated.clone(),
             comment: self.comment.clone(),
+            array_dimensions: self.array_dimensions,
         }
     }
 }
@@ -55,7 +58,7 @@ select ns.nspname,
        attr.attname,
        attr.attnum,
        (attr.attnotnull OR t.typtype = 'd'::"char" AND t.typnotnull) = false as is_nullable,
-       t.typname,
+       coalesce(non_array_type.typname, t.typname),
        CASE
            WHEN attr.attgenerated = ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
@@ -64,13 +67,16 @@ select ns.nspname,
            WHEN attr.attgenerated <> ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
            END::text                           AS generation_expression,
-         des.description
+         des.description,
+         attr.attndims as array_dimensions
+
 from pg_attribute attr
          join pg_class cl on attr.attrelid = cl.oid
          join pg_type t on attr.atttypid = t.oid
          join pg_namespace ns on ns.oid = cl.relnamespace
          left join pg_attrdef ad on attr.attrelid = ad.adrelid and attr.attnum = ad.adnum
          left join pg_description des on des.objoid = cl.oid and des.objsubid = attr.attnum
+         left join pg_type non_array_type on non_array_type.oid = t.typelem and non_array_type.typarray = t.oid
 where cl.relkind = 'r'
   and cl.oid > 16384
   and attr.attnum > 0

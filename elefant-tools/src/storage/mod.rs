@@ -148,9 +148,19 @@ mod tests {
         );
 
         create index ext_test_table_name_idx on ext_test_table using gin (id, search_vector);
+
+        create table array_test(
+            name text[] not null
+        );
+
+        insert into array_test(name)
+        values
+            ('{"foo", "bar"}'),
+            ('{"baz", "qux"}'),
+            ('{"quux", "corge"}');
     "#;
 
-    pub fn get_expected_data() -> Vec<(i32, String, i32)> {
+    pub fn get_expected_people_data() -> Vec<(i32, String, i32)> {
         vec![
             (1, "foo".to_string(), 42),
             (2, "bar".to_string(), 89),
@@ -158,6 +168,14 @@ mod tests {
             (4, "str\nange".to_string(), 420),
             (5, "t\t\tap".to_string(), 421),
             (6, "q't".to_string(), 12),
+        ]
+    }
+
+    pub fn get_expected_array_test_data() -> Vec<(Vec<String>,)> {
+        vec![
+            (vec!["foo".to_string(), "bar".to_string()],),
+            (vec!["baz".to_string(), "qux".to_string()],),
+            (vec!["quux".to_string(), "corge".to_string()],),
         ]
     }
 

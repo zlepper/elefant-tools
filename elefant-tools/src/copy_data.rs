@@ -40,6 +40,10 @@ async fn apply_pre_copy_structure(destination: &mut impl CopyDestination, defini
 
     for schema in &definition.schemas {
         destination.apply_ddl_statement(&schema.get_create_statement(&identifier_quoter)).await?;
+
+        for function in &schema.functions {
+            destination.apply_ddl_statement(&function.get_create_statement(&identifier_quoter)).await?;
+        }
     }
 
     for ext in &definition.enabled_extensions {
@@ -59,12 +63,6 @@ async fn apply_post_copy_structure(destination: &mut impl CopyDestination, defin
     let identifier_quoter = destination.get_identifier_quoter();
 
     for schema in &definition.schemas {
-
-        for function in &schema.functions {
-            destination.apply_ddl_statement(&function.get_create_statement(&identifier_quoter)).await?;
-        }
-
-
         for table in &schema.tables {
             for index in &table.indices {
                 if index.index_constraint_type == PostgresIndexType::PrimaryKey {

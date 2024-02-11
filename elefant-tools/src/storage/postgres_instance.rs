@@ -290,4 +290,76 @@ mod tests {
 
         create index "MyIndex" on "MyTable" (lower("MyTextColumn"));
     "#);
+
+    //language=postgresql
+    test_round_trip!(ddl_dependencies_1, r#"
+        create function a_is_odd(a integer) returns boolean as $$
+        begin
+            return a % 2 = 1;
+        end;
+        $$ language plpgsql;
+
+        create function b_is_even(a integer) returns boolean as $$
+        begin
+            return a_is_odd(a) = false;
+        end;
+        $$ language plpgsql;
+    "#);
+
+    //language=postgresql
+    test_round_trip!(ddl_dependencies_2, r#"
+        create function b_is_odd(a integer) returns boolean as $$
+        begin
+            return a % 2 = 1;
+        end;
+        $$ language plpgsql;
+
+        create function a_is_even(a integer) returns boolean as $$
+        begin
+            return b_is_odd(a) = false;
+        end;
+        $$ language plpgsql;
+    "#);
+
+    //language=postgresql
+    test_round_trip!(ddl_dependencies_1_1, r#"
+        create function b_is_even(a integer) returns boolean as $$
+        begin
+            return a_is_odd(a) = false;
+        end;
+        $$ language plpgsql;
+
+        create function a_is_odd(a integer) returns boolean as $$
+        begin
+            return a % 2 = 1;
+        end;
+        $$ language plpgsql;
+    "#);
+
+    //language=postgresql
+    test_round_trip!(ddl_dependencies_2_2, r#"
+        create function a_is_even(a integer) returns boolean as $$
+        begin
+            return b_is_odd(a) = false;
+        end;
+        $$ language plpgsql;
+
+        create function b_is_odd(a integer) returns boolean as $$
+        begin
+            return a % 2 = 1;
+        end;
+        $$ language plpgsql;
+    "#);
+
+    test_round_trip!(ddl_dependencies_3, r#"
+        create function is_odd(a integer) returns boolean as $$
+        begin
+            return a % 2 = 1;
+        end;
+        $$ language plpgsql;
+
+        create table tab(
+            value int not null check (is_odd(value))
+        );
+    "#);
 }

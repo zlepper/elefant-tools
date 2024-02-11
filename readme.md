@@ -13,8 +13,8 @@
 ✅ Foreign keys
   ✅ Update/Delete cascade rules
 ✅ Not null constraints
-➕ Check constraints
-  ❌ Check constraints calling functions
+✅ Check constraints
+  ✅ Check constraints calling functions
 ✅ Unique constraints
   ✅ Distinct nulls
   ✅ Using explicit unique index

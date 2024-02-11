@@ -11,6 +11,7 @@ mod view;
 mod function;
 mod extension;
 mod unique_constraint;
+mod trigger;
 
 pub use constraint::*;
 pub use check_constraint::*;
@@ -25,3 +26,4 @@ pub use view::*;
 pub use function::*;
 pub use extension::*;
 pub use unique_constraint::*;
+pub use trigger::*;

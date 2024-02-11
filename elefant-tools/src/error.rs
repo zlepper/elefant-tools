@@ -34,6 +34,15 @@ pub enum ElefantToolsError {
     #[error("Unknown parallel '{0}'")]
     UnknownParallel(String),
 
+    #[error("Unknown trigger level '{0}'")]
+    UnknownTriggerLevel(String),
+
+    #[error("Unknown trigger timing '{0}'")]
+    UnknownTriggerTiming(String),
+
+    #[error("Unknown trigger event '{0}'")]
+    UnknownTriggerEvent(String),
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

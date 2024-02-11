@@ -30,6 +30,7 @@ mod function;
 mod extension;
 mod unique_constraint;
 mod schema;
+mod trigger;
 
 
 pub struct SchemaReader<'a> {
@@ -56,6 +57,7 @@ impl SchemaReader<'_> {
         let view_columns = self.get_view_columns().await?;
         let functions = self.get_functions().await?;
         let extensions = self.get_extensions().await?;
+        let triggers = self.get_triggers().await?;
 
         let mut db = PostgresDatabase::default();
 
@@ -160,6 +162,25 @@ impl SchemaReader<'_> {
             };
 
             db.enabled_extensions.push(extension);
+        }
+
+        for trigger in triggers {
+            let current_schema = db.get_or_create_schema_mut(&trigger.schema_name);
+
+            let trigger = PostgresTrigger {
+                name: trigger.name.clone(),
+                table_name: trigger.table_name.clone(),
+                event: trigger.event,
+                timing: trigger.timing,
+                level: trigger.level,
+                function_name: trigger.function_name.clone(),
+                condition: trigger.condition.clone(),
+                comment: trigger.comment.clone(),
+                old_table_name: trigger.old_table_name.clone(),
+                new_table_name: trigger.new_table_name.clone(),
+            };
+
+            current_schema.triggers.push(trigger);
         }
 
         Ok(db)

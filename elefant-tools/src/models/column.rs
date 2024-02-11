@@ -20,7 +20,7 @@ impl PostgresColumn {
 impl PostgresColumn {
     pub fn get_simplified_data_type(&self) -> SimplifiedDataType {
         match self.data_type.as_str() {
-            "bigint"|"integer"|"smallint"|"real"|"double precision" => SimplifiedDataType::Number,
+            "int2"|"int4"|"int8"|"float4"|"float8" => SimplifiedDataType::Number,
             "boolean" => SimplifiedDataType::Bool,
             _ => SimplifiedDataType::Text,
         }

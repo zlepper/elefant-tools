@@ -8,7 +8,7 @@ pub struct TableColumnsResult {
     pub schema_name: String,
     pub table_name: String,
     pub column_name: String,
-    pub ordinal_position: i32,
+    pub ordinal_position: i16,
     pub is_nullable: bool,
     pub data_type: String,
     pub column_default: Option<String>,
@@ -22,7 +22,7 @@ impl FromRow for TableColumnsResult {
             table_name: row.try_get(1)?,
             column_name: row.try_get(2)?,
             ordinal_position: row.try_get(3)?,
-            is_nullable: row.try_get::<usize, String>(4)? != "NO",
+            is_nullable: row.try_get(4)?,
             data_type: row.try_get(5)?,
             column_default: row.try_get(6)?,
             generated: row.try_get(7)?,
@@ -36,7 +36,7 @@ impl TableColumnsResult {
         PostgresColumn {
             name: self.column_name.clone(),
             is_nullable: self.is_nullable,
-            ordinal_position: self.ordinal_position,
+            ordinal_position: self.ordinal_position as i32,
             data_type: self.data_type.clone(),
             default_value: self.column_default.clone(),
             generated: self.generated.clone(),
@@ -47,8 +47,27 @@ impl TableColumnsResult {
 
 //language=postgresql
 define_working_query!(get_columns, TableColumnsResult, r#"
-select c.table_schema, c.table_name, c.column_name, c.ordinal_position, c.is_nullable, c.data_type, c.column_default, c.generation_expression from information_schema.tables t
-join information_schema.columns c on t.table_schema = c.table_schema and t.table_name = c.table_name
-where t.table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and t.table_type = 'BASE TABLE'
-order by c.table_schema, c.table_name, c.ordinal_position;
+select ns.nspname,
+       cl.relname,
+       attr.attname,
+       attr.attnum,
+       (attr.attnotnull OR t.typtype = 'd'::"char" AND t.typnotnull) = false as is_nullable,
+       t.typname,
+       CASE
+           WHEN attr.attgenerated = ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
+           ELSE NULL::text
+           END::text                           AS column_default,
+       CASE
+           WHEN attr.attgenerated <> ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
+           ELSE NULL::text
+           END::text                           AS generation_expressio
+from pg_attribute attr
+         join pg_class cl on attr.attrelid = cl.oid
+         join pg_type t on attr.atttypid = t.oid
+         join pg_namespace ns on ns.oid = cl.relnamespace
+         left join pg_attrdef ad on attr.attrelid = ad.adrelid and attr.attnum = ad.adnum
+where cl.relkind = 'r'
+  and cl.oid > 16384
+  and attr.attnum > 0
+order by ns.nspname, cl.relname, attr.attnum;
 "#);

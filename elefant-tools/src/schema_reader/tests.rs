@@ -48,7 +48,7 @@ fn reads_simple_schema() {
                             name: "id".to_string(),
                             ordinal_position: 1,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             default_value: Some("nextval('my_table_id_seq'::regclass)".to_string()),
                             ..default()
                         },
@@ -63,7 +63,7 @@ fn reads_simple_schema() {
                             name: "age".to_string(),
                             ordinal_position: 3,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                     ],
@@ -108,7 +108,7 @@ fn reads_simple_schema() {
                 }],
                 sequences: vec![PostgresSequence {
                     name: "my_table_id_seq".to_string(),
-                    data_type: "integer".to_string(),
+                    data_type: "int4".to_string(),
                     start_value: 1,
                     increment: 1,
                     min_value: 1,
@@ -170,7 +170,7 @@ fn table_without_primary_key() {
                             name: "age".to_string(),
                             ordinal_position: 2,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                     ],
@@ -205,14 +205,14 @@ fn composite_primary_keys() {
                             name: "id_part_1".to_string(),
                             ordinal_position: 1,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                         PostgresColumn {
                             name: "id_part_2".to_string(),
                             ordinal_position: 2,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                         PostgresColumn {
@@ -226,7 +226,7 @@ fn composite_primary_keys() {
                             name: "age".to_string(),
                             ordinal_position: 4,
                             is_nullable: true,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                     ],
@@ -275,7 +275,7 @@ fn indices() {
                         name: "value".to_string(),
                         ordinal_position: 1,
                         is_nullable: true,
-                        data_type: "integer".to_string(),
+                        data_type: "int4".to_string(),
                         ..default()
                     }],
                     constraints: vec![],
@@ -414,7 +414,7 @@ fn filtered_index() {
                         name: "value".to_string(),
                         ordinal_position: 1,
                         is_nullable: true,
-                        data_type: "integer".to_string(),
+                        data_type: "int4".to_string(),
                         ..default()
                     }],
                     indices: vec![PostgresIndex {
@@ -459,14 +459,14 @@ fn index_with_include() {
                             name: "value".to_string(),
                             ordinal_position: 1,
                             is_nullable: true,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                         PostgresColumn {
                             name: "another_value".to_string(),
                             ordinal_position: 2,
                             is_nullable: true,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             ..default()
                         },
                     ],
@@ -511,7 +511,7 @@ fn table_with_non_distinct_nulls() {
                         name: "value".to_string(),
                         ordinal_position: 1,
                         is_nullable: true,
-                        data_type: "integer".to_string(),
+                        data_type: "int4".to_string(),
                         ..default()
                     }],
                     constraints: vec![PostgresConstraint::Unique(PostgresUniqueConstraint {
@@ -554,7 +554,7 @@ fn foreign_keys() {
                             name: "id".to_string(),
                             ordinal_position: 1,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             default_value: Some("nextval('items_id_seq'::regclass)".to_string()),
                             ..default()
                         }],
@@ -574,7 +574,7 @@ fn foreign_keys() {
                                 name: "id".to_string(),
                                 ordinal_position: 1,
                                 is_nullable: false,
-                                data_type: "integer".to_string(),
+                                data_type: "int4".to_string(),
                                 default_value: Some(
                                     "nextval('users_id_seq'::regclass)".to_string(),
                                 ),
@@ -584,7 +584,7 @@ fn foreign_keys() {
                                 name: "item_id".to_string(),
                                 ordinal_position: 2,
                                 is_nullable: false,
-                                data_type: "integer".to_string(),
+                                data_type: "int4".to_string(),
                                 ..default()
                             },
                         ],
@@ -618,7 +618,7 @@ fn foreign_keys() {
                 sequences: vec![
                     PostgresSequence {
                         name: "items_id_seq".to_string(),
-                        data_type: "integer".to_string(),
+                        data_type: "int4".to_string(),
                         start_value: 1,
                         increment: 1,
                         min_value: 1,
@@ -629,7 +629,7 @@ fn foreign_keys() {
                     },
                     PostgresSequence {
                         name: "users_id_seq".to_string(),
-                        data_type: "integer".to_string(),
+                        data_type: "int4".to_string(),
                         start_value: 1,
                         increment: 1,
                         min_value: 1,
@@ -651,16 +651,16 @@ fn foreign_key_constraints() {
     test_introspection(
         r#"
     CREATE TABLE products (
-        product_no integer PRIMARY KEY
+        product_no int4 PRIMARY KEY
     );
 
     CREATE TABLE orders (
-        order_id integer PRIMARY KEY
+        order_id int4 PRIMARY KEY
     );
 
     CREATE TABLE order_items (
-        product_no integer REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
-        order_id integer REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
+        product_no int4 REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
+        order_id int4 REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
         PRIMARY KEY (product_no, order_id)
     );
     "#,
@@ -675,7 +675,7 @@ fn foreign_key_constraints() {
                                 name: "product_no".to_string(),
                                 ordinal_position: 1,
                                 is_nullable: false,
-                                data_type: "integer".to_string(),
+                                data_type: "int4".to_string(),
                                 default_value: None,
                                 ..default()
                             },
@@ -683,7 +683,7 @@ fn foreign_key_constraints() {
                                 name: "order_id".to_string(),
                                 ordinal_position: 2,
                                 is_nullable: false,
-                                data_type: "integer".to_string(),
+                                data_type: "int4".to_string(),
                                 default_value: None,
                                 ..default()
                             },
@@ -743,7 +743,7 @@ fn foreign_key_constraints() {
                             name: "order_id".to_string(),
                             ordinal_position: 1,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             default_value: None,
                             ..default()
                         }],
@@ -762,7 +762,7 @@ fn foreign_key_constraints() {
                             name: "product_no".to_string(),
                             ordinal_position: 1,
                             is_nullable: false,
-                            data_type: "integer".to_string(),
+                            data_type: "int4".to_string(),
                             default_value: None,
                             ..default()
                         }],
@@ -871,7 +871,7 @@ fn test_functions() {
     test_introspection(
         r#"
 
-    create function add(a integer, b integer) returns integer as $$
+    create function add(a int4, b int4) returns int4 as $$
         begin
             return a + b;
         end;
@@ -959,7 +959,7 @@ fn test_functions() {
 }
 
 #[test]
-fn test_qouted_identifier_names() {
+fn test_quoted_identifier_names() {
     test_introspection(r#"
         create table "MyTable" (int serial primary key);
     "#, PostgresDatabase {
@@ -974,7 +974,7 @@ fn test_qouted_identifier_names() {
                                 name: "int".to_string(),
                                 ordinal_position: 1,
                                 is_nullable: false,
-                                data_type: "integer".to_string(),
+                                data_type: "int4".to_string(),
                                 default_value: Some("nextval('\"MyTable_int_seq\"'::regclass)".to_string()),
                                 ..default()
                             }
@@ -996,7 +996,7 @@ fn test_qouted_identifier_names() {
                 sequences: vec![
                     PostgresSequence {
                         name: "MyTable_int_seq".to_string(),
-                        data_type: "integer".to_string(),
+                        data_type: "int4".to_string(),
                         ..default()
                     }
                 ],

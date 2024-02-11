@@ -30,6 +30,6 @@ select tab.relname  as view_name,
 from pg_class tab
          join pg_namespace ns on tab.relnamespace = ns.oid
          join pg_attribute attr on attr.attrelid = tab.oid
-where ns.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+where tab.oid > 16384
   and tab.relkind = 'v';
 "#);

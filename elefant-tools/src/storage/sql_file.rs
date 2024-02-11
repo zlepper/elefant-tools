@@ -325,31 +325,31 @@ mod tests {
             create schema if not exists public;
             create extension if not exists btree_gin;
             create table public.ext_test_table (
-                id integer not null,
+                id int4 not null,
                 name text not null,
                 search_vector tsvector generated always as (to_tsvector('english'::regconfig, name)) stored,
                 constraint ext_test_table_pkey primary key (id)
             );
 
             create table public.field (
-                id integer not null,
+                id int4 not null,
                 constraint field_pkey primary key (id)
             );
 
             create table public.people (
-                id integer not null,
+                id int4 not null,
                 name text not null,
-                age integer not null,
+                age int4 not null,
                 constraint people_pkey primary key (id),
                 constraint multi_check check (((name <> 'fsgsdfgsdf'::text) AND (age < 9999))),
                 constraint people_age_check check ((age > 0))
             );
 
             create table public.tree_node (
-                id integer not null,
-                field_id integer not null,
+                id int4 not null,
+                field_id int4 not null,
                 name text not null,
-                parent_id integer,
+                parent_id int4,
                 constraint tree_node_pkey primary key (id)
             );
 
@@ -372,14 +372,14 @@ mod tests {
             alter table public.tree_node add constraint field_id_id_unique unique (field_id, id);
             alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (field_id, parent_id, name);
 
-            create sequence public.ext_test_table_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            create sequence public.ext_test_table_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
-            create sequence public.field_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            create sequence public.field_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
-            create sequence public.people_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            create sequence public.people_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
             select pg_catalog.setval('public.people_id_seq', 6, true);
 
-            create sequence public.tree_node_id_seq as integer increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
             alter table public.ext_test_table alter column id set default nextval('ext_test_table_id_seq'::regclass);
             alter table public.field alter column id set default nextval('field_id_seq'::regclass);
@@ -436,8 +436,8 @@ mod tests {
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             create schema if not exists public;
             create table public.edge_case_values (
-                r4 real,
-                r8 double precision
+                r4 float4,
+                r8 float8
             );
 
             insert into public.edge_case_values (r4, r8) values

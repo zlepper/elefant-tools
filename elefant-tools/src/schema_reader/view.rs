@@ -26,7 +26,7 @@ select tab.relname                   as view_name,
        pg_get_viewdef(tab.oid, true) as def
 from pg_class tab
          join pg_namespace ns on tab.relnamespace = ns.oid
-where ns.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+where tab.oid > 16384
   and tab.relkind = 'v';
 
 "#);

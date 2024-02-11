@@ -62,7 +62,8 @@ impl FromStr for ConstraintType {
 
 //language=postgresql
 define_working_query!(get_key_columns,KeyColumnUsageResult, r#"
-select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type, tc.nulls_distinct from information_schema.key_column_usage kcu
+select kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.column_name, kcu.ordinal_position, kcu.position_in_unique_constraint, tc.constraint_type, tc.nulls_distinct
+from information_schema.key_column_usage kcu
 join information_schema.table_constraints tc on kcu.table_schema = tc.table_schema and kcu.table_name = tc.table_name and kcu.constraint_name = tc.constraint_name
 where tc.constraint_type = 'PRIMARY KEY' or tc.constraint_type = 'UNIQUE'
 order by kcu.table_schema, kcu.table_name, kcu.constraint_name, kcu.ordinal_position;

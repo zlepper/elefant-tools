@@ -38,7 +38,7 @@ from pg_index i
          left join pg_namespace n on n.oid = table_class.relnamespace
          left join pg_tablespace ts on ts.oid = index_class.reltablespace
          join pg_catalog.pg_am pa on index_class.relam = pa.oid
-where n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+where table_class.oid > 16384
   and not i.indisprimary
   and not i.indisunique
 "#);

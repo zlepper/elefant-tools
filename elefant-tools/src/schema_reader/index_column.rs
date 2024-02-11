@@ -46,7 +46,7 @@ from pg_index i
         join pg_catalog.pg_attribute a on a.attrelid = index_class.oid
 where a.attnum > 0
  and not a.attisdropped
- and n.nspname not in ('pg_catalog', 'pg_toast', 'information_schema')
+ and table_class.oid > 16384
  and not i.indisprimary and not i.indisunique
 order by table_schema, table_name, index_name, ordinal_position
 "#);

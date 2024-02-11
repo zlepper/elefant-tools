@@ -21,11 +21,16 @@ impl FromRow for CheckConstraintResult {
     }
 }
 
+//language=postgresql
 define_working_query!(get_check_constraints, CheckConstraintResult, r#"
-select distinct t.table_schema, t.table_name, cc.constraint_name, cc.check_clause from information_schema.check_constraints cc
-join information_schema.table_constraints tc on cc.constraint_schema = tc.constraint_schema and cc.constraint_name = tc.constraint_name
-join information_schema.tables t on tc.table_schema = t.table_schema and tc.table_name = t.table_name
-join information_schema.constraint_column_usage ccu on cc.constraint_schema = ccu.constraint_schema and cc.constraint_name = ccu.constraint_name
-where t.table_schema not in ('pg_catalog', 'pg_toast', 'information_schema')
-order by t.table_schema, t.table_name, cc.constraint_name;
+select ns.nspname                                     as table_schema,
+       cl.relname                                     as table_name,
+       ct.conname                                     as constraint_name,
+       substring(pg_get_constraintdef(ct.oid) from 7) as constraint_def
+from pg_constraint ct
+         join pg_class cl on cl.oid = ct.conrelid
+         join pg_namespace ns on ns.oid = cl.relnamespace
+where ct.oid > 16384
+  and ct.contype = 'c'
+order by ns.nspname, cl.relname, ct.conname;
 "#);

@@ -34,17 +34,25 @@ impl FromRow for SequenceResult {
 
 //language=postgresql
 define_working_query!(get_sequences, SequenceResult, r#"
-select s.schemaname,
-       s.sequencename,
-       s.data_type::text,
-       s.start_value,
-       s.min_value,
-       s.max_value,
-       s.increment_by,
-       s.cycle,
-       s.cache_size,
-       s.last_value
-from pg_sequences s
-where s.schemaname not in ('pg_catalog', 'pg_toast', 'information_schema')
-order by s.schemaname, s.sequencename;
+SELECT n.nspname                   AS schemaname,
+       c.relname                   AS sequencename,
+       t.typname                   AS data_type,
+       s.seqstart                  AS start_value,
+       s.seqmin                    AS min_value,
+       s.seqmax                    AS max_value,
+       s.seqincrement              AS increment_by,
+       s.seqcycle                  AS cycle,
+       s.seqcache                  AS cache_size,
+       CASE
+           WHEN has_sequence_privilege(c.oid, 'SELECT,USAGE'::text) THEN pg_sequence_last_value(c.oid::regclass)
+           ELSE NULL::bigint
+           END                     AS last_value
+FROM pg_sequence s
+         JOIN pg_class c ON c.oid = s.seqrelid
+         join pg_type t on t.oid = s.seqtypid
+         LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE NOT pg_is_other_temp_schema(n.oid)
+  AND c.relkind = 'S'::"char"
+  and c.oid > 16384
+order by schemaname, sequencename
 "#);

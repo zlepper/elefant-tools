@@ -20,7 +20,10 @@ impl FromRow for TablesResult {
 
 //language=postgresql
 define_working_query!(get_tables, TablesResult, r#"
-select table_schema, table_name from information_schema.tables
-where table_schema not in ('pg_catalog', 'pg_toast', 'information_schema') and table_type = 'BASE TABLE'
-order by table_schema, table_name;
+select ns.nspname, cl.relname
+from pg_class cl
+         join pg_catalog.pg_namespace ns on ns.oid = cl.relnamespace
+where cl.relkind = 'r'
+  and cl.oid > 16384
+order by ns.nspname, cl.relname;
 "#);

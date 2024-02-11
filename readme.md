@@ -30,7 +30,7 @@
 ❌ Row level security
 ❌ Triggers
 ✅ Views
-❌ Materialized views
+✅ Materialized views
 ➕ Functions/Stored procedures
    ❌ Transforms
 ✅ Extensions

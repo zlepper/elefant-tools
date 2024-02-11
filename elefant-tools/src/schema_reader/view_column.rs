@@ -35,5 +35,6 @@ from pg_class tab
          join pg_attribute attr on attr.attrelid = tab.oid
          left join pg_description d on d.objoid = attr.attrelid and d.objsubid = attr.attnum
 where tab.oid > 16384
-  and tab.relkind = 'v';
+  and tab.relkind = 'v' or tab.relkind = 'm'
+  and attr.attnum > 0
 "#);

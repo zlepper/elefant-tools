@@ -119,6 +119,7 @@ impl SchemaReader<'_> {
                     ordinal_position: c.ordinal_position,
                 }).collect(),
                 comment: view.comment.clone(),
+                is_materialized: view.is_materialized,
             };
 
             current_schema.views.push(view);

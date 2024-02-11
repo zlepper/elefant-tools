@@ -982,6 +982,7 @@ fn test_views() {
                         name: "product_name".to_string(),
                         ordinal_position: 1,
                     }],
+                    is_materialized: false,
                     ..default()
                 }],
                 ..default()
@@ -1308,6 +1309,7 @@ fn comments_on_stuff() {
                             ordinal_position: 1,
                         }],
                         comment: Some("This is a view".to_string()),
+                        ..default()
                     }
                 ],
                 sequences: vec![
@@ -1348,6 +1350,33 @@ fn array_columns() {
                                 ..default()
                             }
                         ],
+                        ..default()
+                    }
+                ],
+                ..default()
+            }
+        ],
+        ..default()
+    })
+}
+
+#[test]
+fn materialized_view() {
+    test_introspection(r#"
+        create materialized view my_view as select 1 as value;
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                views: vec![
+                    PostgresView {
+                        name: "my_view".to_string(),
+                        definition: " SELECT 1 AS value;".to_string(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
                         ..default()
                     }
                 ],

@@ -6,12 +6,24 @@ pub struct PostgresView {
     pub name: String,
     pub definition: String,
     pub columns: Vec<PostgresViewColumn>,
-    pub comment: Option<String>
+    pub comment: Option<String>,
+    pub is_materialized: bool,
 }
 
 impl PostgresView {
     pub fn get_create_view_sql(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut sql = format!("create view {}.{} (", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter));
+
+        let mut sql = "create".to_string();
+
+        if self.is_materialized {
+            sql.push_str(" materialized");
+        }
+
+        sql.push_str(" view ");
+        sql.push_str(&schema.name.quote(identifier_quoter));
+        sql.push('.');
+        sql.push_str(&self.name.quote(identifier_quoter));
+        sql.push_str(" (");
 
         for (i, column) in self.columns.iter().enumerate() {
             if i != 0 {
@@ -26,7 +38,11 @@ impl PostgresView {
         sql.push_str(&self.definition);
 
         if let Some(comment) = &self.comment {
-            sql.push_str("\ncomment on view ");
+            sql.push_str("\ncomment on ");
+            if self.is_materialized {
+                sql.push_str("materialized ");
+            }
+            sql.push_str("view ");
             sql.push_str(&schema.name.quote(identifier_quoter));
             sql.push('.');
             sql.push_str(&self.name.quote(identifier_quoter));

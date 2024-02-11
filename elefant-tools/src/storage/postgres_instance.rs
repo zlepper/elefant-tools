@@ -404,4 +404,17 @@ mod tests {
             names text[]
         );
     "#);
+
+    test_round_trip!(materialized_views, r#"
+        create table my_table(
+            id serial primary key,
+            name text
+        );
+
+        insert into my_table(name) values ('foo'), ('bar');
+
+        create materialized view my_materialized_view as select id, name from my_table;
+
+        comment on materialized view my_materialized_view is 'This is a materialized view';
+    "#);
 }

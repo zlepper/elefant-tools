@@ -28,7 +28,7 @@ impl<'a> DdlQueryBuilder<'a> {
     }
 
     pub fn build(mut self) -> String {
-        self.sql.push_str("\n);\n");
+        self.sql.push_str("\n);");
 
         self.sql
     }
@@ -134,8 +134,7 @@ mod tests {
             id int,
             name varchar(255),
             constraint pk_table primary key (id)
-        );
-        "#}
+        );"#}
         );
     }
 
@@ -156,8 +155,7 @@ mod tests {
             id int,
             name varchar(255),
             constraint pk_table primary key (id, name)
-        );
-        "#}
+        );"#}
         );
     }
 
@@ -176,8 +174,7 @@ mod tests {
         create table public.my_table (
             id int,
             name varchar(255)
-        );
-        "#}
+        );"#}
         );
     }
 
@@ -196,8 +193,7 @@ mod tests {
         create table public.my_table (
             id int not null,
             name varchar(255) not null
-        );
-        "#}
+        );"#}
         );
     }
 
@@ -218,8 +214,7 @@ mod tests {
             id int,
             name varchar(255),
             constraint check_name check (name != 'foo')
-        );
-        "#}
+        );"#}
         );
     }
 
@@ -240,8 +235,7 @@ mod tests {
             id int,
             name varchar(255),
             constraint check_name check (name != 'foo' and id > 0)
-        );
-        "#}
+        );"#}
         );
     }
     #[test]
@@ -261,8 +255,7 @@ mod tests {
         create table public.my_table (
             name text,
             search tsvector generated always as (to_tsvector('english', name)) stored
-        );
-        "#}
+        );"#}
         );
     }
 }

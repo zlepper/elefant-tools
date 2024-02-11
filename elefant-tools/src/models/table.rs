@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
-use crate::{DataFormat, DdlQueryBuilder};
+use crate::{DataFormat, DdlQueryBuilder, PostgresIndexType};
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter};
@@ -47,20 +47,22 @@ impl PostgresTable {
             }
         }
 
+        for index in &self.indices {
+            if index.index_constraint_type == PostgresIndexType::PrimaryKey {
+                let columns = index.key_columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.name.as_str());
+                table_builder.primary_key(&index.name, columns);
+            }
+        }
+
         for constraint in &self.constraints {
             match constraint {
-                PostgresConstraint::PrimaryKey(pk) => {
-                    let columns = pk.columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.column_name.as_str());
-
-                    table_builder.primary_key(&pk.name, columns);
-                }
                 PostgresConstraint::Check(check) => {
                     table_builder.check_constraint(&check.name, &check.check_clause);
                 }
-                PostgresConstraint::Unique(_) => {
+                PostgresConstraint::ForeignKey(_) => {
                     // Deferred until last part of the transaction
                 },
-                PostgresConstraint::ForeignKey(_) => {
+                PostgresConstraint::Unique(_) => {
                     // Deferred until last part of the transaction
                 }
             }

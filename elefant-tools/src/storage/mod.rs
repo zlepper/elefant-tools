@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
@@ -12,6 +13,7 @@ mod postgres_instance;
 pub use sql_file::SqlFile;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
+use crate::quoting::IdentifierQuoter;
 
 #[async_trait]
 pub trait BaseCopyTarget {
@@ -30,25 +32,23 @@ pub trait CopySource: BaseCopyTarget {
 
 #[async_trait]
 pub trait CopyDestination: BaseCopyTarget {
-    /// This should apply the very basic structure, meaning schemas and tables with their
-    /// columns and primary key. It should not apply any constraints or indexes.
-    async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()>;
-
     /// This should apply the data to the destination. The data is expected to be in the
     /// format returned by `supported_data_format`, if possible.
     async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()>;
 
-    /// This should apply the constraints and indexes to the destination.
-    async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()>;
+    /// This should apply the DDL statements to the destination.
+    async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()>;
+
+    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter>;
 }
 
 #[derive(Debug, Clone)]
 pub enum DataFormat {
-    /// Slightly slower, but works across postgres versions, is human readable and can be
+    /// Slightly slower, but works across postgres versions, is human-readable and can be
     /// outputted in text files.
     Text,
 
-    /// Faster, but has strict requirements to the postgres version and is not human readable.
+    /// Faster, but has strict requirements to the postgres version and is not human-readable.
     PostgresBinary {
         postgres_version: Option<String>,
     },

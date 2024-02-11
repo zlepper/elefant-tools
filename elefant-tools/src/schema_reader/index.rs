@@ -9,6 +9,9 @@ pub struct IndexResult {
     pub index_type: String,
     pub can_sort: bool,
     pub index_predicate: Option<String>,
+    pub is_unique: bool,
+    pub is_primary_key: bool,
+    pub nulls_not_distinct: bool,
 }
 
 impl FromRow for IndexResult {
@@ -20,6 +23,9 @@ impl FromRow for IndexResult {
             index_type: row.try_get(3)?,
             can_sort: row.try_get(4)?,
             index_predicate: row.try_get(5)?,
+            is_unique: row.try_get(6)?,
+            is_primary_key: row.try_get(7)?,
+            nulls_not_distinct: row.try_get(8)?,
         })
     }
 }
@@ -31,7 +37,10 @@ select n.nspname           as table_schema,
        index_class.relname as index_name,
        pa.amname           as index_type,
        pg_indexam_has_property(pa.oid, 'can_order') as can_sort,
-       pg_catalog.pg_get_expr(i.indpred, i.indrelid, true) as index_predicate
+       pg_catalog.pg_get_expr(i.indpred, i.indrelid, true) as index_predicate,
+       i.indisunique       as is_unique,
+       i.indisprimary      as is_primary_key,
+       i.indnullsnotdistinct as nulls_not_distinct
 from pg_index i
          join pg_class table_class on table_class.oid = i.indrelid
          join pg_class index_class on index_class.oid = i.indexrelid
@@ -39,6 +48,5 @@ from pg_index i
          left join pg_tablespace ts on ts.oid = index_class.reltablespace
          join pg_catalog.pg_am pa on index_class.relam = pa.oid
 where table_class.oid > 16384
-  and not i.indisprimary
-  and not i.indisunique
+and table_class.relkind = 'r'
 "#);

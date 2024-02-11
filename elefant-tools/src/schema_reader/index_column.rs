@@ -47,6 +47,6 @@ from pg_index i
 where a.attnum > 0
  and not a.attisdropped
  and table_class.oid > 16384
- and not i.indisprimary and not i.indisunique
+and table_class.relkind = 'r'
 order by table_schema, table_name, index_name, ordinal_position
 "#);

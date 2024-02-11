@@ -1,7 +1,5 @@
 mod constraint;
-mod unique_constraint;
 mod check_constraint;
-mod primary_key;
 mod column;
 mod table;
 mod schema;
@@ -12,11 +10,10 @@ mod foreign_key;
 mod view;
 mod function;
 mod extension;
+mod unique_constraint;
 
 pub use constraint::*;
-pub use unique_constraint::*;
 pub use check_constraint::*;
-pub use primary_key::*;
 pub use column::*;
 pub use table::*;
 pub use schema::*;
@@ -27,3 +24,4 @@ pub use foreign_key::*;
 pub use view::*;
 pub use function::*;
 pub use extension::*;
+pub use unique_constraint::*;

@@ -1,5 +1,6 @@
 use std::io::BufRead;
 use std::ops::Deref;
+use std::sync::Arc;
 use std::vec;
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -7,12 +8,11 @@ use futures::{pin_mut, Stream, StreamExt};
 use itertools::Itertools;
 use tokio::fs::File;
 use tokio::io::{AsyncWrite, AsyncWriteExt, BufWriter};
-use crate::models::PostgresDatabase;
 use crate::models::SimplifiedDataType;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
 use crate::storage::{BaseCopyTarget, CopyDestination, DataFormat, TableData};
-use crate::{PostgresConstraint, Result};
+use crate::{Result};
 use crate::quoting::IdentifierQuoter;
 
 pub struct SqlFileOptions {
@@ -27,17 +27,19 @@ impl Default for SqlFileOptions {
     }
 }
 
-pub struct SqlFile<'q, F: AsyncWrite + Unpin + Send + Sync> {
+pub struct SqlFile<F: AsyncWrite + Unpin + Send + Sync> {
     file: F,
+    is_empty: bool,
     options: SqlFileOptions,
-    quoter: &'q IdentifierQuoter
+    quoter: Arc<IdentifierQuoter>
 }
 
-impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile<'q, F> {
-    pub async fn new(path: &str, identifier_quoter: &'q IdentifierQuoter, options: SqlFileOptions) -> Result<SqlFile<'q, BufWriter<File>>> {
+impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile< F> {
+    pub async fn new(path: &str, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<SqlFile<BufWriter<File>>> {
         let file = File::create(path).await?;
         Ok(SqlFile {
             file: BufWriter::new(file),
+            is_empty: true,
             options,
             quoter: identifier_quoter,
         })
@@ -45,45 +47,14 @@ impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile<'q, F> {
 }
 
 #[async_trait]
-impl<F: AsyncWrite + Unpin + Send + Sync> BaseCopyTarget for SqlFile<'_, F> {
+impl<F: AsyncWrite + Unpin + Send + Sync> BaseCopyTarget for SqlFile<F> {
     async fn supported_data_format(&self) -> Result<Vec<DataFormat>> {
         Ok(vec![DataFormat::Text])
     }
 }
 
 #[async_trait]
-impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<'_, F> {
-    async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
-        let file = &mut self.file;
-
-        for schema in &db.schemas {
-            let sql = schema.get_create_statement(self.quoter);
-            file.write_all(sql.as_bytes()).await?;
-
-            file.write_all("\n".as_bytes()).await?;
-        }
-
-        for ext in &db.enabled_extensions {
-            let sql = ext.get_create_statement(self.quoter);
-            file.write_all(sql.as_bytes()).await?;
-
-            file.write_all("\n".as_bytes()).await?;
-        }
-
-        for schema in &db.schemas {
-            for table in &schema.tables {
-                let sql = table.get_create_statement(schema, self.quoter);
-                file.write_all(sql.as_bytes()).await?;
-
-                file.write_all("\n".as_bytes()).await?;
-            }
-        }
-
-        file.flush().await?;
-
-        Ok(())
-    }
-
+impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
     async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()> {
         let file = &mut self.file;
 
@@ -95,6 +66,9 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<'_, F> {
 
         let mut count = 0;
         while let Some(bytes) = stream.next().await {
+            if count == 0 {
+                file.write_all(b"\n\n").await?;
+            }
             match bytes {
                 Ok(bytes) => {
                     if count % self.options.max_rows_per_insert == 0 {
@@ -182,7 +156,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<'_, F> {
         }
 
         if count > 0 {
-            file.write_all(b";\n\n").await?;
+            file.write_all(b";").await?;
         }
 
         file.flush().await?;
@@ -190,91 +164,21 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<'_, F> {
         Ok(())
     }
 
-    async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
-        for schema in &db.schemas {
-            for (i, function) in schema.functions.iter().enumerate() {
-                if i != 0 {
-                    self.file.write_all(b"\n").await?;
-                }
+    async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()> {
 
-                let sql = function.get_create_statement(self.quoter);
-                self.file.write_all(sql.as_bytes()).await?;
-                self.file.write_all(b"\n").await?;
-            }
-
-
-            for (i, table) in schema.tables.iter().enumerate() {
-                if i != 0 {
-                    self.file.write_all(b"\n").await?;
-                }
-
-                for index in &table.indices {
-                    let sql = index.get_create_index_command(schema, table, self.quoter);
-                    self.file.write_all(sql.as_bytes()).await?;
-                    self.file.write_all(b"\n").await?;
-                }
-
-                for constraint in &table.constraints {
-                    if let PostgresConstraint::Unique(unique) = constraint {
-                        let sql = unique.get_create_statement(schema, table, self.quoter);
-                        self.file.write_all(sql.as_bytes()).await?;
-                        self.file.write_all(b"\n").await?;
-                    }
-                }
-            }
-
-            let mut printed_code = false;
-
-            for sequence in schema.sequences.iter() {
-                printed_code = true;
-                self.file.write_all(b"\n").await?;
-
-                let sql = sequence.get_create_statement(schema, self.quoter);
-                self.file.write_all(sql.as_bytes()).await?;
-                self.file.write_all(b"\n").await?;
-
-                if let Some(sql) = sequence.get_set_value_statement(schema, self.quoter) {
-                    self.file.write_all(sql.as_bytes()).await?;
-                    self.file.write_all(b"\n").await?;
-                }
-            }
-
-            if printed_code {
-                self.file.write_all(b"\n").await?;
-                printed_code = false;
-            }
-
-            for table in &schema.tables {
-                for column in &table.columns {
-                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema, self.quoter) {
-                        printed_code = true;
-                        self.file.write_all(sql.as_bytes()).await?;
-                        self.file.write_all(b"\n").await?;
-                    }
-                }
-
-                for constraint in &table.constraints {
-                    if let PostgresConstraint::ForeignKey(fk) = constraint {
-                        printed_code = true;
-                        let sql = fk.get_create_statement(table, schema, self.quoter);
-                        self.file.write_all(sql.as_bytes()).await?;
-                        self.file.write_all(b"\n").await?;
-                    }
-                }
-            }
-
-            if printed_code {
-                self.file.write_all(b"\n").await?;
-            }
-
-            for view in &schema.views {
-                let sql = view.get_create_view_sql(schema, self.quoter);
-                self.file.write_all(sql.as_bytes()).await?;
-                self.file.write_all(b"\n").await?;
-            }
+        if self.is_empty {
+            self.file.write_all(statement.as_bytes()).await?;
+            self.is_empty = false;
+        } else {
+            self.file.write_all(b"\n\n").await?;
+            self.file.write_all(statement.as_bytes()).await?;
         }
 
         Ok(())
+    }
+
+    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
+        self.quoter.clone()
     }
 }
 
@@ -292,13 +196,15 @@ mod tests {
     async fn export_to_string(source: &TestHelper) -> String {
         let mut result_file = Vec::<u8>::new();
 
-        let quoter = IdentifierQuoter::empty();
 
         {
+            let quoter = IdentifierQuoter::empty();
+
             let mut sql_file = SqlFile {
                 file: &mut result_file,
                 options: SqlFileOptions::default(),
-                quoter: &quoter,
+                quoter: Arc::new(quoter),
+                is_empty: true,
             };
 
             let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
@@ -323,7 +229,9 @@ mod tests {
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             create schema if not exists public;
+
             create extension if not exists btree_gin;
+
             create table public.ext_test_table (
                 id int4 not null,
                 name text not null,
@@ -363,37 +271,51 @@ mod tests {
 
             create index ext_test_table_name_idx on public.ext_test_table using gin (id, search_vector);
 
-
             create index people_age_brin_idx on public.people using brin (age);
-            create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
-            create index people_name_lower_idx on public.people using btree (lower(name) asc nulls last);
-            alter table public.people add constraint people_name_key unique (name);
 
-            alter table public.tree_node add constraint field_id_id_unique unique (field_id, id);
-            alter table public.tree_node add constraint unique_name_per_level unique nulls not distinct (field_id, parent_id, name);
+            create index people_age_idx on public.people using btree (age desc nulls first) include (name, id) where (age % 2) = 0;
+
+            create unique index people_name_key on public.people using btree (name asc nulls last);
+
+            create index people_name_lower_idx on public.people using btree (lower(name) asc nulls last);
+
+            create unique index field_id_id_unique on public.tree_node using btree (field_id asc nulls last, id asc nulls last);
+
+            create unique index unique_name_per_level on public.tree_node using btree (field_id asc nulls last, parent_id asc nulls last, name asc nulls last) nulls not distinct;
 
             create sequence public.ext_test_table_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
             create sequence public.field_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
             create sequence public.people_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
             select pg_catalog.setval('public.people_id_seq', 6, true);
 
             create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
             alter table public.ext_test_table alter column id set default nextval('ext_test_table_id_seq'::regclass);
+
             alter table public.field alter column id set default nextval('field_id_seq'::regclass);
+
             alter table public.people alter column id set default nextval('people_id_seq'::regclass);
+
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
-            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);
 
             create view public.people_who_cant_drink (id, name, age) as  SELECT people.id,
                 people.name,
                 people.age
                FROM people
               WHERE people.age < 18;
-            "#});
+
+            alter table public.people add constraint people_name_key unique using index people_name_key;
+
+            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
+
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);
+
+            alter table public.tree_node add constraint field_id_id_unique unique using index field_id_id_unique;
+
+            alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;"#});
 
         let destination = get_test_helper("destination").await;
         destination.execute_not_query(&result_file).await;
@@ -428,13 +350,13 @@ mod tests {
                ('Infinity', 'Infinity'),
                ('-Infinity', '-Infinity'),
                (null, null);
-
         "#).await;
 
         let result_file = export_to_string(&source).await;
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             create schema if not exists public;
+
             create table public.edge_case_values (
                 r4 float4,
                 r8 float8
@@ -445,9 +367,7 @@ mod tests {
             ('NaN', 'NaN'),
             ('Infinity', 'Infinity'),
             ('-Infinity', '-Infinity'),
-            (null, null);
-
-            "#});
+            (null, null);"#});
 
         let destination = get_test_helper("destination").await;
         destination.execute_not_query(&result_file).await;

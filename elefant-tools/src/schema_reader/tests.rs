@@ -68,21 +68,6 @@ fn reads_simple_schema() {
                         },
                     ],
                     constraints: vec![
-                        PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                            name: "my_table_pkey".to_string(),
-                            columns: vec![PostgresPrimaryKeyColumn {
-                                column_name: "id".to_string(),
-                                ordinal_position: 1,
-                            }],
-                        }),
-                        PostgresConstraint::Unique(PostgresUniqueConstraint {
-                            name: "my_table_name_key".to_string(),
-                            columns: vec![PostgresUniqueConstraintColumn {
-                                column_name: "name".to_string(),
-                                ordinal_position: 1,
-                            }],
-                            distinct_nulls: true,
-                        }),
                         PostgresConstraint::Check(PostgresCheckConstraint {
                             name: "my_multi_check".to_string(),
                             check_clause: "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))"
@@ -92,19 +77,54 @@ fn reads_simple_schema() {
                             name: "my_table_age_check".to_string(),
                             check_clause: "((age > 21))".to_string(),
                         }),
+                        PostgresConstraint::Unique(PostgresUniqueConstraint {
+                            name: "my_table_name_key".to_string(),
+                            unique_index_name: "my_table_name_key".to_string(),
+                        })
                     ],
-                    indices: vec![PostgresIndex {
-                        name: "lower_case_name_idx".to_string(),
-                        key_columns: vec![PostgresIndexKeyColumn {
-                            name: "lower(name)".to_string(),
-                            ordinal_position: 1,
-                            direction: Some(PostgresIndexColumnDirection::Ascending),
-                            nulls_order: Some(PostgresIndexNullsOrder::Last),
-                        }],
-                        index_type: "btree".to_string(),
-                        predicate: None,
-                        included_columns: vec![],
-                    }],
+                    indices: vec![
+                        PostgresIndex {
+                            name: "lower_case_name_idx".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "lower(name)".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
+                        },
+                        PostgresIndex {
+                            name: "my_table_name_key".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Unique {
+                                nulls_distinct: true,
+                            },
+                        },
+                        PostgresIndex {
+                            name: "my_table_pkey".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "id".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::PrimaryKey,
+                        },
+                    ],
                 }],
                 sequences: vec![PostgresSequence {
                     name: "my_table_id_seq".to_string(),
@@ -230,19 +250,29 @@ fn composite_primary_keys() {
                             ..default()
                         },
                     ],
-                    constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                        name: "my_table_pk".to_string(),
-                        columns: vec![
-                            PostgresPrimaryKeyColumn {
-                                column_name: "id_part_1".to_string(),
-                                ordinal_position: 1,
-                            },
-                            PostgresPrimaryKeyColumn {
-                                column_name: "id_part_2".to_string(),
-                                ordinal_position: 2,
-                            },
-                        ],
-                    })],
+                    indices: vec![
+                        PostgresIndex {
+                            name: "my_table_pk".to_string(),
+                            key_columns: vec![
+                                PostgresIndexKeyColumn {
+                                    name: "id_part_1".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                },
+                                PostgresIndexKeyColumn {
+                                    name: "id_part_2".to_string(),
+                                    ordinal_position: 2,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                },
+                            ],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::PrimaryKey,
+                        },
+                    ],
                     ..default()
                 }],
                 ..default()
@@ -291,6 +321,7 @@ fn indices() {
                             index_type: "btree".to_string(),
                             predicate: None,
                             included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
                         },
                         PostgresIndex {
                             name: "my_table_value_asc_nulls_last".to_string(),
@@ -303,6 +334,7 @@ fn indices() {
                             index_type: "btree".to_string(),
                             predicate: None,
                             included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
                         },
                         PostgresIndex {
                             name: "my_table_value_desc_nulls_first".to_string(),
@@ -315,6 +347,7 @@ fn indices() {
                             index_type: "btree".to_string(),
                             predicate: None,
                             included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
                         },
                         PostgresIndex {
                             name: "my_table_value_desc_nulls_last".to_string(),
@@ -327,6 +360,7 @@ fn indices() {
                             index_type: "btree".to_string(),
                             predicate: None,
                             included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
                         },
                     ],
                 }],
@@ -372,6 +406,7 @@ fn index_types() {
                             index_type: "gin".to_string(),
                             predicate: None,
                             included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
                         },
                         PostgresIndex {
                             name: "my_table_gist".to_string(),
@@ -384,6 +419,7 @@ fn index_types() {
                             index_type: "gist".to_string(),
                             predicate: None,
                             included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
                         },
                     ],
                     ..default()
@@ -428,6 +464,7 @@ fn filtered_index() {
                         index_type: "btree".to_string(),
                         predicate: Some("(value % 2) = 0".to_string()),
                         included_columns: vec![],
+                        index_constraint_type: PostgresIndexType::Index,
                     }],
                     ..default()
                 }],
@@ -484,6 +521,7 @@ fn index_with_include() {
                             name: "another_value".to_string(),
                             ordinal_position: 2,
                         }],
+                        index_constraint_type: PostgresIndexType::Index,
                     }],
                     ..default()
                 }],
@@ -514,14 +552,29 @@ fn table_with_non_distinct_nulls() {
                         data_type: "int4".to_string(),
                         ..default()
                     }],
-                    constraints: vec![PostgresConstraint::Unique(PostgresUniqueConstraint {
-                        name: "my_table_value_key".to_string(),
-                        columns: vec![PostgresUniqueConstraintColumn {
-                            column_name: "value".to_string(),
-                            ordinal_position: 1,
-                        }],
-                        distinct_nulls: false,
-                    })],
+                    constraints: vec![
+                        PostgresConstraint::Unique(PostgresUniqueConstraint {
+                            name: "my_table_value_key".to_string(),
+                            unique_index_name: "my_table_value_key".to_string(),
+                        }),
+                    ],
+                    indices: vec![
+                        PostgresIndex {
+                            name: "my_table_value_key".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "value".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Unique {
+                                nulls_distinct: false,
+                            },
+                        },
+                    ],
                     ..default()
                 }],
                 ..default()
@@ -558,13 +611,22 @@ fn foreign_keys() {
                             default_value: Some("nextval('items_id_seq'::regclass)".to_string()),
                             ..default()
                         }],
-                        constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                            name: "items_pkey".to_string(),
-                            columns: vec![PostgresPrimaryKeyColumn {
-                                column_name: "id".to_string(),
-                                ordinal_position: 1,
-                            }],
-                        })],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "items_pkey".to_string(),
+                                key_columns: vec![PostgresIndexKeyColumn {
+                                    name: "id".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                                index_constraint_type: PostgresIndexType::PrimaryKey,
+                            }
+
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -589,13 +651,6 @@ fn foreign_keys() {
                             },
                         ],
                         constraints: vec![
-                            PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                                name: "users_pkey".to_string(),
-                                columns: vec![PostgresPrimaryKeyColumn {
-                                    column_name: "id".to_string(),
-                                    ordinal_position: 1,
-                                }],
-                            }),
                             PostgresConstraint::ForeignKey(PostgresForeignKey {
                                 name: "users_item_id_fkey".to_string(),
                                 columns: vec![PostgresForeignKeyColumn {
@@ -611,6 +666,21 @@ fn foreign_keys() {
                                 }],
                                 ..default()
                             }),
+                        ],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "users_pkey".to_string(),
+                                key_columns: vec![PostgresIndexKeyColumn {
+                                    name: "id".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                                index_constraint_type: PostgresIndexType::PrimaryKey,
+                            },
                         ],
                         ..default()
                     },
@@ -689,19 +759,6 @@ fn foreign_key_constraints() {
                             },
                         ],
                         constraints: vec![
-                            PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                                name: "order_items_pkey".to_string(),
-                                columns: vec![
-                                    PostgresPrimaryKeyColumn {
-                                        column_name: "product_no".to_string(),
-                                        ordinal_position: 1,
-                                    },
-                                    PostgresPrimaryKeyColumn {
-                                        column_name: "order_id".to_string(),
-                                        ordinal_position: 2,
-                                    },
-                                ],
-                            }),
                             PostgresConstraint::ForeignKey(PostgresForeignKey {
                                 name: "order_items_order_id_fkey".to_string(),
                                 columns: vec![PostgresForeignKeyColumn {
@@ -735,6 +792,29 @@ fn foreign_key_constraints() {
                                 delete_action: ReferenceAction::Restrict,
                             }),
                         ],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "order_items_pkey".to_string(),
+                                key_columns: vec![
+                                    PostgresIndexKeyColumn {
+                                        name: "product_no".to_string(),
+                                        ordinal_position: 1,
+                                        direction: Some(PostgresIndexColumnDirection::Ascending),
+                                        nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                    },
+                                    PostgresIndexKeyColumn {
+                                        name: "order_id".to_string(),
+                                        ordinal_position: 2,
+                                        direction: Some(PostgresIndexColumnDirection::Ascending),
+                                        nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                    },
+                                ],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                                index_constraint_type: PostgresIndexType::PrimaryKey,
+                            },
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -747,13 +827,21 @@ fn foreign_key_constraints() {
                             default_value: None,
                             ..default()
                         }],
-                        constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                            name: "orders_pkey".to_string(),
-                            columns: vec![PostgresPrimaryKeyColumn {
-                                column_name: "order_id".to_string(),
-                                ordinal_position: 1,
-                            }],
-                        })],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "orders_pkey".to_string(),
+                                key_columns: vec![PostgresIndexKeyColumn {
+                                    name: "order_id".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                                index_constraint_type: PostgresIndexType::PrimaryKey,
+                            },
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -766,13 +854,21 @@ fn foreign_key_constraints() {
                             default_value: None,
                             ..default()
                         }],
-                        constraints: vec![PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
-                            name: "products_pkey".to_string(),
-                            columns: vec![PostgresPrimaryKeyColumn {
-                                column_name: "product_no".to_string(),
-                                ordinal_position: 1,
-                            }],
-                        })],
+                        indices: vec![
+                            PostgresIndex {
+                                name: "products_pkey".to_string(),
+                                key_columns: vec![PostgresIndexKeyColumn {
+                                    name: "product_no".to_string(),
+                                    ordinal_position: 1,
+                                    direction: Some(PostgresIndexColumnDirection::Ascending),
+                                    nulls_order: Some(PostgresIndexNullsOrder::Last),
+                                }],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                                index_constraint_type: PostgresIndexType::PrimaryKey,
+                            },
+                        ],
                         ..default()
                     },
                 ],
@@ -979,16 +1075,22 @@ fn test_quoted_identifier_names() {
                                 ..default()
                             }
                         ],
-                        constraints: vec![
-                            PostgresConstraint::PrimaryKey(PostgresPrimaryKey {
+                        indices: vec![
+                            PostgresIndex {
                                 name: "MyTable_pkey".to_string(),
-                                columns: vec![
-                                    PostgresPrimaryKeyColumn {
-                                        column_name: "int".to_string(),
+                                key_columns: vec![
+                                    PostgresIndexKeyColumn {
+                                        name: "\"int\"".to_string(),
                                         ordinal_position: 1,
+                                        direction: Some(PostgresIndexColumnDirection::Ascending),
+                                        nulls_order: Some(PostgresIndexNullsOrder::Last),
                                     }
-                                ]
-                            })
+                                ],
+                                index_type: "btree".to_string(),
+                                predicate: None,
+                                included_columns: vec![],
+                                index_constraint_type: PostgresIndexType::PrimaryKey,
+                            }
                         ],
                         ..default()
                     }

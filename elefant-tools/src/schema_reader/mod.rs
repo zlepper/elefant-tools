@@ -10,7 +10,6 @@ use crate::schema_reader::foreign_key::ForeignKeyResult;
 use crate::schema_reader::foreign_key_column::ForeignKeyColumnResult;
 use crate::schema_reader::index::IndexResult;
 use crate::schema_reader::index_column::IndexColumnResult;
-use crate::schema_reader::key_column_usage::{ConstraintType, KeyColumnUsageResult};
 use crate::schema_reader::table_column::TableColumnsResult;
 
 
@@ -19,7 +18,6 @@ use crate::schema_reader::table_column::TableColumnsResult;
 pub mod tests;
 mod table;
 mod table_column;
-mod key_column_usage;
 mod check_contraint;
 mod index_column;
 mod index;
@@ -30,6 +28,7 @@ mod view;
 mod view_column;
 mod function;
 mod extension;
+mod unique_constraint;
 
 
 pub struct SchemaReader<'a> {
@@ -44,8 +43,8 @@ impl SchemaReader<'_> {
     pub async fn introspect_database(&self) -> Result<PostgresDatabase> {
         let tables = self.get_tables().await?;
         let columns = self.get_columns().await?;
-        let key_columns = self.get_key_columns().await?;
         let check_constraints = self.get_check_constraints().await?;
+        let unique_constraints = self.get_unique_constraints().await?;
         let indices = self.get_indices().await?;
         let index_columns = self.get_index_columns().await?;
         let sequences = self.get_sequences().await?;
@@ -65,10 +64,10 @@ impl SchemaReader<'_> {
                 name: row.table_name.clone(),
                 columns: Self::add_columns(&columns, &row),
                 constraints: Self::add_constraints(
-                    &key_columns,
                     &check_constraints,
                     &foreign_keys,
                     &foreign_key_columns,
+                    &unique_constraints,
                     &row,
                 ),
                 indices: Self::add_indices(&indices, &index_columns, &row),
@@ -158,59 +157,13 @@ impl SchemaReader<'_> {
     }
 
     fn add_constraints(
-        key_columns: &[KeyColumnUsageResult],
         check_constraints: &[CheckConstraintResult],
         foreign_keys: &[ForeignKeyResult],
         foreign_key_columns: &[ForeignKeyColumnResult],
+        unique_constraints: &[UniqueConstraintResult],
         row: &TablesResult,
     ) -> Vec<PostgresConstraint> {
-        let key_columns = key_columns
-            .iter()
-            .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name)
-            .group_by(|c| (c.constraint_name.clone(), c.key_type));
-        let mut constraints: Vec<PostgresConstraint> = key_columns
-            .into_iter()
-            .map(|g| (g.0.0, g.0.1, g.1.collect_vec()))
-            .map(
-                |(constraint_name, constraint_type, key_columns)| match constraint_type {
-                    ConstraintType::PrimaryKey => PostgresPrimaryKey {
-                        name: constraint_name.clone(),
-                        columns: key_columns
-                            .iter()
-                            .map(|c| PostgresPrimaryKeyColumn {
-                                column_name: c.column_name.clone(),
-                                ordinal_position: c.ordinal_position,
-                            })
-                            .collect(),
-                    }
-                        .into(),
-                    ConstraintType::ForeignKey => {
-                        // These are handled separately, and thus this panic should never execute
-                        unreachable!("Unexpected foreign key when handling key columns");
-                    }
-                    ConstraintType::Check => {
-                        // These are handled separately, and thus this panic should never execute
-                        unreachable!("Unexpected check constraint when handling key columns");
-                    }
-                    ConstraintType::Unique => PostgresUniqueConstraint {
-                        name: constraint_name.clone(),
-                        distinct_nulls: key_columns
-                            .iter()
-                            .any(|c| c.nulls_distinct.is_some_and(|v| v)),
-                        columns: key_columns
-                            .iter()
-                            .map(|c| PostgresUniqueConstraintColumn {
-                                column_name: c.column_name.clone(),
-                                ordinal_position: c.ordinal_position,
-                            })
-                            .collect(),
-                    }
-                        .into(),
-                },
-            )
-            .collect();
-
-        let mut check_constraints = check_constraints
+        let mut constraints: Vec<PostgresConstraint> = check_constraints
             .iter()
             .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name)
             .map(|check_constraint| {
@@ -221,8 +174,6 @@ impl SchemaReader<'_> {
                     .into()
             })
             .collect();
-
-        constraints.append(&mut check_constraints);
 
         let mut foreign_key_constraints = foreign_keys
             .iter()
@@ -276,6 +227,18 @@ impl SchemaReader<'_> {
 
         constraints.append(&mut foreign_key_constraints);
 
+        let mut unique_constraints = unique_constraints
+            .iter()
+            .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name)
+            .map(|c| PostgresUniqueConstraint {
+                name: c.constraint_name.clone(),
+                unique_index_name: c.index_name.clone(),
+            })
+            .map(|c| c.into())
+            .collect_vec();
+
+        constraints.append(&mut unique_constraints);
+
         constraints.sort();
 
         constraints
@@ -306,21 +269,16 @@ impl SchemaReader<'_> {
                 .map(|c| PostgresIndexKeyColumn {
                     name: c.column_expression.clone(),
                     ordinal_position: c.ordinal_position,
-                    direction: if index.can_sort {
-                        Some(match c.is_desc {
-                            Some(true) => PostgresIndexColumnDirection::Descending,
-                            _ => PostgresIndexColumnDirection::Ascending,
-                        })
-                    } else {
-                        None
+                    direction: match (index.can_sort, c.is_desc){
+                        (true, Some(true)) => Some(PostgresIndexColumnDirection::Descending),
+                        (true, Some(false)) => Some(PostgresIndexColumnDirection::Ascending),
+                        _ => None,
                     },
-                    nulls_order: if index.can_sort {
-                        Some(match c.nulls_first {
-                            Some(true) => PostgresIndexNullsOrder::First,
-                            _ => PostgresIndexNullsOrder::Last,
-                        })
-                    } else {
-                        None
+                    nulls_order: match (index.can_sort, c.nulls_first)
+                    {
+                        (true, Some(true)) => Some(PostgresIndexNullsOrder::First),
+                        (true, Some(false)) => Some(PostgresIndexNullsOrder::Last),
+                        _ => None,
                     },
                 })
                 .collect_vec();
@@ -344,6 +302,13 @@ impl SchemaReader<'_> {
                 index_type: index.index_type.clone(),
                 predicate: index.index_predicate.clone(),
                 included_columns,
+                index_constraint_type: match (index.is_primary_key, index.is_unique) {
+                    (true, _) => PostgresIndexType::PrimaryKey,
+                    (_, true) => PostgresIndexType::Unique {
+                        nulls_distinct: !index.nulls_not_distinct,
+                    },
+                    _ => PostgresIndexType::Index,
+                },
             });
         }
 
@@ -364,3 +329,4 @@ macro_rules! define_working_query {
 }
 
 pub(crate) use define_working_query;
+use crate::schema_reader::unique_constraint::UniqueConstraintResult;

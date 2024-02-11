@@ -9,6 +9,16 @@ pub struct PostgresIndex {
     pub index_type: String,
     pub predicate: Option<String>,
     pub included_columns: Vec<PostgresIndexIncludedColumn>,
+    pub index_constraint_type: PostgresIndexType,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum PostgresIndexType {
+    PrimaryKey,
+    Unique {
+        nulls_distinct: bool,
+    },
+    Index,
 }
 
 impl Ord for PostgresIndex {
@@ -25,7 +35,16 @@ impl PartialOrd for PostgresIndex {
 
 impl PostgresIndex {
     pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut command = format!("create index {} on {}.{} using {} (", self.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.index_type);
+        if PostgresIndexType::PrimaryKey == self.index_constraint_type {
+            return format!("alter table {}.{} add constraint {} primary key ({});", schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.name.quote(identifier_quoter), self.key_columns.iter().map(|c| c.name.quote(identifier_quoter)).collect::<Vec<String>>().join(", "));
+        }
+
+        let index_type = match self.index_constraint_type {
+            PostgresIndexType::Unique{..} => "unique ",
+            _ => "",
+        };
+
+        let mut command = format!("create {}index {} on {}.{} using {} (", index_type, self.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.index_type);
 
         for (i, column) in self.key_columns.iter().enumerate() {
             if i > 0 {
@@ -69,6 +88,10 @@ impl PostgresIndex {
             }
 
             command.push(')');
+        }
+
+        if let PostgresIndexType::Unique { nulls_distinct: false } = self.index_constraint_type {
+            command.push_str(" nulls not distinct")
         }
 
         if let Some(ref predicate) = self.predicate {

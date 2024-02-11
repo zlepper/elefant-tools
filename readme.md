@@ -15,9 +15,9 @@
 ✅ Not null constraints
 ➕ Check constraints
   ❌ Check constraints calling functions
-➕ Unique constraints
+✅ Unique constraints
   ✅ Distinct nulls
-  ❌ Using explicit unique index
+  ✅ Using explicit unique index
 ➕ Indexes
    ✅ Column direction
    ✅ Nulls first/last

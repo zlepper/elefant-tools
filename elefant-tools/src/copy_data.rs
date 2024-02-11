@@ -17,8 +17,7 @@ pub async fn copy_data(source: &impl CopySource, destination: &mut impl CopyDest
 
     let definition = source.get_introspection().await?;
 
-    destination.apply_structure(&definition).await?;
-
+    apply_pre_copy_structure(destination, &definition).await?;
 
     for schema in &definition.schemas {
         for table in &schema.tables {
@@ -31,7 +30,86 @@ pub async fn copy_data(source: &impl CopySource, destination: &mut impl CopyDest
         }
     }
 
-    destination.apply_post_structure(&definition).await?;
+    apply_post_copy_structure(destination, &definition).await?;
+
+    Ok(())
+}
+
+async fn apply_pre_copy_structure(destination: &mut impl CopyDestination, definition: &PostgresDatabase) -> Result<()> {
+    let identifier_quoter = destination.get_identifier_quoter();
+
+    for schema in &definition.schemas {
+        destination.apply_ddl_statement(&schema.get_create_statement(&identifier_quoter)).await?;
+    }
+
+    for ext in &definition.enabled_extensions {
+        destination.apply_ddl_statement(&ext.get_create_statement(&identifier_quoter)).await?;
+    }
+
+    for schema in &definition.schemas {
+        for table in &schema.tables {
+            destination.apply_ddl_statement(&table.get_create_statement(schema, &identifier_quoter)).await?;
+        }
+    }
+
+    Ok(())
+}
+
+async fn apply_post_copy_structure(destination: &mut impl CopyDestination, definition: &PostgresDatabase) -> Result<()> {
+    let identifier_quoter = destination.get_identifier_quoter();
+
+    for schema in &definition.schemas {
+
+        for function in &schema.functions {
+            destination.apply_ddl_statement(&function.get_create_statement(&identifier_quoter)).await?;
+        }
+
+
+        for table in &schema.tables {
+            for index in &table.indices {
+                if index.index_constraint_type == PostgresIndexType::PrimaryKey {
+                    continue;
+                }
+                destination.apply_ddl_statement(&index.get_create_index_command(schema, table, &identifier_quoter)).await?;
+            }
+        }
+
+        for sequence in &schema.sequences {
+            destination.apply_ddl_statement(&sequence.get_create_statement(schema, &identifier_quoter)).await?;
+            if let Some(sql) = sequence.get_set_value_statement(schema, &identifier_quoter) {
+                destination.apply_ddl_statement(&sql).await?;
+            }
+        }
+
+
+        for table in &schema.tables {
+            for column in &table.columns {
+                if let Some(sql) = column.get_alter_table_set_default_statement(table, schema, &identifier_quoter) {
+                    destination.apply_ddl_statement(&sql).await?;
+                }
+            }
+        }
+
+
+        for view in &schema.views {
+            destination.apply_ddl_statement(&view.get_create_view_sql(schema, &identifier_quoter)).await?;
+        }
+    }
+
+    for schema in &definition.schemas {
+        for table in &schema.tables {
+            for constraint in &table.constraints {
+                if let PostgresConstraint::ForeignKey(fk) = constraint {
+                    let sql = fk.get_create_statement(table, schema, &identifier_quoter);
+                    destination.apply_ddl_statement(&sql).await?;
+                }
+                if let PostgresConstraint::Unique(uk) = constraint {
+                    let sql = uk.get_create_statement(table, schema, &identifier_quoter);
+                    destination.apply_ddl_statement(&sql).await?;
+                }
+            }
+        }
+    }
 
     Ok(())
 }

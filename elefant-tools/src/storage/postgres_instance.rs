@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt, TryStreamExt};
@@ -15,7 +16,7 @@ use crate::quoting::IdentifierQuoter;
 pub struct PostgresInstanceStorage<'a> {
     connection: &'a PostgresClientWrapper,
     postgres_version: String,
-    identifier_quoter: IdentifierQuoter,
+    identifier_quoter: Arc<IdentifierQuoter>,
 }
 
 impl<'a> PostgresInstanceStorage<'a> {
@@ -29,7 +30,7 @@ impl<'a> PostgresInstanceStorage<'a> {
         Ok(PostgresInstanceStorage {
             connection,
             postgres_version,
-            identifier_quoter: quoter,
+            identifier_quoter: Arc::new(quoter),
         })
     }
 }
@@ -84,24 +85,6 @@ impl<'a> CopySource for PostgresInstanceStorage<'a> {
 
 #[async_trait]
 impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
-    async fn apply_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
-        for schema in &db.schemas {
-            self.connection.execute_non_query(&schema.get_create_statement(&self.identifier_quoter)).await?;
-        }
-
-        for ext in &db.enabled_extensions {
-            self.connection.execute_non_query(&ext.get_create_statement(&self.identifier_quoter)).await?;
-        }
-
-        for schema in &db.schemas {
-            for table in &schema.tables {
-                self.connection.execute_non_query(&table.get_create_statement(schema, &self.identifier_quoter)).await?;
-            }
-        }
-
-        Ok(())
-    }
-
     async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()> {
         let data_format = data.get_data_format();
 
@@ -124,53 +107,13 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
         Ok(())
     }
 
-    async fn apply_post_structure(&mut self, db: &PostgresDatabase) -> Result<()> {
-        for schema in &db.schemas {
-            for function in &schema.functions {
-                self.connection.execute_non_query(&function.get_create_statement(&self.identifier_quoter)).await?;
-            }
-
-            for table in &schema.tables {
-                for index in &table.indices {
-                    self.connection.execute_non_query(&index.get_create_index_command(schema, table, &self.identifier_quoter)).await?;
-                }
-
-                for constraint in &table.constraints {
-                    if let PostgresConstraint::Unique(unique) = constraint {
-                        self.connection.execute_non_query(&unique.get_create_statement(schema, table, &self.identifier_quoter)).await?;
-                    }
-                }
-            }
-
-            for sequence in &schema.sequences {
-                self.connection.execute_non_query(&sequence.get_create_statement(schema, &self.identifier_quoter)).await?;
-                if let Some(sql) = sequence.get_set_value_statement(schema, &self.identifier_quoter) {
-                    self.connection.execute_non_query(&sql).await?;
-                }
-            }
-
-
-            for table in &schema.tables {
-                for column in &table.columns {
-                    if let Some(sql) = column.get_alter_table_set_default_statement(table, schema, &self.identifier_quoter) {
-                        self.connection.execute_non_query(&sql).await?;
-                    }
-                }
-
-                for constraint in &table.constraints {
-                    if let PostgresConstraint::ForeignKey(fk) = constraint {
-                        let sql = fk.get_create_statement(table, schema, &self.identifier_quoter);
-                        self.connection.execute_non_query(&sql).await?;
-                    }
-                }
-            }
-
-            for view in &schema.views {
-                self.connection.execute_non_query(&view.get_create_view_sql(schema, &self.identifier_quoter)).await?;
-            }
-        }
-
+    async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()> {
+        self.connection.execute_non_query(statement).await?;
         Ok(())
+    }
+
+    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
+        self.identifier_quoter.clone()
     }
 }
 

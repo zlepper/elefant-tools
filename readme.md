@@ -34,7 +34,7 @@
 ➕ Functions/Stored procedures
    ❌ Transforms
 ✅ Extensions
-❌ Comments
+➕ Comments (Best effort to support comments on objects. If i have forgotten to support comments on any object, please open an issue.)
 ❌ Partitions
 ❌ Inheritance
 ❌ Enums

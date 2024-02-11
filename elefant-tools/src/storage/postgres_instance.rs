@@ -367,6 +367,30 @@ mod tests {
         );
     "#);
 
+    test_round_trip!(ddl_dependencies_4, r#"
+        create view a_view as select 1 as value;
+
+        create view b_view as select * from a_view;
+    "#);
+
+    test_round_trip!(ddl_dependencies_4_opposite, r#"
+        create view b_view as select 1 as value;
+
+        create view a_view as select * from b_view;
+    "#);
+
+    test_round_trip!(ddl_dependencies_5, r#"
+        create materialized view a_view as select 1 as value;
+
+        create materialized view b_view as select * from a_view;
+    "#);
+
+    test_round_trip!(ddl_dependencies_5_opposite, r#"
+        create materialized view b_view as select 1 as value;
+
+        create materialized view a_view as select * from b_view;
+    "#);
+
     test_round_trip!(comments_on_stuff, r#"
         create table my_table(
             value serial not null,

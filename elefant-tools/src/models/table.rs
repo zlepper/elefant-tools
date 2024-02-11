@@ -4,7 +4,7 @@ use crate::models::constraint::PostgresConstraint;
 use crate::{DataFormat, DdlQueryBuilder, PostgresIndexType};
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
-use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter};
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable, QuotableIter};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresTable {
@@ -12,6 +12,7 @@ pub struct PostgresTable {
     pub columns: Vec<PostgresColumn>,
     pub constraints: Vec<PostgresConstraint>,
     pub indices: Vec<PostgresIndex>,
+    pub comment: Option<String>,
 }
 
 impl Default for PostgresTable {
@@ -27,6 +28,7 @@ impl PostgresTable {
             columns: vec![],
             constraints: vec![],
             indices: vec![],
+            comment: None,
         }
     }
 
@@ -68,8 +70,28 @@ impl PostgresTable {
             }
         }
 
+        let mut create_table_statement = query_builder.build();
 
-        query_builder.build()
+        if let Some(c) = &self.comment {
+            create_table_statement.push_str(&format!("\ncomment on table {}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
+        }
+
+        for col in &self.columns {
+            if let Some(c) = &col.comment {
+                create_table_statement.push_str(&format!("\ncomment on column {}.{}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), col.name.quote(identifier_quoter), quote_value_string(c)));
+            }
+        }
+
+        for constraint in &self.constraints {
+            if let PostgresConstraint::Check(constraint) = constraint {
+                if let Some(c) = &constraint.comment {
+                    create_table_statement.push_str(&format!("\ncomment on constraint {} on {}.{} is {};", constraint.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
+                }
+            }
+        }
+
+        create_table_statement
+
     }
 
     pub fn get_copy_in_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {

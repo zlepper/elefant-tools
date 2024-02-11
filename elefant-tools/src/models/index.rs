@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
-use crate::quoting::{IdentifierQuoter, Quotable};
+use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresIndex {
     pub name: String,
     pub key_columns: Vec<PostgresIndexKeyColumn>,
@@ -10,14 +10,16 @@ pub struct PostgresIndex {
     pub predicate: Option<String>,
     pub included_columns: Vec<PostgresIndexIncludedColumn>,
     pub index_constraint_type: PostgresIndexType,
+    pub comment: Option<String>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub enum PostgresIndexType {
     PrimaryKey,
     Unique {
         nulls_distinct: bool,
     },
+    #[default]
     Index,
 }
 
@@ -100,6 +102,14 @@ impl PostgresIndex {
         }
 
         command.push(';');
+
+        if let Some(comment) = &self.comment {
+            command.push_str("\ncomment on index ");
+            command.push_str(&self.name.quote(identifier_quoter));
+            command.push_str(" is ");
+            command.push_str(&quote_value_string(comment));
+            command.push(';');
+        }
 
         command
     }

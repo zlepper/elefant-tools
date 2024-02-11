@@ -13,6 +13,7 @@ pub struct TableColumnsResult {
     pub data_type: String,
     pub column_default: Option<String>,
     pub generated: Option<String>,
+    pub comment: Option<String>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -26,6 +27,7 @@ impl FromRow for TableColumnsResult {
             data_type: row.try_get(5)?,
             column_default: row.try_get(6)?,
             generated: row.try_get(7)?,
+            comment: row.try_get(8)?,
         })
     }
 }
@@ -40,6 +42,7 @@ impl TableColumnsResult {
             data_type: self.data_type.clone(),
             default_value: self.column_default.clone(),
             generated: self.generated.clone(),
+            comment: self.comment.clone(),
         }
     }
 }
@@ -60,12 +63,14 @@ select ns.nspname,
        CASE
            WHEN attr.attgenerated <> ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
-           END::text                           AS generation_expressio
+           END::text                           AS generation_expression,
+         des.description
 from pg_attribute attr
          join pg_class cl on attr.attrelid = cl.oid
          join pg_type t on attr.atttypid = t.oid
          join pg_namespace ns on ns.oid = cl.relnamespace
          left join pg_attrdef ad on attr.attrelid = ad.adrelid and attr.attnum = ad.adnum
+         left join pg_description des on des.objoid = cl.oid and des.objsubid = attr.attnum
 where cl.relkind = 'r'
   and cl.oid > 16384
   and attr.attnum > 0

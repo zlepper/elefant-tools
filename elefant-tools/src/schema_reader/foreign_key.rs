@@ -12,6 +12,7 @@ pub struct ForeignKeyResult {
     pub target_table_schema_name: String,
     pub update_action: ReferenceAction,
     pub delete_action: ReferenceAction,
+    pub comment: Option<String>,
 }
 
 impl FromRow for ForeignKeyResult {
@@ -25,6 +26,7 @@ impl FromRow for ForeignKeyResult {
             target_table_schema_name: row.try_get(5)?,
             update_action: row.try_get_enum_value(6)?,
             delete_action: row.try_get_enum_value(7)?,
+            comment: row.try_get(8)?,
         })
     }
 }
@@ -38,11 +40,13 @@ select con.conname              as constraint_name,
        target.relname           as target_table_name,
        target_ns.nspname        as target_schema_name,
        con.confupdtype    as update_action,
-       con.confdeltype    as delete_action
+       con.confdeltype    as delete_action,
+       d.description       as comment
 from pg_catalog.pg_constraint con
          left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
          join pg_catalog.pg_class tab on con.conrelid = tab.oid
          left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
          join pg_catalog.pg_class target on con.confrelid = target.oid
          left join pg_namespace target_ns on target_ns.oid = target.relnamespace
+         left join pg_description d on d.objoid = con.oid
 where con.contype = 'f';"#);

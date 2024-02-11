@@ -362,4 +362,35 @@ mod tests {
             value int not null check (is_odd(value))
         );
     "#);
+
+    test_round_trip!(comments_on_stuff, r#"
+        create table my_table(
+            value serial not null,
+            another_value int not null unique
+        );
+
+        alter table my_table add constraint my_table_value_check check (value > 0);
+
+        comment on table my_table is 'This is a ''table''';
+        comment on column my_table.value is 'This is a column';
+        comment on constraint my_table_value_check on my_table is 'This is a constraint';
+
+        create function my_function() returns int as $$ begin return 1; end; $$ language plpgsql;
+        create function my_function_2(a int, b int) returns int as $$ begin return a + b; end; $$ language plpgsql;
+
+        comment on function my_function() is 'This is a function';
+        comment on function my_function_2(int, int) is 'This is another function';
+
+        create view my_view as select 1 as value;
+
+        comment on view my_view is 'This is a view';
+
+        comment on schema public is 'This is a schema';
+
+        comment on sequence my_table_value_seq is 'This is a sequence';
+
+        comment on index my_table_another_value_key is 'This is an index';
+        comment on constraint my_table_another_value_key on my_table is 'This is a unique constraint';
+
+    "#);
 }

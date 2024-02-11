@@ -21,6 +21,7 @@ pub struct FunctionResult {
     pub configuration: Option<Vec<String>>,
     pub arguments: String,
     pub result: Option<String>,
+    pub comment: Option<String>,
 }
 
 impl FromRow for FunctionResult {
@@ -43,6 +44,7 @@ impl FromRow for FunctionResult {
             configuration: row.try_get(14)?,
             arguments: row.try_get(15)?,
             result: row.try_get(16)?,
+            comment: row.try_get(17)?,
         })
     }
 }
@@ -65,7 +67,8 @@ select ns.nspname as schema_name,
        coalesce(pg_get_function_sqlbody(proc.oid), proc.prosrc) as sql_body,
        proc.proconfig as configuration,
        pg_get_function_arguments(proc.oid) as arguments,
-       pg_get_function_result(proc.oid) as result
+       pg_get_function_result(proc.oid) as result,
+       des.description
 from pg_proc proc
          join pg_namespace ns on proc.pronamespace = ns.oid
          join pg_language pl on proc.prolang = pl.oid
@@ -74,6 +77,7 @@ from pg_proc proc
          join pg_type return_type on proc.prorettype = return_type.oid
          left join pg_depend dep on proc.oid = dep.objid and dep.deptype = 'e'
          left join pg_extension ext on dep.refobjid = ext.oid
+         left join pg_description des on proc.oid = des.objoid
 where ns.nspname = 'public' and ext.extname is null;
 "#);
 

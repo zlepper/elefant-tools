@@ -1,11 +1,12 @@
 use crate::PostgresSchema;
-use crate::quoting::{IdentifierQuoter, Quotable};
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresView {
     pub name: String,
     pub definition: String,
     pub columns: Vec<PostgresViewColumn>,
+    pub comment: Option<String>
 }
 
 impl PostgresView {
@@ -23,6 +24,17 @@ impl PostgresView {
         sql.push_str(") as ");
 
         sql.push_str(&self.definition);
+
+        if let Some(comment) = &self.comment {
+            sql.push_str("\ncomment on view ");
+            sql.push_str(&schema.name.quote(identifier_quoter));
+            sql.push('.');
+            sql.push_str(&self.name.quote(identifier_quoter));
+            sql.push_str(" is ");
+            sql.push_str(&quote_value_string(comment));
+            sql.push(';');
+
+        }
 
         sql
     }

@@ -3,7 +3,7 @@ use std::str::FromStr;
 use itertools::Itertools;
 use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
 use crate::postgres_client_wrapper::FromPgChar;
-use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter};
+use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresForeignKey {
@@ -14,6 +14,7 @@ pub struct PostgresForeignKey {
     pub referenced_columns: Vec<PostgresForeignKeyReferencedColumn>,
     pub update_action: ReferenceAction,
     pub delete_action: ReferenceAction,
+    pub comment: Option<String>,
 }
 
 impl Default for PostgresForeignKey {
@@ -26,6 +27,7 @@ impl Default for PostgresForeignKey {
             referenced_columns: Vec::new(),
             update_action: ReferenceAction::NoAction,
             delete_action: ReferenceAction::NoAction,
+            comment: None,
         }
     }
 }
@@ -93,6 +95,18 @@ impl PostgresForeignKey {
         }
 
         sql.push(';');
+
+        if let Some(comment) = &self.comment {
+            sql.push_str("\ncomment on constraint ");
+            sql.push_str(&self.name.quote(identifier_quoter));
+            sql.push_str(" on ");
+            sql.push_str(&schema.name.quote(identifier_quoter));
+            sql.push_str(".");
+            sql.push_str(&table.name.quote(identifier_quoter));
+            sql.push_str(" is ");
+            sql.push_str(&quote_value_string(comment));
+            sql.push(';');
+        }
 
 
         sql

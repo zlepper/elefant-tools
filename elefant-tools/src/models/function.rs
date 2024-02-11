@@ -1,10 +1,11 @@
 use crate::ElefantToolsError;
 use crate::postgres_client_wrapper::FromPgChar;
 use ordered_float::NotNan;
-use crate::quoting::IdentifierQuoter;
+use crate::quoting::{IdentifierQuoter, quote_value_string};
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 pub enum FunctionKind {
+    #[default]
     Function,
     Procedure,
     Aggregate,
@@ -23,10 +24,11 @@ impl FromPgChar for FunctionKind {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 pub enum Volatility {
     Immutable,
     Stable,
+    #[default]
     Volatile,
 }
 
@@ -41,10 +43,11 @@ impl FromPgChar for Volatility {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 pub enum Parallel {
     Safe,
     Restricted,
+    #[default]
     Unsafe,
 }
 
@@ -59,7 +62,7 @@ impl FromPgChar for Parallel {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresFunction {
     pub function_name: String,
     pub language: String,
@@ -77,6 +80,7 @@ pub struct PostgresFunction {
     pub configuration: Option<Vec<String>>,
     pub arguments: String,
     pub result: Option<String>,
+    pub comment: Option<String>,
 }
 
 impl PostgresFunction {
@@ -144,6 +148,14 @@ impl PostgresFunction {
         sql.push_str(" as $$");
         sql.push_str(&self.sql_body);
         sql.push_str("$$;");
+
+        if let Some(comment) = &self.comment {
+            sql.push_str("\ncomment on function ");
+            sql.push_str(&fn_name);
+            sql.push_str(" is ");
+            sql.push_str(&quote_value_string(comment));
+            sql.push(';');
+        }
 
 
         sql

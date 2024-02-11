@@ -9,6 +9,7 @@ pub struct PostgresColumn {
     pub data_type: String,
     pub default_value: Option<String>,
     pub generated: Option<String>,
+    pub comment: Option<String>,
 }
 
 impl PostgresColumn {
@@ -36,6 +37,7 @@ impl Default for PostgresColumn {
             data_type: "".to_string(),
             default_value: None,
             generated: None,
+            comment: None,
         }
     }
 }

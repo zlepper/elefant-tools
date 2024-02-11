@@ -1,11 +1,12 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
-use crate::quoting::{IdentifierQuoter, Quotable};
+use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresUniqueConstraint {
     pub name: String,
     pub unique_index_name: String,
+    pub comment: Option<String>,
 }
 
 impl PartialOrd for PostgresUniqueConstraint {
@@ -23,6 +24,20 @@ impl Ord for PostgresUniqueConstraint {
 impl PostgresUniqueConstraint {
     pub fn get_create_statement(&self, table: &PostgresTable, schema: &PostgresSchema, quoter: &IdentifierQuoter) -> String {
 
-        format!("alter table {}.{} add constraint {} unique using index {};", schema.name.quote(quoter), table.name.quote(quoter), self.name.quote(quoter), self.unique_index_name.quote(quoter))
+        let mut sql = format!("alter table {}.{} add constraint {} unique using index {};", schema.name.quote(quoter), table.name.quote(quoter), self.name.quote(quoter), self.unique_index_name.quote(quoter));
+
+        if let Some(comment) = &self.comment {
+            sql.push_str("\ncomment on constraint ");
+            sql.push_str(&self.name.quote(quoter));
+            sql.push_str(" on ");
+            sql.push_str(&schema.name.quote(quoter));
+            sql.push_str(".");
+            sql.push_str(&table.name.quote(quoter));
+            sql.push_str(" is ");
+            sql.push_str(&quote_value_string(comment));
+            sql.push(';');
+        }
+
+        sql
     }
 }

@@ -29,6 +29,7 @@ mod view_column;
 mod function;
 mod extension;
 mod unique_constraint;
+mod schema;
 
 
 pub struct SchemaReader<'a> {
@@ -41,6 +42,7 @@ impl SchemaReader<'_> {
     }
 
     pub async fn introspect_database(&self) -> Result<PostgresDatabase> {
+        let schemas = self.get_schemas().await?;
         let tables = self.get_tables().await?;
         let columns = self.get_columns().await?;
         let check_constraints = self.get_check_constraints().await?;
@@ -57,6 +59,16 @@ impl SchemaReader<'_> {
 
         let mut db = PostgresDatabase::default();
 
+        for row in schemas {
+            let schema = PostgresSchema {
+                name: row.name.clone(),
+                comment: row.comment.clone(),
+                ..Default::default()
+            };
+
+            db.schemas.push(schema);
+        }
+
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
 
@@ -71,6 +83,7 @@ impl SchemaReader<'_> {
                     &row,
                 ),
                 indices: Self::add_indices(&indices, &index_columns, &row),
+                comment: row.comment,
             };
 
             current_schema.tables.push(table);
@@ -89,6 +102,7 @@ impl SchemaReader<'_> {
                 cache_size: sequence.cache_size,
                 cycle: sequence.cycle,
                 last_value: sequence.last_value,
+                comment: sequence.comment,
             };
 
             current_schema.sequences.push(sequence);
@@ -104,6 +118,7 @@ impl SchemaReader<'_> {
                     name: c.column_name.clone(),
                     ordinal_position: c.ordinal_position,
                 }).collect(),
+                comment: view.comment.clone(),
             };
 
             current_schema.views.push(view);
@@ -129,6 +144,7 @@ impl SchemaReader<'_> {
                 configuration: function.configuration.clone(),
                 arguments: function.arguments.clone(),
                 result: function.result.clone(),
+                comment: function.comment.clone(),
             };
 
             current_schema.functions.push(function);
@@ -170,6 +186,7 @@ impl SchemaReader<'_> {
                 PostgresCheckConstraint {
                     name: check_constraint.constraint_name.clone(),
                     check_clause: check_constraint.check_clause.clone(),
+                    comment: check_constraint.comment.clone(),
                 }
                     .into()
             })
@@ -220,6 +237,7 @@ impl SchemaReader<'_> {
                             ordinal_position: index as i32 + 1,
                         })
                         .collect(),
+                    comment: fk.comment.clone(),
                 }
                     .into()
             })
@@ -233,6 +251,7 @@ impl SchemaReader<'_> {
             .map(|c| PostgresUniqueConstraint {
                 name: c.constraint_name.clone(),
                 unique_index_name: c.index_name.clone(),
+                comment: c.comment.clone(),
             })
             .map(|c| c.into())
             .collect_vec();
@@ -309,6 +328,7 @@ impl SchemaReader<'_> {
                     },
                     _ => PostgresIndexType::Index,
                 },
+                comment: index.comment.clone(),
             });
         }
 

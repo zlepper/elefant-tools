@@ -12,6 +12,7 @@ pub struct IndexResult {
     pub is_unique: bool,
     pub is_primary_key: bool,
     pub nulls_not_distinct: bool,
+    pub comment: Option<String>,
 }
 
 impl FromRow for IndexResult {
@@ -26,6 +27,7 @@ impl FromRow for IndexResult {
             is_unique: row.try_get(6)?,
             is_primary_key: row.try_get(7)?,
             nulls_not_distinct: row.try_get(8)?,
+            comment: row.try_get(9)?,
         })
     }
 }
@@ -40,13 +42,15 @@ select n.nspname           as table_schema,
        pg_catalog.pg_get_expr(i.indpred, i.indrelid, true) as index_predicate,
        i.indisunique       as is_unique,
        i.indisprimary      as is_primary_key,
-       i.indnullsnotdistinct as nulls_not_distinct
+       i.indnullsnotdistinct as nulls_not_distinct,
+       d.description       as comment
 from pg_index i
          join pg_class table_class on table_class.oid = i.indrelid
          join pg_class index_class on index_class.oid = i.indexrelid
          left join pg_namespace n on n.oid = table_class.relnamespace
          left join pg_tablespace ts on ts.oid = index_class.reltablespace
          join pg_catalog.pg_am pa on index_class.relam = pa.oid
+         left join pg_description d on d.objoid = i.indexrelid
 where table_class.oid > 16384
 and table_class.relkind = 'r'
 "#);

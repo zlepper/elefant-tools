@@ -93,6 +93,10 @@ impl<I> Iterator for IteratorQuoter<'_, I>
 
 }
 
+pub(crate) fn quote_value_string(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
 
 #[cfg(test)]
 mod tests {

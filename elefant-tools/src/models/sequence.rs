@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema};
-use crate::quoting::{IdentifierQuoter, Quotable};
+use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresSequence {
@@ -13,6 +13,7 @@ pub struct PostgresSequence {
     pub cache_size: i64,
     pub cycle: bool,
     pub last_value: Option<i64>,
+    pub comment: Option<String>,
 }
 
 impl Default for PostgresSequence {
@@ -26,7 +27,8 @@ impl Default for PostgresSequence {
             max_value: 2147483647,
             cache_size: 1,
             cycle: false,
-            last_value: None
+            last_value: None,
+            comment: None,
         }
     }
 }
@@ -41,6 +43,16 @@ impl PostgresSequence {
         }
 
         sql.push(';');
+
+        if let Some(comment) = &self.comment {
+            sql.push_str("\ncomment on sequence ");
+            sql.push_str(&schema.name.quote(identifier_quoter));
+            sql.push_str(".");
+            sql.push_str(&self.name.quote(identifier_quoter));
+            sql.push_str(" is ");
+            sql.push_str(&quote_value_string(comment));
+            sql.push(';');
+        }
 
         sql
     }

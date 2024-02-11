@@ -13,6 +13,7 @@ pub struct SequenceResult {
     pub cycle: bool,
     pub cache_size: i64,
     pub last_value: Option<i64>,
+    pub comment: Option<String>,
 }
 
 impl FromRow for SequenceResult {
@@ -28,6 +29,7 @@ impl FromRow for SequenceResult {
             cycle: row.try_get(7)?,
             cache_size: row.try_get(8)?,
             last_value: row.try_get(9)?,
+            comment: row.try_get(10)?,
         })
     }
 }
@@ -46,11 +48,13 @@ SELECT n.nspname                   AS schemaname,
        CASE
            WHEN has_sequence_privilege(c.oid, 'SELECT,USAGE'::text) THEN pg_sequence_last_value(c.oid::regclass)
            ELSE NULL::bigint
-           END                     AS last_value
+           END                     AS last_value,
+         d.description               AS comment
 FROM pg_sequence s
          JOIN pg_class c ON c.oid = s.seqrelid
          join pg_type t on t.oid = s.seqtypid
          LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+         left join pg_description d on d.objoid = c.oid
 WHERE NOT pg_is_other_temp_schema(n.oid)
   AND c.relkind = 'S'::"char"
   and c.oid > 16384

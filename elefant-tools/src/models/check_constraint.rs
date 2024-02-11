@@ -1,9 +1,10 @@
 use std::cmp::Ordering;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresCheckConstraint {
     pub name: String,
     pub check_clause: String,
+    pub comment: Option<String>
 }
 
 impl PartialOrd for PostgresCheckConstraint {

@@ -441,4 +441,24 @@ mod tests {
 
         comment on materialized view my_materialized_view is 'This is a materialized view';
     "#);
+
+    test_round_trip!(triggers, r#"
+
+        create table my_table(
+            value int
+        );
+
+        create function my_trigger_function() returns trigger as $$
+        begin return new; end;
+        $$ language plpgsql;
+
+        create trigger my_trigger after insert on my_table for each row execute function my_trigger_function();
+
+        comment on trigger my_trigger on my_table is 'This is a trigger';
+
+        create trigger scoped_trigger before update on my_table for each row when (OLD.value is distinct from NEW.value) execute procedure my_trigger_function();
+
+        create trigger truncate_trigger after truncate on my_table for each statement execute procedure my_trigger_function();
+
+    "#);
 }

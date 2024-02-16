@@ -997,11 +997,7 @@ fn test_functions() {
     test_introspection(
         r#"
 
-    create function add(a int4, b int4) returns int4 as $$
-        begin
-            return a + b;
-        end;
-    $$ language plpgsql;
+    create function add(a int4, b int4) returns int4 as $$ begin return a + b; end; $$ language plpgsql;
 
     create function filter_stuff(value text) returns table(id int, name text) as
         $$
@@ -1036,11 +1032,7 @@ fn test_functions() {
                         returns_set: false,
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
-                        sql_body: r#"
-        begin
-            return a + b;
-        end;
-    "#
+                        sql_body: r#"begin return a + b; end;"#
                             .to_string(),
                         configuration: None,
                         arguments: "a integer, b integer".to_string(),
@@ -1060,8 +1052,7 @@ fn test_functions() {
                         returns_set: true,
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
-                        sql_body: r#"
-        begin
+                        sql_body: r#"begin
 
         create temp table temp_table(id int, name text);
 
@@ -1069,9 +1060,7 @@ fn test_functions() {
 
         return query select * from temp_table where name = value;
 
-        end;
-
-        "#
+        end;"#
                             .to_string(),
                         configuration: None,
                         arguments: "value text".to_string(),
@@ -1272,7 +1261,7 @@ fn comments_on_stuff() {
                         returns_set: false,
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
-                        sql_body: r#" begin return 1; end; "#
+                        sql_body: r#"begin return 1; end;"#
                             .to_string(),
                         configuration: None,
                         arguments: "".to_string(),
@@ -1292,7 +1281,7 @@ fn comments_on_stuff() {
                         returns_set: false,
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
-                        sql_body: r#" begin return a + b; end; "#
+                        sql_body: r#"begin return a + b; end;"#
                             .to_string(),
                         configuration: None,
                         arguments: "a integer, b integer".to_string(),
@@ -1395,9 +1384,7 @@ fn triggers() {
         );
 
         create function my_trigger_function() returns trigger as $$
-        begin
-            return new;
-        end;
+        begin return new; end;
         $$ language plpgsql;
 
         create trigger my_trigger after insert on my_table for each row execute function my_trigger_function();
@@ -1441,8 +1428,7 @@ fn triggers() {
                         returns_set: false,
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
-                        sql_body: r#" begin return new; end; "#
-                            .to_string(),
+                        sql_body: "begin return new; end;".to_string(),
                         configuration: None,
                         arguments: "".to_string(),
                         result: Some("trigger".to_string()),
@@ -1467,7 +1453,7 @@ fn triggers() {
                         timing: PostgresTriggerTiming::Before,
                         level: PostgresTriggerLevel::Row,
                         function_name: "my_trigger_function".to_string(),
-                        condition: Some("(OLD.value IS DISTINCT FROM NEW.value)".to_string()),
+                        condition: Some("(old.value IS DISTINCT FROM new.value)".to_string()),
                         ..default()
                     },
                     PostgresTrigger {

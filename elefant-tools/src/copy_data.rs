@@ -109,6 +109,13 @@ async fn apply_post_copy_structure(destination: &mut impl CopyDestination, defin
         }
     }
 
+    for schema in &definition.schemas {
+        for trigger in &schema.triggers {
+            let sql = trigger.get_create_statement(schema, &identifier_quoter);
+            destination.apply_ddl_statement(&sql).await?;
+        }
+    }
+
     Ok(())
 }
 

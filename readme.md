@@ -28,7 +28,7 @@
    ❌ Index storage parameters
 ✅ Generated columns
 ❌ Row level security
-❌ Triggers
+✅ Triggers
 ✅ Views
 ✅ Materialized views
 ➕ Functions/Stored procedures

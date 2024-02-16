@@ -143,7 +143,7 @@ impl SchemaReader<'_> {
                 returns_set: function.returns_set,
                 volatility: function.volatility,
                 parallel: function.parallel,
-                sql_body: function.sql_body.clone(),
+                sql_body: function.sql_body.trim().to_string(),
                 configuration: function.configuration.clone(),
                 arguments: function.arguments.clone(),
                 result: function.result.clone(),

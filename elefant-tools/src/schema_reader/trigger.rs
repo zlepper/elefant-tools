@@ -64,5 +64,6 @@ FROM
      left join pg_description d on d.objoid = t.oid
 WHERE
   NOT t.tgisinternal
-  and c.oid > 16384;
+  and c.oid > 16384
+order by trigger_schema, trigger_name;
 "#);

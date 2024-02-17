@@ -9,15 +9,15 @@
 ```
 ✅ Primary keys
 ✅ Sequences
-  ❌ owned by
+   ❌ owned by
 ✅ Foreign keys
-  ✅ Update/Delete cascade rules
+   ✅ Update/Delete cascade rules
 ✅ Not null constraints
 ✅ Check constraints
-  ✅ Check constraints calling functions
+   ✅ Check constraints calling functions
 ✅ Unique constraints
-  ✅ Distinct nulls
-  ✅ Using explicit unique index
+   ✅ Distinct nulls
+   ✅ Using explicit unique index
 ➕ Indexes
    ✅ Column direction
    ✅ Nulls first/last

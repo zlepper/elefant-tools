@@ -9,6 +9,7 @@ mod copy_data;
 mod parallel_runner;
 mod storage;
 mod quoting;
+mod helpers;
 
 pub use error::*;
 pub use storage::*;

@@ -52,6 +52,12 @@ pub enum ElefantToolsError {
     #[error("The table '{0}' is a partitioned table and does not have a parent table")]
     PartitionedTableWithoutParent(String),
 
+    #[error("The table '{table}' is a partitioned table and has multiple parent tables: {parents:?}")]
+    PartitionedTableHasMultipleParent {
+        table: String,
+        parents: Vec<String>,
+    },
+
     #[error("The table '{0}' is a partitioned table and does not have a partition expression")]
     PartitionedTableWithoutExpression(String),
 

@@ -1464,7 +1464,7 @@ fn triggers() {
                         level: PostgresTriggerLevel::Statement,
                         function_name: "my_trigger_function".to_string(),
                         ..default()
-                    }
+                    },
                 ],
                 ..default()
             }
@@ -1505,7 +1505,7 @@ fn enums() {
                                 ordinal_position: 2,
                                 data_type: "mood".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     }
@@ -1585,7 +1585,7 @@ CREATE TABLE sales_march PARTITION OF sales
                                 ordinal_position: 5,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         table_type: TableTypeDetails::PartitionedParentTable {
                             partition_columns: PartitionedTableColumns::Columns(vec!["sale_date".to_string()]),
@@ -1635,7 +1635,7 @@ CREATE TABLE sales_march PARTITION OF sales
                                 ordinal_position: 5,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -1680,7 +1680,7 @@ CREATE TABLE sales_march PARTITION OF sales
                                 ordinal_position: 5,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -1725,10 +1725,10 @@ CREATE TABLE sales_march PARTITION OF sales
                                 ordinal_position: 5,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
-                    }
+                    },
                 ],
                 ..default()
             }
@@ -1794,7 +1794,7 @@ CREATE TABLE furniture PARTITION OF products
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -1832,7 +1832,7 @@ CREATE TABLE furniture PARTITION OF products
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -1870,7 +1870,7 @@ CREATE TABLE furniture PARTITION OF products
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -1904,7 +1904,7 @@ CREATE TABLE furniture PARTITION OF products
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         table_type: TableTypeDetails::PartitionedParentTable {
                             partition_strategy: TablePartitionStrategy::List,
@@ -1975,7 +1975,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         table_type: TableTypeDetails::PartitionedParentTable {
                             partition_strategy: TablePartitionStrategy::Hash,
@@ -2018,7 +2018,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -2056,7 +2056,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
                     },
@@ -2094,10 +2094,10 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 ordinal_position: 4,
                                 data_type: "numeric".to_string(),
                                 ..default()
-                            }
+                            },
                         ],
                         ..default()
-                    }
+                    },
                 ],
                 ..default()
             }
@@ -2106,7 +2106,222 @@ CREATE TABLE orders_3 PARTITION OF orders
     })
 }
 
+#[test]
+fn inherited_tables() {
+    test_introspection(r#"
+create table pets (
+    id serial primary key,
+    name text not null check(length(name) > 1)
+);
 
+create table dogs(
+    breed text not null check(length(breed) > 1)
+) inherits (pets);
 
+create table cats(
+    color text not null
+) inherits (pets);
+    "#, PostgresDatabase {
+        schemas: vec![PostgresSchema {
+            tables: vec![
+                PostgresTable {
+                    name: "cats".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            default_value: Some("nextval('pets_id_seq'::regclass)".to_string()),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "color".to_string(),
+                            ordinal_position: 3,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    constraints: vec![PostgresConstraint::Check(PostgresCheckConstraint {
+                        name: "pets_name_check".to_string(),
+                        check_clause: "((length(name) > 1))".to_string(),
+                        ..default()
+                    })],
+                    table_type: TableTypeDetails::InheritedTable {
+                        parent_tables: vec!["pets".to_string()],
+                    },
+                    ..default()
+                },
+                PostgresTable {
+                    name: "dogs".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            default_value: Some("nextval('pets_id_seq'::regclass)".to_string()),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "breed".to_string(),
+                            ordinal_position: 3,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    constraints: vec![
+                        PostgresConstraint::Check(PostgresCheckConstraint {
+                            name: "dogs_breed_check".to_string(),
+                            check_clause: "((length(breed) > 1))".to_string(),
+                            ..default()
+                        }),
+                        PostgresConstraint::Check(PostgresCheckConstraint {
+                            name: "pets_name_check".to_string(),
+                            check_clause: "((length(name) > 1))".to_string(),
+                            ..default()
+                        }),
+                    ],
+                    table_type: TableTypeDetails::InheritedTable {
+                        parent_tables: vec!["pets".to_string()],
+                    },
+                    ..default()
+                },
+                PostgresTable {
+                    name: "pets".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            default_value: Some("nextval('pets_id_seq'::regclass)".to_string()),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    constraints: vec![PostgresConstraint::Check(PostgresCheckConstraint {
+                        name: "pets_name_check".to_string(),
+                        check_clause: "((length(name) > 1))".to_string(),
+                        ..default()
+                    })],
+                    indices: vec![PostgresIndex {
+                        name: "pets_pkey".to_string(),
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Ascending),
+                            nulls_order: Some(PostgresIndexNullsOrder::Last),
+                        }],
+                        index_type: "btree".to_string(),
+                        index_constraint_type: PostgresIndexType::PrimaryKey,
+                        ..default()
+                    }],
+                    ..default()
+                },
+            ],
+            sequences: vec![PostgresSequence {
+                name: "pets_id_seq".to_string(),
+                data_type: "int4".to_string(),
+                ..default()
+            }],
+            name: "public".to_string(),
+            ..default()
+        }],
+        ..default()
+    })
+}
 
+#[test]
+fn multiple_inheritance() {
+    test_introspection(r#"
+create table animal(
+    breed text not null
+);
 
+create table human(
+    name text not null
+);
+
+create table animorph() inherits (animal, human);
+    "#, PostgresDatabase {
+        schemas: vec![PostgresSchema {
+            tables: vec![
+                PostgresTable {
+                    name: "animal".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "breed".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    ..default()
+                },
+                PostgresTable {
+                    name: "animorph".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "breed".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    table_type: TableTypeDetails::InheritedTable {
+                        parent_tables: vec!["animal".to_string(), "human".to_string()],
+                    },
+                    ..default()
+                },
+                PostgresTable {
+                    name: "human".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    ..default()
+                },
+            ],
+            name: "public".to_string(),
+            ..default()
+        }],
+        ..default()
+    })
+}

@@ -191,6 +191,7 @@ mod tests {
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::storage;
     use crate::storage::postgres_instance::PostgresInstanceStorage;
+    use crate::storage::tests::validate_pets;
 
     async fn export_to_string(source: &TestHelper) -> String {
         let mut result_file = Vec::<u8>::new();
@@ -256,6 +257,13 @@ mod tests {
                 constraint people_age_check check ((age > 0))
             );
 
+            create table public.pets (
+                id int4 not null,
+                name text not null,
+                constraint pets_pkey primary key (id),
+                constraint pets_name_check check ((length(name) > 1))
+            );
+
             create table public.tree_node (
                 id int4 not null,
                 field_id int4 not null,
@@ -272,10 +280,31 @@ mod tests {
 
             create table public.my_partitioned_table_2 partition of my_partitioned_table FOR VALUES FROM (10) TO (20);
 
+            create table public.cats (
+                id int4 not null,
+                name text not null,
+                color text not null,
+                constraint pets_name_check check ((length(name) > 1))
+            ) inherits (pets);
+
+            create table public.dogs (
+                id int4 not null,
+                name text not null,
+                breed text not null,
+                constraint dogs_breed_check check ((length(breed) > 1)),
+                constraint pets_name_check check ((length(name) > 1))
+            ) inherits (pets);
+
             insert into public.array_test (name) values
             (E'{foo,bar}'),
             (E'{baz,qux}'),
             (E'{quux,corge}');
+
+            insert into public.cats (id, name, color) values
+            (2, E'Fluffy', E'white');
+
+            insert into public.dogs (id, name, breed) values
+            (1, E'Fido', E'beagle');
 
             insert into public.my_partitioned_table_1 (value) values
             (1),
@@ -292,6 +321,9 @@ mod tests {
             (4, E'str\nange', 420),
             (5, E't\t\tap', 421),
             (6, E'q''t', 12);
+
+            insert into public.pets (id, name) values
+            (3, E'Remy');
 
             create index ext_test_table_name_idx on public.ext_test_table using gin (id, search_vector);
 
@@ -315,13 +347,23 @@ mod tests {
 
             select pg_catalog.setval('public.people_id_seq', 6, true);
 
+            create sequence public.pets_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
+            select pg_catalog.setval('public.pets_id_seq', 3, true);
+
             create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
+            alter table public.cats alter column id set default nextval('pets_id_seq'::regclass);
+
+            alter table public.dogs alter column id set default nextval('pets_id_seq'::regclass);
 
             alter table public.ext_test_table alter column id set default nextval('ext_test_table_id_seq'::regclass);
 
             alter table public.field alter column id set default nextval('field_id_seq'::regclass);
 
             alter table public.people alter column id set default nextval('people_id_seq'::regclass);
+
+            alter table public.pets alter column id set default nextval('pets_id_seq'::regclass);
 
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
 
@@ -363,6 +405,8 @@ mod tests {
         let partition_test_data = destination.get_results::<(i32,)>("select value from my_partitioned_table order by value;").await;
 
         assert_eq!(partition_test_data, vec![(1,), (9,), (11,), (19,)]);
+
+        validate_pets(&destination).await;
     }
 
 

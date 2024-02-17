@@ -14,7 +14,7 @@ pub struct TablesResult {
     pub default_partition_name: Option<String>,
     pub partition_column_indices: Option<Vec<i16>>,
     pub partition_expression_columns: Option<String>,
-    pub parent_table: Option<String>,
+    pub parent_tables: Option<Vec<String>>,
     pub is_partition: bool,
 }
 
@@ -48,7 +48,7 @@ impl FromRow for TablesResult {
             default_partition_name: row.try_get(6)?,
             partition_column_indices: row.try_get(7)?,
             partition_expression_columns: row.try_get(8)?,
-            parent_table: row.try_get(9)?,
+            parent_tables: row.try_get(9)?,
             is_partition: row.try_get(10)?,
         })
     }
@@ -67,15 +67,16 @@ select
     default_partition.relname as default_partition,
     pt.partattrs,
     pg_get_expr(pt.partexprs, pt.partrelid) as partexprs,
-    parent.relname as parent_table,
+    (select array_agg(parent.relname) from (select parent.relname from pg_inherits i
+        join pg_class parent on i.inhparent = parent.oid
+          where i.inhrelid = cl.oid
+          order by i.inhseqno) parent) as parent_table,
     cl.relispartition
 from pg_class cl
          join pg_catalog.pg_namespace ns on ns.oid = cl.relnamespace
          left join pg_description des on des.objoid = cl.oid and des.objsubid = 0
          left join pg_partitioned_table pt on pt.partrelid = cl.oid
          left join pg_class default_partition on default_partition.oid = pt.partdefid
-         left join pg_inherits i on i.inhrelid = cl.oid
-         left join pg_class parent on i.inhparent = parent.oid
 where cl.relkind in ('r', 'p')
   and cl.oid > 16384
 order by ns.nspname, cl.relname;

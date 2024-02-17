@@ -86,10 +86,19 @@ impl SchemaReader<'_> {
                 indices: Self::add_indices(&indices, &index_columns, &row),
                 comment: row.comment,
                 table_type: if row.is_partition {
+                    let parent_tables = row.parent_tables.ok_or_else(|| {
+                        ElefantToolsError::PartitionedTableWithoutParent(row.table_name.clone())
+                    })?;
+
+                    if parent_tables.len() != 1 {
+                        return Err(ElefantToolsError::PartitionedTableHasMultipleParent {
+                            table: row.table_name.clone(),
+                            parents: parent_tables.clone(),
+                        })
+                    }
+
                     TableTypeDetails::PartitionedChildTable {
-                        parent_table: row.parent_table.ok_or_else(|| {
-                            ElefantToolsError::PartitionedTableWithoutParent(row.table_name.clone())
-                        })?,
+                        parent_table: parent_tables[0].clone(),
                         partition_expression: row.partition_expression.ok_or_else(|| {
                             ElefantToolsError::PartitionedTableWithoutExpression(
                                 row.table_name.clone(),
@@ -115,6 +124,10 @@ impl SchemaReader<'_> {
                             },
                             (Some(_), Some(_)) => return Err(ElefantToolsError::PartitionedTableWithBothPartitionColumnsAndExpression(row.table_name.clone())),
                         }
+                    }
+                } else if let Some(parent_table) = &row.parent_tables {
+                    TableTypeDetails::InheritedTable {
+                        parent_tables: parent_table.clone(),
                     }
                 } else {
                     TableTypeDetails::Table

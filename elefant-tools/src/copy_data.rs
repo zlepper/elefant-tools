@@ -68,6 +68,7 @@ async fn apply_pre_copy_structure(destination: &mut impl CopyDestination, defini
                 TableTypeDetails::Table => 0,
                 TableTypeDetails::PartitionedParentTable {..} => 1,
                 TableTypeDetails::PartitionedChildTable {..} => 2,
+                TableTypeDetails::InheritedTable {..} => 3,
             }
         );
 

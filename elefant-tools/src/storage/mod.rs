@@ -101,6 +101,8 @@ impl<S: Stream<Item=Result<Bytes>> + Send> TableData<S> {
 
 #[cfg(test)]
 mod tests {
+    use crate::test_helpers::TestHelper;
+
     pub static SOURCE_DATABASE_CREATE_SCRIPT: &str = r#"
         create extension btree_gin;
 
@@ -168,6 +170,23 @@ mod tests {
 
         insert into my_partitioned_table(value)
         values (1), (9), (11), (19);
+
+        create table pets (
+            id serial primary key,
+            name text not null check(length(name) > 1)
+        );
+
+        create table dogs(
+            breed text not null check(length(breed) > 1)
+        ) inherits (pets);
+
+        create table cats(
+            color text not null
+        ) inherits (pets);
+
+        insert into dogs(name, breed) values('Fido', 'beagle');
+        insert into cats(name, color) values('Fluffy', 'white');
+        insert into pets(name) values('Remy');
     "#;
 
     pub fn get_expected_people_data() -> Vec<(i32, String, i32)> {
@@ -187,6 +206,25 @@ mod tests {
             (vec!["baz".to_string(), "qux".to_string()],),
             (vec!["quux".to_string(), "corge".to_string()],),
         ]
+    }
+
+    pub async fn validate_pets(connection: &TestHelper) {
+        let pets = connection.get_results::<(i32, String)>("select id, name from pets order by id").await;
+        assert_eq!(pets, vec![
+            (1, "Fido".to_string()),
+            (2, "Fluffy".to_string()),
+            (3, "Remy".to_string()),
+        ]);
+
+        let dogs = connection.get_results::<(i32, String, String)>("select id, name, breed from dogs order by id").await;
+        assert_eq!(dogs, vec![
+            (1, "Fido".to_string(), "beagle".to_string()),
+        ]);
+
+        let cats = connection.get_results::<(i32, String, String)>("select id, name, color from cats order by id").await;
+        assert_eq!(cats, vec![
+            (2, "Fluffy".to_string(), "white".to_string()),
+        ]);
     }
 
 

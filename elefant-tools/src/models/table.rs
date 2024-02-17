@@ -2,6 +2,7 @@ use itertools::Itertools;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
 use crate::{DataFormat, default, ElefantToolsError, PostgresIndexType};
+use crate::helpers::StringExt;
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::postgres_client_wrapper::FromPgChar;
@@ -79,12 +80,7 @@ impl PostgresTable {
                     sql.push_str(&index.name.quote(identifier_quoter));
                     sql.push_str(" primary key (");
 
-                    for (idx, col) in index.key_columns.iter().enumerate() {
-                        if idx > 0 {
-                            sql.push_str(", ");
-                        }
-                        sql.push_str(&col.name.quote(identifier_quoter));
-                    }
+                    sql.push_join(", ", index.key_columns.iter().map(|c| c.name.quote(identifier_quoter)));
                     sql.push(')');
                     text_row_count += 1;
                 }
@@ -114,12 +110,7 @@ impl PostgresTable {
 
                 match partition_columns {
                     PartitionedTableColumns::Columns(columns) => {
-                        for (idx, col) in columns.iter().enumerate() {
-                            if idx > 0 {
-                                sql.push_str(", ");
-                            }
-                            sql.push_str(&col.quote(identifier_quoter));
-                        }
+                        sql.push_join(", ", columns.iter().map(|c| c.quote(identifier_quoter)));
                     }
                     PartitionedTableColumns::Expression(expr) => {
                         sql.push_str(expr);
@@ -127,7 +118,13 @@ impl PostgresTable {
                 }
 
                 sql.push_str(");");
-            } else {
+            }
+            else if let TableTypeDetails::InheritedTable {parent_tables} = &self.table_type {
+                sql.push_str("\n) inherits (");
+                sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter)));
+                sql.push_str(");");
+            }
+            else {
                 sql.push_str("\n);");
             }
         }
@@ -230,6 +227,9 @@ pub enum TableTypeDetails {
         parent_table: String,
         partition_expression: String,
     },
+    InheritedTable {
+        parent_tables: Vec<String>,
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

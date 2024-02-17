@@ -123,6 +123,7 @@ mod tests {
     use tokio_postgres::error::SqlState;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
+    use crate::storage::tests::validate_pets;
     use super::*;
     use crate::test_helpers::*;
 
@@ -169,13 +170,15 @@ mod tests {
         let people_who_cant_drink = destination.get_results::<(i32, String, i32)>("select id, name, age from people_who_cant_drink;").await;
         assert_eq!(people_who_cant_drink, vec![(6, "q't".to_string(), 12)]);
 
-        let array_test_data = destination.get_results::<(Vec<String>,)>("select name from array_test;").await;
+        let array_test_data = destination.get_results::<(Vec<String>, )>("select name from array_test;").await;
 
         assert_eq!(array_test_data, storage::tests::get_expected_array_test_data());
 
-        let partition_test_data = destination.get_results::<(i32,)>("select value from my_partitioned_table order by value;").await;
+        let partition_test_data = destination.get_results::<(i32, )>("select value from my_partitioned_table order by value;").await;
 
-        assert_eq!(partition_test_data, vec![(1,), (9,), (11,), (19,)]);
+        assert_eq!(partition_test_data, vec![(1, ), (9, ), (11, ), (19, )]);
+
+        validate_pets(&destination).await;
     }
 
 
@@ -530,4 +533,31 @@ CREATE TABLE orders_2 PARTITION OF orders
 CREATE TABLE orders_3 PARTITION OF orders
     FOR VALUES WITH (MODULUS 3, REMAINDER 2);
     "#);
+
+    test_round_trip!(inheritance, r#"
+create table pets (
+    id serial primary key,
+    name text not null check(length(name) > 1)
+);
+
+create table dogs(
+    breed text not null check(length(breed) > 1)
+) inherits (pets);
+
+create table cats(
+    color text not null
+) inherits (pets);
+    "#);
+
+    test_round_trip!(multiple_inheritance, r#"
+create table animal(
+    breed text not null
+);
+
+create table human(
+    name text not null
+);
+
+create table animorph() inherits (animal, human);
+"#);
 }

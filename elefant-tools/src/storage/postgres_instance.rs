@@ -119,7 +119,7 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 
 #[cfg(test)]
 mod tests {
-    use tokio::test;
+    use elefant_test_macros::pg_test;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
     use crate::storage::tests::{validate_copy_state};
@@ -127,74 +127,76 @@ mod tests {
     use crate::test_helpers::*;
 
 
-    async fn test_copy(data_format: DataFormat) {
-        let source = get_test_helper("source").await;
 
+    async fn test_copy(data_format: DataFormat, source: &TestHelper, destination: &TestHelper) {
         source.execute_not_query(storage::tests::get_copy_source_database_create_script(source.get_conn().version())).await;
 
-        let source_schema = introspect_schema(&source).await;
+        let source_schema = introspect_schema(source).await;
         let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
 
-        let destination = get_test_helper("destination").await;
         let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn()).await.unwrap();
 
         copy_data(&source, &mut destination_worker, CopyDataOptions {
             data_format: Some(data_format)
         }).await.expect("Failed to copy data");
 
-        let destination_schema = introspect_schema(&destination).await;
+        let destination_schema = introspect_schema(destination).await;
 
         assert_eq!(source_schema, destination_schema);
 
-        validate_copy_state(&destination).await;
+        validate_copy_state(destination).await;
     }
 
 
-    #[test]
-    async fn copies_between_databases_binary_format() {
+    #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+    async fn copies_between_databases_binary_format(source: &TestHelper, destination: &TestHelper) {
         test_copy(DataFormat::PostgresBinary {
             postgres_version: None
-        }).await;
+        }, source, destination).await;
     }
 
-    #[test]
-    async fn copies_between_databases_text_format() {
-        test_copy(DataFormat::Text).await;
+    #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+    async fn copies_between_databases_text_format(source: &TestHelper, destination: &TestHelper) {
+        test_copy(DataFormat::Text, source, destination).await;
     }
 
-    async fn test_round_trip(sql: &str, required_version: i32) {
-        let source = get_test_helper("source").await;
-
-        if source.get_conn().version() < required_version {
-            println!("Skipping test because version is too low");
-            return;
-        }
+    async fn test_round_trip(sql: &str, source: &TestHelper, destination: &TestHelper) {
 
         source.execute_not_query(sql).await;
 
-        let source_schema = introspect_schema(&source).await;
+        let source_schema = introspect_schema(source).await;
         let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
 
-        let destination = get_test_helper("destination").await;
         let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn()).await.unwrap();
 
         copy_data(&source, &mut destination_worker, CopyDataOptions {
             data_format: None
         }).await.expect("Failed to copy data");
 
-        let destination_schema = introspect_schema(&destination).await;
+        let destination_schema = introspect_schema(destination).await;
 
         assert_eq!(source_schema, destination_schema);
     }
 
     macro_rules! test_round_trip {
         ($name:ident, $sql:literal) => {
-            test_round_trip!($name, 120, $sql);
-        };
-        ($name:ident, $required_version:expr, $sql:literal) => {
-            #[test]
-            async fn $name() {
-                test_round_trip($sql, $required_version).await;
+            #[pg_test(arg(postgres = 12), arg(postgres = 12))]
+            #[pg_test(arg(postgres = 12), arg(postgres = 13))]
+            #[pg_test(arg(postgres = 12), arg(postgres = 14))]
+            #[pg_test(arg(postgres = 12), arg(postgres = 15))]
+            #[pg_test(arg(postgres = 12), arg(postgres = 16))]
+            #[pg_test(arg(postgres = 13), arg(postgres = 13))]
+            #[pg_test(arg(postgres = 13), arg(postgres = 14))]
+            #[pg_test(arg(postgres = 13), arg(postgres = 15))]
+            #[pg_test(arg(postgres = 13), arg(postgres = 16))]
+            #[pg_test(arg(postgres = 14), arg(postgres = 14))]
+            #[pg_test(arg(postgres = 14), arg(postgres = 15))]
+            #[pg_test(arg(postgres = 14), arg(postgres = 16))]
+            #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+            #[pg_test(arg(postgres = 15), arg(postgres = 16))]
+            #[pg_test(arg(postgres = 16), arg(postgres = 16))]
+            async fn $name(source: &TestHelper, destination: &TestHelper) {
+                test_round_trip($sql, source, destination).await;
             }
         };
     }
@@ -219,7 +221,10 @@ mod tests {
         );
     "#);
 
-    test_round_trip!(filtered_foreign_key_set_null, 150, r#"
+    #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+    #[pg_test(arg(postgres = 16), arg(postgres = 16))]
+    async fn filtered_foreign_key_set_null(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
         CREATE TABLE tenants (
             tenant_id integer PRIMARY KEY
         );
@@ -237,7 +242,8 @@ mod tests {
             PRIMARY KEY (tenant_id, post_id),
             FOREIGN KEY (tenant_id, author_id) REFERENCES users ON DELETE SET NULL (author_id)
         );
-    "#);
+    "#, source, destination).await;
+    }
 
     test_round_trip!(generated_columns, r#"
     CREATE TABLE people (
@@ -537,9 +543,24 @@ create table human(
 create table animorph() inherits (animal, human);
 "#);
 
-    test_round_trip!(storage_parameters, r#"
+    #[pg_test(arg(postgres = 13), arg(postgres = 13))]
+    #[pg_test(arg(postgres = 14), arg(postgres = 14))]
+    #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+    #[pg_test(arg(postgres = 16), arg(postgres = 16))]
+    async fn storage_parameters(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
     create table my_table(name text not null) with (fillfactor=50);
 
     create index my_index on my_table(name) with (fillfactor = 20, deduplicate_items = off);
-    "#);
+    "#, source, destination).await;
+    }
+
+    #[pg_test(arg(postgres = 12), arg(postgres = 12))]
+    async fn storage_parameters_pg_12(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+    create table my_table(name text not null) with (fillfactor=50);
+
+    create index my_index on my_table(name) with (fillfactor = 20);
+    "#, source, destination).await;
+    }
 }

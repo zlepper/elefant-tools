@@ -31,6 +31,7 @@ mod extension;
 mod unique_constraint;
 mod schema;
 mod trigger;
+mod enumeration;
 
 
 pub struct SchemaReader<'a> {
@@ -58,6 +59,7 @@ impl SchemaReader<'_> {
         let functions = self.get_functions().await?;
         let extensions = self.get_extensions().await?;
         let triggers = self.get_triggers().await?;
+        let enums = self.get_enums().await?;
 
         let mut db = PostgresDatabase::default();
 
@@ -181,6 +183,18 @@ impl SchemaReader<'_> {
             };
 
             current_schema.triggers.push(trigger);
+        }
+
+        for enumeration in enums {
+            let current_schema = db.get_or_create_schema_mut(&enumeration.schema_name);
+
+            let enumeration = PostgresEnum {
+                name: enumeration.name.clone(),
+                values: enumeration.values.clone(),
+                comment: enumeration.comment.clone(),
+            };
+
+            current_schema.enums.push(enumeration);
         }
 
         Ok(db)

@@ -1472,3 +1472,54 @@ fn triggers() {
         ..default()
     })
 }
+
+#[test]
+fn enums() {
+    test_introspection(r#"
+    CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
+    CREATE TABLE person (
+        name text,
+        current_mood mood
+    );
+    alter type mood add value 'mehh' before 'ok';
+
+    comment on type mood is 'This is a mood';
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![
+                    PostgresTable {
+                        name: "person".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "name".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "current_mood".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "mood".to_string(),
+                                ..default()
+                            }
+                        ],
+                        ..default()
+                    }
+                ],
+                enums: vec![
+                    PostgresEnum {
+                        name: "mood".to_string(),
+                        values: vec!["sad".to_string(), "mehh".to_string(), "ok".to_string(), "happy".to_string()],
+                        comment: Some("This is a mood".to_string()),
+                    }
+                ],
+                ..default()
+            }
+        ],
+        ..default()
+    })
+}

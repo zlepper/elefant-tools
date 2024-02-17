@@ -40,7 +40,15 @@ async fn apply_pre_copy_structure(destination: &mut impl CopyDestination, defini
 
     for schema in &definition.schemas {
         destination.apply_ddl_statement(&schema.get_create_statement(&identifier_quoter)).await?;
+    }
 
+    for schema in &definition.schemas {
+        for enumeration in &schema.enums {
+            destination.apply_ddl_statement(&enumeration.get_create_statement(&identifier_quoter)).await?;
+        }
+    }
+
+    for schema in &definition.schemas {
         for function in &schema.functions {
             destination.apply_ddl_statement(&function.get_create_statement(&identifier_quoter)).await?;
         }

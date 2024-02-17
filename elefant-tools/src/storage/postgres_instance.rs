@@ -461,4 +461,14 @@ mod tests {
         create trigger truncate_trigger after truncate on my_table for each statement execute procedure my_trigger_function();
 
     "#);
+
+    test_round_trip!(enumerations, r#"
+    create type mood as enum ('sad', 'ok', 'happy');
+    create table person (
+        name text,
+        current_mood mood
+    );
+
+    alter type mood add value 'mehh' before 'ok';
+    "#);
 }

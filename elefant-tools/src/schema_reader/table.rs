@@ -1,6 +1,6 @@
 use tokio_postgres::Row;
-use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
-use crate::{TablePartitionStrategy, TableType};
+use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
+use crate::{ElefantToolsError, TablePartitionStrategy};
 use super::{define_working_query};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -16,6 +16,24 @@ pub struct TablesResult {
     pub partition_expression_columns: Option<String>,
     pub parent_table: Option<String>,
     pub is_partition: bool,
+}
+
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+pub enum TableType {
+    #[default]
+    Table,
+    PartitionedTable,
+}
+
+impl FromPgChar for TableType {
+    fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
+        match c {
+            'r' => Ok(TableType::Table),
+            'p' => Ok(TableType::PartitionedTable),
+            _ => Err(ElefantToolsError::InvalidTableType(c.to_string())),
+        }
+    }
 }
 
 impl FromRow for TablesResult {

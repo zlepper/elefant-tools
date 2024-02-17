@@ -1,38 +1,35 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
-use crate::postgres_client_wrapper::{PostgresClientWrapper};
-use crate::{Result};
-use itertools::Itertools;
-use ordered_float::NotNan;
-use crate::schema_reader::table::TablesResult;
+use crate::postgres_client_wrapper::PostgresClientWrapper;
 use crate::schema_reader::check_contraint::CheckConstraintResult;
 use crate::schema_reader::foreign_key::ForeignKeyResult;
 use crate::schema_reader::foreign_key_column::ForeignKeyColumnResult;
 use crate::schema_reader::index::IndexResult;
 use crate::schema_reader::index_column::IndexColumnResult;
+use crate::schema_reader::table::TablesResult;
 use crate::schema_reader::table_column::TableColumnsResult;
+use crate::{ElefantToolsError, Result};
+use itertools::Itertools;
+use ordered_float::NotNan;
 
-
-
-#[cfg(test)]
-pub mod tests;
-mod table;
-mod table_column;
 mod check_contraint;
-mod index_column;
-mod index;
-mod sequence;
+mod enumeration;
+mod extension;
 mod foreign_key;
 mod foreign_key_column;
+mod function;
+mod index;
+mod index_column;
+mod schema;
+mod sequence;
+mod table;
+mod table_column;
+#[cfg(test)]
+pub mod tests;
+mod trigger;
+mod unique_constraint;
 mod view;
 mod view_column;
-mod function;
-mod extension;
-mod unique_constraint;
-mod schema;
-mod trigger;
-mod enumeration;
-
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -76,13 +73,11 @@ impl SchemaReader<'_> {
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
 
-            let columns = Self::add_columns(&columns, &row);
-            let partition_columns = row.partition_column_indices.as_ref()
-                .map(|indices| indices.iter().map(|idx| columns[*idx as usize - 1].name.clone()).collect());
+            let table_columns = Self::add_columns(&columns, &row);
 
             let table = PostgresTable {
                 name: row.table_name.clone(),
-                columns,
+                columns: table_columns,
                 constraints: Self::add_constraints(
                     &check_constraints,
                     &foreign_keys,
@@ -92,14 +87,40 @@ impl SchemaReader<'_> {
                 ),
                 indices: Self::add_indices(&indices, &index_columns, &row),
                 comment: row.comment,
-                table_type: row.table_type,
-                partition_column_indices: partition_columns,
-                default_partition_name: row.default_partition_name,
-                is_partition: row.is_partition,
-                parent_table: row.parent_table,
-                partition_expression: row.partition_expression,
-                partition_expression_columns: row.partition_expression_columns,
-                partition_strategy: row.partition_strategy,
+                table_type: if row.is_partition {
+                    TableTypeDetails::PartitionedChildTable {
+                        parent_table: row.parent_table.ok_or_else(|| {
+                            ElefantToolsError::PartitionedTableWithoutParent(row.table_name.clone())
+                        })?,
+                        partition_expression: row.partition_expression.ok_or_else(|| {
+                            ElefantToolsError::PartitionedTableWithoutExpression(
+                                row.table_name.clone(),
+                            )
+                        })?,
+                    }
+                } else if let Some(partition_stat) = &row.partition_strategy {
+                    TableTypeDetails::PartitionedParentTable {
+                        partition_strategy: *partition_stat,
+                        default_partition_name: row.default_partition_name.clone(),
+                        partition_columns: match (row.partition_column_indices, row.partition_expression_columns) {
+                            (None, None) => return Err(ElefantToolsError::PartitionedTableWithoutPartitionColumns(row.table_name.clone())),
+                            (None, Some(expr)) => PartitionedTableColumns::Expression(expr.clone()),
+                            (Some(column_indices), None) => {
+                                let column_names = column_indices.iter()
+                                    .map(|idx| columns.iter()
+                                        .find(|c| c.schema_name == row.schema_name && c.table_name == row.table_name && c.ordinal_position == *idx)
+                                        .unwrap()
+                                        .column_name
+                                        .clone())
+                                    .collect();
+                                PartitionedTableColumns::Columns(column_names)
+                            },
+                            (Some(_), Some(_)) => return Err(ElefantToolsError::PartitionedTableWithBothPartitionColumnsAndExpression(row.table_name.clone())),
+                        }
+                    }
+                } else {
+                    TableTypeDetails::Table
+                },
             };
 
             current_schema.tables.push(table);
@@ -130,10 +151,14 @@ impl SchemaReader<'_> {
             let view = PostgresView {
                 name: view.view_name.clone(),
                 definition: view.definition.clone(),
-                columns: view_columns.iter().filter(|c| c.view_name == view.view_name && c.schema_name == view.schema_name).map(|c| PostgresViewColumn {
-                    name: c.column_name.clone(),
-                    ordinal_position: c.ordinal_position,
-                }).collect(),
+                columns: view_columns
+                    .iter()
+                    .filter(|c| c.view_name == view.view_name && c.schema_name == view.schema_name)
+                    .map(|c| PostgresViewColumn {
+                        name: c.column_name.clone(),
+                        ordinal_position: c.ordinal_position,
+                    })
+                    .collect(),
                 comment: view.comment.clone(),
                 is_materialized: view.is_materialized,
             };
@@ -147,8 +172,10 @@ impl SchemaReader<'_> {
             let function = PostgresFunction {
                 function_name: function.function_name.clone(),
                 language: function.language_name.clone(),
-                estimated_cost: NotNan::new(function.estimated_cost).unwrap_or(NotNan::new(100.0).unwrap()),
-                estimated_rows: NotNan::new(function.estimated_rows).unwrap_or(NotNan::new(1000.0).unwrap()),
+                estimated_cost: NotNan::new(function.estimated_cost)
+                    .unwrap_or(NotNan::new(100.0).unwrap()),
+                estimated_rows: NotNan::new(function.estimated_rows)
+                    .unwrap_or(NotNan::new(1000.0).unwrap()),
                 support_function: function.support_function_name.clone(),
                 kind: function.function_kind,
                 security_definer: function.security_definer,
@@ -240,7 +267,7 @@ impl SchemaReader<'_> {
                     check_clause: check_constraint.check_clause.clone(),
                     comment: check_constraint.comment.clone(),
                 }
-                    .into()
+                .into()
             })
             .collect();
 
@@ -291,7 +318,7 @@ impl SchemaReader<'_> {
                         .collect(),
                     comment: fk.comment.clone(),
                 }
-                    .into()
+                .into()
             })
             .collect();
 
@@ -340,13 +367,12 @@ impl SchemaReader<'_> {
                 .map(|c| PostgresIndexKeyColumn {
                     name: c.column_expression.clone(),
                     ordinal_position: c.ordinal_position,
-                    direction: match (index.can_sort, c.is_desc){
+                    direction: match (index.can_sort, c.is_desc) {
                         (true, Some(true)) => Some(PostgresIndexColumnDirection::Descending),
                         (true, Some(false)) => Some(PostgresIndexColumnDirection::Ascending),
                         _ => None,
                     },
-                    nulls_order: match (index.can_sort, c.nulls_first)
-                    {
+                    nulls_order: match (index.can_sort, c.nulls_first) {
                         (true, Some(true)) => Some(PostgresIndexNullsOrder::First),
                         (true, Some(false)) => Some(PostgresIndexNullsOrder::Last),
                         _ => None,
@@ -400,5 +426,5 @@ macro_rules! define_working_query {
     };
 }
 
-pub(crate) use define_working_query;
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
+pub(crate) use define_working_query;

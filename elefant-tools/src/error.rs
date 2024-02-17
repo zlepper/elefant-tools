@@ -49,6 +49,18 @@ pub enum ElefantToolsError {
     #[error("Unknown table partitioning strategy '{0}'")]
     InvalidTablePartitioningStrategy(String),
 
+    #[error("The table '{0}' is a partitioned table and does not have a parent table")]
+    PartitionedTableWithoutParent(String),
+
+    #[error("The table '{0}' is a partitioned table and does not have a partition expression")]
+    PartitionedTableWithoutExpression(String),
+
+    #[error("The table '{0}' is a partitioned table and does not have partition columns")]
+    PartitionedTableWithoutPartitionColumns(String),
+
+    #[error("The table '{0}' is a partitioned table and has both partition columns and a partition expression")]
+    PartitionedTableWithBothPartitionColumnsAndExpression(String),
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

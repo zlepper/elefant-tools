@@ -14,14 +14,7 @@ pub struct PostgresTable {
     pub constraints: Vec<PostgresConstraint>,
     pub indices: Vec<PostgresIndex>,
     pub comment: Option<String>,
-    pub table_type: TableType,
-    pub partition_expression: Option<String>,
-    pub partition_strategy: Option<TablePartitionStrategy>,
-    pub default_partition_name: Option<String>,
-    pub partition_column_indices: Option<Vec<String>>,
-    pub partition_expression_columns: Option<String>,
-    pub parent_table: Option<String>,
-    pub is_partition: bool,
+    pub table_type: TableTypeDetails,
 }
 
 impl PostgresTable {
@@ -161,21 +154,25 @@ impl PostgresTable {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
-pub enum TableType {
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
+pub enum TableTypeDetails {
     #[default]
     Table,
-    PartitionedTable,
+    PartitionedParentTable {
+        partition_strategy: TablePartitionStrategy,
+        default_partition_name: Option<String>,
+        partition_columns: PartitionedTableColumns,
+    },
+    PartitionedChildTable {
+        parent_table: String,
+        partition_expression: String,
+    },
 }
 
-impl FromPgChar for TableType {
-    fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
-        match c {
-            'r' => Ok(TableType::Table),
-            'p' => Ok(TableType::PartitionedTable),
-            _ => Err(ElefantToolsError::InvalidTableType(c.to_string())),
-        }
-    }
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum PartitionedTableColumns {
+    Columns(Vec<String>),
+    Expression(String),
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

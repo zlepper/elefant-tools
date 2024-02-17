@@ -1587,30 +1587,35 @@ CREATE TABLE sales_march PARTITION OF sales
                                 ..default()
                             }
                         ],
-                        table_type: TableType::PartitionedTable,
-                        partition_strategy: Some(TablePartitionStrategy::Range),
-                        partition_column_indices: Some(vec!["sale_date".to_string()]),
+                        table_type: TableTypeDetails::PartitionedParentTable {
+                            partition_columns: PartitionedTableColumns::Columns(vec!["sale_date".to_string()]),
+                            default_partition_name: None,
+                            partition_strategy: TablePartitionStrategy::Range,
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "sales_february".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string()),
-                        parent_table: Some("sales".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
+                            parent_table: "sales".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "sales_january".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string()),
-                        parent_table: Some("sales".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
+                            parent_table: "sales".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "sales_march".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string()),
-                        parent_table: Some("sales".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
+                            parent_table: "sales".to_string(),
+                        },
                         ..default()
                     }
                 ],
@@ -1646,23 +1651,26 @@ CREATE TABLE furniture PARTITION OF products
                 tables: vec![
                     PostgresTable {
                         name: "clothing".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES IN ('Clothing')".to_string()),
-                        parent_table: Some("products".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES IN ('Clothing')".to_string(),
+                            parent_table: "products".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "electronics".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES IN ('Electronics')".to_string()),
-                        parent_table: Some("products".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES IN ('Electronics')".to_string(),
+                            parent_table: "products".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "furniture".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES IN ('Furniture')".to_string()),
-                        parent_table: Some("products".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES IN ('Furniture')".to_string(),
+                            parent_table: "products".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
@@ -1697,9 +1705,11 @@ CREATE TABLE furniture PARTITION OF products
                                 ..default()
                             }
                         ],
-                        table_type: TableType::PartitionedTable,
-                        partition_strategy: Some(TablePartitionStrategy::List),
-                        partition_column_indices: Some(vec!["category".to_string()]),
+                        table_type: TableTypeDetails::PartitionedParentTable {
+                            partition_strategy: TablePartitionStrategy::List,
+                            default_partition_name: None,
+                            partition_columns: PartitionedTableColumns::Columns(vec!["category".to_string()]),
+                        },
                         ..default()
                     },
                 ],
@@ -1766,30 +1776,35 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 ..default()
                             }
                         ],
-                        table_type: TableType::PartitionedTable,
-                        partition_strategy: Some(TablePartitionStrategy::Hash),
-                        partition_column_indices: Some(vec!["customer_id".to_string()]),
+                        table_type: TableTypeDetails::PartitionedParentTable {
+                            partition_strategy: TablePartitionStrategy::Hash,
+                            default_partition_name: None,
+                            partition_columns: PartitionedTableColumns::Columns(vec!["customer_id".to_string()]),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "orders_1".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES WITH (modulus 3, remainder 0)".to_string()),
-                        parent_table: Some("orders".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES WITH (modulus 3, remainder 0)".to_string(),
+                            parent_table: "orders".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "orders_2".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES WITH (modulus 3, remainder 1)".to_string()),
-                        parent_table: Some("orders".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES WITH (modulus 3, remainder 1)".to_string(),
+                            parent_table: "orders".to_string(),
+                        },
                         ..default()
                     },
                     PostgresTable {
                         name: "orders_3".to_string(),
-                        is_partition: true,
-                        partition_expression: Some("FOR VALUES WITH (modulus 3, remainder 2)".to_string()),
-                        parent_table: Some("orders".to_string()),
+                        table_type: TableTypeDetails::PartitionedChildTable {
+                            partition_expression: "FOR VALUES WITH (modulus 3, remainder 2)".to_string(),
+                            parent_table: "orders".to_string(),
+                        },
                         ..default()
                     }
                 ],

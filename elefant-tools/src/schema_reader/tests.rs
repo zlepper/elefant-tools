@@ -2329,7 +2329,7 @@ create table animorph() inherits (animal, human);
 #[test]
 fn index_storage_parameters() {
     test_introspection(r#"
-    create table my_table(name text not null);
+    create table my_table(name text not null) with (fillfactor=50);
 
     create index my_index on my_table(name) with (fillfactor = 20, deduplicate_items = off);
     "#, PostgresDatabase {
@@ -2361,6 +2361,7 @@ fn index_storage_parameters() {
                             ..default()
                         }
                     ],
+                    storage_parameters: vec!["fillfactor=50".to_string()],
                     ..default()
                 }
             ],

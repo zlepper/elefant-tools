@@ -562,7 +562,7 @@ create table animorph() inherits (animal, human);
 "#);
 
     test_round_trip!(storage_parameters, r#"
-    create table my_table(name text not null);
+    create table my_table(name text not null) with (fillfactor=50);
 
     create index my_index on my_table(name) with (fillfactor = 20, deduplicate_items = off);
     "#);

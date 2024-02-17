@@ -67,6 +67,12 @@ pub enum ElefantToolsError {
     #[error("The table '{0}' is a partitioned table and has both partition columns and a partition expression")]
     PartitionedTableWithBothPartitionColumnsAndExpression(String),
 
+    #[error("Unsupported postgres version: {0}. Minimum supported version is 12")]
+    UnsupportedPostgresVersion(i32),
+
+    #[error("Invalid response from postgres when checking version")]
+    InvalidPostgresVersionResponse,
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

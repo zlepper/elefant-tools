@@ -8,7 +8,8 @@ use tokio_postgres::row::RowIndex;
 
 pub struct PostgresClientWrapper {
     client: Client,
-    join_handle: JoinHandle<Result<()>>
+    join_handle: JoinHandle<Result<()>>,
+    version: i32,
 }
 
 impl PostgresClientWrapper {
@@ -25,9 +26,21 @@ impl PostgresClientWrapper {
             }
         });
 
+        let version = match &client.simple_query("SHOW server_version_num;").await?[0] {
+            tokio_postgres::SimpleQueryMessage::Row(row) => {
+                let version: i32 = row.get(0).expect("failed to get version from row").parse().expect("failed to parse version");
+                if version < 120000 {
+                    return Err(crate::ElefantToolsError::UnsupportedPostgresVersion(version));
+                }
+                version / 1000
+            }
+            _ => return Err(crate::ElefantToolsError::InvalidPostgresVersionResponse)
+        };
+
         Ok(PostgresClientWrapper {
             client,
-            join_handle
+            join_handle,
+            version
         })
     }
 
@@ -94,6 +107,10 @@ impl PostgresClientWrapper {
     pub async fn copy_out(&self, sql: &str) -> Result<CopyOutStream> {
         let stream = self.client.copy_out(sql).await?;
         Ok(stream)
+    }
+
+    pub fn version(&self) -> i32 {
+        self.version
     }
 }
 

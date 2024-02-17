@@ -1,6 +1,6 @@
 use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::{SchemaReader};
 
 pub struct IndexResult {
     pub table_schema: String,
@@ -34,8 +34,13 @@ impl FromRow for IndexResult {
     }
 }
 
-//language=postgresql
-define_working_query!(get_indices, IndexResult, r#"
+impl SchemaReader<'_> {
+    pub(in crate::schema_reader) async fn get_indices(&self) -> crate::Result<Vec<IndexResult>> {
+
+
+        let query = if self.connection.version() >= 150 {
+            //language=postgresql
+            r#"
 select n.nspname           as table_schema,
        table_class.relname as table_name,
        index_class.relname as index_name,
@@ -56,4 +61,33 @@ from pg_index i
          left join pg_description d on d.objoid = i.indexrelid
 where table_class.oid > 16384
 and table_class.relkind = 'r'
-"#);
+"#
+        } else {
+            //language=postgresql
+            r#"
+select n.nspname           as table_schema,
+       table_class.relname as table_name,
+       index_class.relname as index_name,
+       pa.amname           as index_type,
+       pg_indexam_has_property(pa.oid, 'can_order') as can_sort,
+       pg_catalog.pg_get_expr(i.indpred, i.indrelid, true) as index_predicate,
+       i.indisunique       as is_unique,
+       i.indisprimary      as is_primary_key,
+       false as nulls_not_distinct,
+       d.description       as comment,
+       index_class.reloptions as table_storage_parameters
+from pg_index i
+         join pg_class table_class on table_class.oid = i.indrelid
+         join pg_class index_class on index_class.oid = i.indexrelid
+         left join pg_namespace n on n.oid = table_class.relnamespace
+         left join pg_tablespace ts on ts.oid = index_class.reltablespace
+         join pg_catalog.pg_am pa on index_class.relam = pa.oid
+         left join pg_description d on d.objoid = i.indexrelid
+where table_class.oid > 16384
+and table_class.relkind = 'r'
+"#
+        };
+
+        self.connection.get_results(query).await
+    }
+}

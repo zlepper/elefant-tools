@@ -9,12 +9,22 @@ pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
 }
 
 fn test_introspection(create_table_statement: &str, expected: PostgresDatabase) {
+    test_introspection_require_version(120, create_table_statement, expected);
+}
+
+fn test_introspection_require_version(required_version: i32, create_table_statement: &str, expected: PostgresDatabase) {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
         .block_on(async {
             let helper = get_test_helper("helper").await;
+
+            if helper.get_conn().version() < required_version {
+                println!("Test is not supported on version {}, requires at least {}", helper.get_conn().version(), required_version);
+                return;
+            }
+
             helper.execute_not_query(create_table_statement).await;
 
             let db = introspect_schema(&helper).await;
@@ -552,7 +562,7 @@ fn index_with_include() {
 
 #[test]
 fn table_with_non_distinct_nulls() {
-    test_introspection(
+    test_introspection_require_version(150,
         r#"
     create table my_table(
         value int unique nulls not distinct

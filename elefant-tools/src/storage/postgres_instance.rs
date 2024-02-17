@@ -120,10 +120,9 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 #[cfg(test)]
 mod tests {
     use tokio::test;
-    use tokio_postgres::error::SqlState;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
-    use crate::storage::tests::validate_pets;
+    use crate::storage::tests::{validate_copy_state};
     use super::*;
     use crate::test_helpers::*;
 
@@ -131,7 +130,7 @@ mod tests {
     async fn test_copy(data_format: DataFormat) {
         let source = get_test_helper("source").await;
 
-        source.execute_not_query(storage::tests::SOURCE_DATABASE_CREATE_SCRIPT).await;
+        source.execute_not_query(storage::tests::get_copy_source_database_create_script(source.get_conn().version())).await;
 
         let source_schema = introspect_schema(&source).await;
         let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
@@ -143,42 +142,11 @@ mod tests {
             data_format: Some(data_format)
         }).await.expect("Failed to copy data");
 
-
-        let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
-
-        assert_eq!(items, storage::tests::get_expected_people_data());
-
         let destination_schema = introspect_schema(&destination).await;
 
         assert_eq!(source_schema, destination_schema);
 
-        let result = destination.get_conn().execute_non_query("insert into people (name, age) values ('new-value', 10000)").await;
-        assert_pg_error(result, SqlState::CHECK_VIOLATION);
-
-        let result = destination.get_conn().execute_non_query("insert into people (name, age) values ('foo', 100)").await;
-        assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
-
-        destination.execute_not_query("insert into field (id) values (1);").await;
-
-        destination.execute_not_query("insert into tree_node(id, field_id, name, parent_id) values (1, 1, 'foo', null), (2, 1, 'bar', 1)").await;
-        let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (3, 1, 'foo', null)").await;
-        assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
-
-        let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (9999, 9999, 'foobarbaz', null)").await;
-        assert_pg_error(result, SqlState::FOREIGN_KEY_VIOLATION);
-
-        let people_who_cant_drink = destination.get_results::<(i32, String, i32)>("select id, name, age from people_who_cant_drink;").await;
-        assert_eq!(people_who_cant_drink, vec![(6, "q't".to_string(), 12)]);
-
-        let array_test_data = destination.get_results::<(Vec<String>, )>("select name from array_test;").await;
-
-        assert_eq!(array_test_data, storage::tests::get_expected_array_test_data());
-
-        let partition_test_data = destination.get_results::<(i32, )>("select value from my_partitioned_table order by value;").await;
-
-        assert_eq!(partition_test_data, vec![(1, ), (9, ), (11, ), (19, )]);
-
-        validate_pets(&destination).await;
+        validate_copy_state(&destination).await;
     }
 
 
@@ -194,8 +162,13 @@ mod tests {
         test_copy(DataFormat::Text).await;
     }
 
-    async fn test_round_trip(sql: &str) {
+    async fn test_round_trip(sql: &str, required_version: i32) {
         let source = get_test_helper("source").await;
+
+        if source.get_conn().version() < required_version {
+            println!("Skipping test because version is too low");
+            return;
+        }
 
         source.execute_not_query(sql).await;
 
@@ -215,10 +188,13 @@ mod tests {
     }
 
     macro_rules! test_round_trip {
-        ($name:ident, $sql:expr) => {
+        ($name:ident, $sql:literal) => {
+            test_round_trip!($name, 120, $sql);
+        };
+        ($name:ident, $required_version:expr, $sql:literal) => {
             #[test]
             async fn $name() {
-                test_round_trip($sql).await;
+                test_round_trip($sql, $required_version).await;
             }
         };
     }
@@ -243,7 +219,7 @@ mod tests {
         );
     "#);
 
-    test_round_trip!(filtered_foreign_key_set_null, r#"
+    test_round_trip!(filtered_foreign_key_set_null, 150, r#"
         CREATE TABLE tenants (
             tenant_id integer PRIMARY KEY
         );

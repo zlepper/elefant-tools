@@ -12,6 +12,7 @@ jobs:
 
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         pg: [ 'postgres:16', 'postgres:15', 'postgres:14', 'postgres:13', 'postgres:12' ]
     name: Test on ${{ matrix.pg }}

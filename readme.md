@@ -40,8 +40,7 @@
 ✅ Enums
 ❌ Collations
 ✅ Schemas
-❌ Roles
-❌ Users
+❌ Roles/Users
 ✅ Default values
 ✅ Quoted identifier names
 ✅ Array columns

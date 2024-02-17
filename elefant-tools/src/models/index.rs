@@ -1,5 +1,6 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
+use crate::helpers::StringExt;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 
 #[derive(Debug, Eq, PartialEq, Default)]
@@ -10,6 +11,7 @@ pub struct PostgresIndex {
     pub predicate: Option<String>,
     pub included_columns: Vec<PostgresIndexIncludedColumn>,
     pub index_constraint_type: PostgresIndexType,
+    pub storage_parameters: Vec<String>,
     pub comment: Option<String>,
 }
 
@@ -81,19 +83,19 @@ impl PostgresIndex {
         if !self.included_columns.is_empty() {
             command.push_str(" include (");
 
-            for (i, column) in self.included_columns.iter().enumerate() {
-                if i > 0 {
-                    command.push_str(", ");
-                }
-
-                command.push_str(&column.name);
-            }
+            command.push_join(", ", self.included_columns.iter().map(|c| c.name.quote(identifier_quoter)));
 
             command.push(')');
         }
 
         if let PostgresIndexType::Unique { nulls_distinct: false } = self.index_constraint_type {
             command.push_str(" nulls not distinct")
+        }
+
+        if self.storage_parameters.len() > 0 {
+            command.push_str(" with (");
+            command.push_join(", ", self.storage_parameters.iter());
+            command.push(')');
         }
 
         if let Some(ref predicate) = self.predicate {

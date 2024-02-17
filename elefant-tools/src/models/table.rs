@@ -15,6 +15,7 @@ pub struct PostgresTable {
     pub constraints: Vec<PostgresConstraint>,
     pub indices: Vec<PostgresIndex>,
     pub comment: Option<String>,
+    pub storage_parameters: Vec<String>,
     pub table_type: TableTypeDetails,
 }
 
@@ -38,7 +39,6 @@ impl PostgresTable {
             sql.push_str(&parent_table.quote(identifier_quoter));
             sql.push(' ');
             sql.push_str(partition_expression);
-            sql.push(';');
         } else {
             sql.push_str(" (");
 
@@ -117,17 +117,25 @@ impl PostgresTable {
                     }
                 }
 
-                sql.push_str(");");
+                sql.push(')');
             }
             else if let TableTypeDetails::InheritedTable {parent_tables} = &self.table_type {
                 sql.push_str("\n) inherits (");
                 sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter)));
-                sql.push_str(");");
+                sql.push(')');
             }
             else {
-                sql.push_str("\n);");
+                sql.push_str("\n)");
             }
         }
+
+        if !self.storage_parameters.is_empty() {
+            sql.push_str("\nwith (");
+            sql.push_join(", ", self.storage_parameters.iter());
+            sql.push(')');
+        }
+
+        sql.push(';');
 
         if let Some(c) = &self.comment {
             sql.push_str(&format!("\ncomment on table {}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));

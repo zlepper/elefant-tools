@@ -16,6 +16,7 @@ pub struct TablesResult {
     pub partition_expression_columns: Option<String>,
     pub parent_tables: Option<Vec<String>>,
     pub is_partition: bool,
+    pub storage_parameters: Option<Vec<String>>,
 }
 
 
@@ -50,6 +51,7 @@ impl FromRow for TablesResult {
             partition_expression_columns: row.try_get(8)?,
             parent_tables: row.try_get(9)?,
             is_partition: row.try_get(10)?,
+            storage_parameters: row.try_get(11)?,
         })
     }
 }
@@ -71,7 +73,8 @@ select
         join pg_class parent on i.inhparent = parent.oid
           where i.inhrelid = cl.oid
           order by i.inhseqno) parent) as parent_table,
-    cl.relispartition
+    cl.relispartition,
+    cl.reloptions
 from pg_class cl
          join pg_catalog.pg_namespace ns on ns.oid = cl.relnamespace
          left join pg_description des on des.objoid = cl.oid and des.objsubid = 0

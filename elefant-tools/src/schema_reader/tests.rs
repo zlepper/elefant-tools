@@ -1235,12 +1235,11 @@ fn comments_on_stuff() {
                                     nulls_order: Some(PostgresIndexNullsOrder::Last),
                                 }],
                                 index_type: "btree".to_string(),
-                                predicate: None,
-                                included_columns: vec![],
                                 index_constraint_type: PostgresIndexType::Unique {
                                     nulls_distinct: true,
                                 },
                                 comment: Some("This is an index".to_string()),
+                                ..default()
                             },
                         ],
                         comment: Some("This is a 'table'".to_string()),
@@ -2318,6 +2317,52 @@ create table animorph() inherits (animal, human);
                     ],
                     ..default()
                 },
+            ],
+            name: "public".to_string(),
+            ..default()
+        }],
+        ..default()
+    })
+}
+
+
+#[test]
+fn index_storage_parameters() {
+    test_introspection(r#"
+    create table my_table(name text not null);
+
+    create index my_index on my_table(name) with (fillfactor = 20, deduplicate_items = off);
+    "#, PostgresDatabase {
+        schemas: vec![PostgresSchema {
+            tables: vec![
+                PostgresTable {
+                    name: "my_table".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![
+                        PostgresIndex {
+                            name: "my_index".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            index_constraint_type: PostgresIndexType::Index,
+                            storage_parameters: vec!["fillfactor=20".to_string(), "deduplicate_items=off".to_string()],
+                            ..default()
+                        }
+                    ],
+                    ..default()
+                }
             ],
             name: "public".to_string(),
             ..default()

@@ -85,6 +85,7 @@ impl SchemaReader<'_> {
                 ),
                 indices: Self::add_indices(&indices, &index_columns, &row),
                 comment: row.comment,
+                storage_parameters: row.storage_parameters.unwrap_or_else(Vec::new),
                 table_type: if row.is_partition {
                     let parent_tables = row.parent_tables.ok_or_else(|| {
                         ElefantToolsError::PartitionedTableWithoutParent(row.table_name.clone())
@@ -414,6 +415,7 @@ impl SchemaReader<'_> {
                     _ => PostgresIndexType::Index,
                 },
                 comment: index.comment.clone(),
+                storage_parameters: index.storage_parameters.clone().unwrap_or_else(Vec::new),
             });
         }
 

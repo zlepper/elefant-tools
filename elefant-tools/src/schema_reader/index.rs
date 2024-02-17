@@ -13,6 +13,7 @@ pub struct IndexResult {
     pub is_primary_key: bool,
     pub nulls_not_distinct: bool,
     pub comment: Option<String>,
+    pub storage_parameters: Option<Vec<String>>,
 }
 
 impl FromRow for IndexResult {
@@ -28,6 +29,7 @@ impl FromRow for IndexResult {
             is_primary_key: row.try_get(7)?,
             nulls_not_distinct: row.try_get(8)?,
             comment: row.try_get(9)?,
+            storage_parameters: row.try_get(10)?,
         })
     }
 }
@@ -43,7 +45,8 @@ select n.nspname           as table_schema,
        i.indisunique       as is_unique,
        i.indisprimary      as is_primary_key,
        i.indnullsnotdistinct as nulls_not_distinct,
-       d.description       as comment
+       d.description       as comment,
+       index_class.reloptions as table_storage_parameters
 from pg_index i
          join pg_class table_class on table_class.oid = i.indrelid
          join pg_class index_class on index_class.oid = i.indexrelid

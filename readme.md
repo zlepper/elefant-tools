@@ -25,7 +25,7 @@
    ✅ Filtered index
    ✅ Expressions
    ✅ Included columns
-   ❌ Index storage parameters
+   ✅ Index storage parameters
 ✅ Generated columns
 ❌ Row level security
 ✅ Triggers

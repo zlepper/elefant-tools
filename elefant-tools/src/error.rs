@@ -43,6 +43,12 @@ pub enum ElefantToolsError {
     #[error("Unknown trigger event '{0}'")]
     UnknownTriggerEvent(String),
 
+    #[error("Unknown table type '{0}'")]
+    InvalidTableType(String),
+
+    #[error("Unknown table partitioning strategy '{0}'")]
+    InvalidTablePartitioningStrategy(String),
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

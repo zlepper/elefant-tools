@@ -1,7 +1,7 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::postgres_client_wrapper::{PostgresClientWrapper};
-use crate::Result;
+use crate::{default, Result};
 use itertools::Itertools;
 use ordered_float::NotNan;
 use crate::schema_reader::table::TablesResult;
@@ -88,6 +88,14 @@ impl SchemaReader<'_> {
                 ),
                 indices: Self::add_indices(&indices, &index_columns, &row),
                 comment: row.comment,
+                table_type: row.table_type,
+                partition_column_indices: row.partition_column_indices,
+                default_partition_name: row.default_partition_name,
+                is_partition: row.is_partition,
+                parent_table: row.parent_table,
+                partition_expression: row.partition_expression,
+                partition_expression_columns: row.partition_expression_columns,
+                partition_strategy: row.partition_strategy,
             };
 
             current_schema.tables.push(table);
@@ -201,6 +209,10 @@ impl SchemaReader<'_> {
     }
 
     fn add_columns(columns: &[TableColumnsResult], row: &TablesResult) -> Vec<PostgresColumn> {
+        if row.is_partition {
+            return vec![];
+        }
+
         columns
             .iter()
             .filter(|c| c.schema_name == row.schema_name && c.table_name == row.table_name)

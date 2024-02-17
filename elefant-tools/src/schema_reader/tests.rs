@@ -1523,3 +1523,284 @@ fn enums() {
         ..default()
     })
 }
+
+#[test]
+fn range_partitions() {
+    test_introspection(r#"
+CREATE TABLE sales (
+                       sale_id INT,
+                       sale_date DATE,
+                       product_id INT,
+                       quantity INT,
+                       amount NUMERIC
+) partition by range (sale_date);
+
+CREATE TABLE sales_january PARTITION OF sales
+    FOR VALUES FROM ('2023-01-01') TO ('2023-02-01');
+
+CREATE TABLE sales_february PARTITION OF sales
+    FOR VALUES FROM ('2023-02-01') TO ('2023-03-01');
+
+CREATE TABLE sales_march PARTITION OF sales
+    FOR VALUES FROM ('2023-03-01') TO ('2023-04-01');
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![
+                    PostgresTable {
+                        name: "sales".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "sale_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "sale_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "quantity".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 5,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
+                        table_type: TableType::PartitionedTable,
+                        partition_strategy: Some(TablePartitionStrategy::Range),
+                        partition_column_indices: Some(vec![2]),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "sales_february".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string()),
+                        parent_table: Some("sales".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "sales_january".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string()),
+                        parent_table: Some("sales".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "sales_march".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string()),
+                        parent_table: Some("sales".to_string()),
+                        ..default()
+                    }
+                ],
+                ..default()
+            }
+        ],
+        ..default()
+    })
+}
+
+#[test]
+fn list_partitions() {
+    test_introspection(r#"
+CREATE TABLE products (
+    product_id int,
+    category TEXT,
+    product_name TEXT,
+    price NUMERIC
+) partition by list(category);
+
+CREATE TABLE electronics PARTITION OF products
+    FOR VALUES IN ('Electronics');
+
+CREATE TABLE clothing PARTITION OF products
+    FOR VALUES IN ('Clothing');
+
+CREATE TABLE furniture PARTITION OF products
+    FOR VALUES IN ('Furniture');
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![
+                    PostgresTable {
+                        name: "clothing".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES IN ('Clothing')".to_string()),
+                        parent_table: Some("products".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "electronics".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES IN ('Electronics')".to_string()),
+                        parent_table: Some("products".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "furniture".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES IN ('Furniture')".to_string()),
+                        parent_table: Some("products".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "products".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "category".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_name".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "price".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
+                        table_type: TableType::PartitionedTable,
+                        partition_strategy: Some(TablePartitionStrategy::List),
+                        partition_column_indices: Some(vec![2]),
+                        ..default()
+                    },
+                ],
+                ..default()
+            }
+        ],
+        ..default()
+    })
+}
+
+
+#[test]
+fn hash_partitions() {
+    test_introspection(r#"
+CREATE TABLE orders (
+    order_id int,
+    order_date DATE,
+    customer_id INT,
+    total_amount NUMERIC
+) partition by hash(customer_id);
+
+CREATE TABLE orders_1 PARTITION OF orders
+    FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+
+CREATE TABLE orders_2 PARTITION OF orders
+    FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+
+CREATE TABLE orders_3 PARTITION OF orders
+    FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+    "#, PostgresDatabase {
+        schemas: vec![
+            PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![
+                    PostgresTable {
+                        name: "orders".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "order_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "order_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "customer_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "total_amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
+                        table_type: TableType::PartitionedTable,
+                        partition_strategy: Some(TablePartitionStrategy::Hash),
+                        partition_column_indices: Some(vec![3]),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "orders_1".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES WITH (modulus 3, remainder 0)".to_string()),
+                        parent_table: Some("orders".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "orders_2".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES WITH (modulus 3, remainder 1)".to_string()),
+                        parent_table: Some("orders".to_string()),
+                        ..default()
+                    },
+                    PostgresTable {
+                        name: "orders_3".to_string(),
+                        is_partition: true,
+                        partition_expression: Some("FOR VALUES WITH (modulus 3, remainder 2)".to_string()),
+                        parent_table: Some("orders".to_string()),
+                        ..default()
+                    }
+                ],
+                ..default()
+            }
+        ],
+        ..default()
+    })
+}
+
+
+
+
+

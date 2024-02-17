@@ -2,7 +2,7 @@ use std::fmt::Display;
 use tokio::task::JoinHandle;
 use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
 use tokio_postgres::types::{FromSqlOwned};
-use crate::Result;
+use crate::{Result};
 use bytes::Buf;
 use tokio_postgres::row::RowIndex;
 
@@ -141,6 +141,7 @@ pub(crate) trait FromPgChar: Sized {
 
 pub(crate) trait RowEnumExt {
     fn try_get_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<T>;
+    fn try_get_opt_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<Option<T>>;
 }
 
 impl RowEnumExt for Row {
@@ -148,5 +149,16 @@ impl RowEnumExt for Row {
         let value: i8 = self.try_get(idx)?;
         let c = value as u8 as char;
         T::from_pg_char(c)
+    }
+
+    fn try_get_opt_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<Option<T>> {
+        let value: Option<i8> = self.try_get(idx)?;
+        match value {
+            Some(value) => {
+                let c = value as u8 as char;
+                Ok(Some(T::from_pg_char(c)?))
+            }
+            None => Ok(None)
+        }
     }
 }

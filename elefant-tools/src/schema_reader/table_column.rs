@@ -77,7 +77,7 @@ from pg_attribute attr
          left join pg_attrdef ad on attr.attrelid = ad.adrelid and attr.attnum = ad.adnum
          left join pg_description des on des.objoid = cl.oid and des.objsubid = attr.attnum
          left join pg_type non_array_type on non_array_type.oid = t.typelem and non_array_type.typarray = t.oid
-where cl.relkind = 'r'
+where cl.relkind in ('r', 'p')
   and cl.oid > 16384
   and attr.attnum > 0
 order by ns.nspname, cl.relname, attr.attnum;

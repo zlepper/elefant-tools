@@ -1,34 +1,34 @@
 use itertools::Itertools;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
-use crate::{DataFormat, DdlQueryBuilder, PostgresIndexType};
+use crate::{DataFormat, DdlQueryBuilder, default, ElefantToolsError, PostgresIndexType};
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
+use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable, QuotableIter};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresTable {
     pub name: String,
     pub columns: Vec<PostgresColumn>,
     pub constraints: Vec<PostgresConstraint>,
     pub indices: Vec<PostgresIndex>,
     pub comment: Option<String>,
-}
-
-impl Default for PostgresTable {
-    fn default() -> Self {
-        Self::new("")
-    }
+    pub table_type: TableType,
+    pub partition_expression: Option<String>,
+    pub partition_strategy: Option<TablePartitionStrategy>,
+    pub default_partition_name: Option<String>,
+    pub partition_column_indices: Option<Vec<i16>>,
+    pub partition_expression_columns: Option<String>,
+    pub parent_table: Option<String>,
+    pub is_partition: bool,
 }
 
 impl PostgresTable {
     pub fn new(name: &str) -> Self {
         PostgresTable {
             name: name.to_string(),
-            columns: vec![],
-            constraints: vec![],
-            indices: vec![],
-            comment: None,
+            ..default()
         }
     }
 
@@ -158,5 +158,40 @@ impl PostgresTable {
             .map(|c| c.name.as_str())
             .quote(identifier_quoter)
             .join(", ")
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+pub enum TableType {
+    #[default]
+    Table,
+    PartitionedTable,
+}
+
+impl FromPgChar for TableType {
+    fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
+        match c {
+            'r' => Ok(TableType::Table),
+            'p' => Ok(TableType::PartitionedTable),
+            _ => Err(ElefantToolsError::InvalidTableType(c.to_string())),
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+pub enum TablePartitionStrategy {
+    Hash,
+    List,
+    Range,
+}
+
+impl FromPgChar for TablePartitionStrategy {
+    fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
+        match c {
+            'h' => Ok(TablePartitionStrategy::Hash),
+            'l' => Ok(TablePartitionStrategy::List),
+            'r' => Ok(TablePartitionStrategy::Range),
+            _ => Err(ElefantToolsError::InvalidTablePartitioningStrategy(c.to_string())),
+        }
     }
 }

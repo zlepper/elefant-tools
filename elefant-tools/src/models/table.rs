@@ -18,7 +18,7 @@ pub struct PostgresTable {
     pub partition_expression: Option<String>,
     pub partition_strategy: Option<TablePartitionStrategy>,
     pub default_partition_name: Option<String>,
-    pub partition_column_indices: Option<Vec<i16>>,
+    pub partition_column_indices: Option<Vec<String>>,
     pub partition_expression_columns: Option<String>,
     pub parent_table: Option<String>,
     pub is_partition: bool,

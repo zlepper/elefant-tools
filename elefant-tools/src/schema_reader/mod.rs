@@ -1,7 +1,7 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::postgres_client_wrapper::{PostgresClientWrapper};
-use crate::{default, Result};
+use crate::{Result};
 use itertools::Itertools;
 use ordered_float::NotNan;
 use crate::schema_reader::table::TablesResult;
@@ -76,9 +76,13 @@ impl SchemaReader<'_> {
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
 
+            let columns = Self::add_columns(&columns, &row);
+            let partition_columns = row.partition_column_indices.as_ref()
+                .map(|indices| indices.iter().map(|idx| columns[*idx as usize - 1].name.clone()).collect());
+
             let table = PostgresTable {
                 name: row.table_name.clone(),
-                columns: Self::add_columns(&columns, &row),
+                columns,
                 constraints: Self::add_constraints(
                     &check_constraints,
                     &foreign_keys,
@@ -89,7 +93,7 @@ impl SchemaReader<'_> {
                 indices: Self::add_indices(&indices, &index_columns, &row),
                 comment: row.comment,
                 table_type: row.table_type,
-                partition_column_indices: row.partition_column_indices,
+                partition_column_indices: partition_columns,
                 default_partition_name: row.default_partition_name,
                 is_partition: row.is_partition,
                 parent_table: row.parent_table,

@@ -1589,7 +1589,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         ],
                         table_type: TableType::PartitionedTable,
                         partition_strategy: Some(TablePartitionStrategy::Range),
-                        partition_column_indices: Some(vec![2]),
+                        partition_column_indices: Some(vec!["sale_date".to_string()]),
                         ..default()
                     },
                     PostgresTable {
@@ -1699,7 +1699,7 @@ CREATE TABLE furniture PARTITION OF products
                         ],
                         table_type: TableType::PartitionedTable,
                         partition_strategy: Some(TablePartitionStrategy::List),
-                        partition_column_indices: Some(vec![2]),
+                        partition_column_indices: Some(vec!["category".to_string()]),
                         ..default()
                     },
                 ],
@@ -1768,7 +1768,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                         ],
                         table_type: TableType::PartitionedTable,
                         partition_strategy: Some(TablePartitionStrategy::Hash),
-                        partition_column_indices: Some(vec![3]),
+                        partition_column_indices: Some(vec!["customer_id".to_string()]),
                         ..default()
                     },
                     PostgresTable {

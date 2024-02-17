@@ -29,7 +29,12 @@ impl FromRow for TableColumnsResult {
             column_default: row.try_get(6)?,
             generated: row.try_get(7)?,
             comment: row.try_get(8)?,
-            array_dimensions: row.try_get(9)?,
+            array_dimensions: match row.try_get(9) {
+                Ok(d) => d,
+                Err(_) => {
+                    row.try_get::<_, i16>(9)? as i32
+                }
+            },
         })
     }
 }

@@ -38,3 +38,10 @@ services:
       - "5412:5432"
     environment: *env
     command: *cmd
+
+  pg_16:
+    image: postgres:16
+    ports:
+      - "5416:5432"
+    environment: *env
+    command: *cmd

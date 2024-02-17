@@ -1,7 +1,7 @@
 use tokio_postgres::Row;
 use crate::{FunctionKind, Parallel, Volatility};
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::{SchemaReader};
 
 pub struct FunctionResult {
     pub schema_name: String,
@@ -49,8 +49,11 @@ impl FromRow for FunctionResult {
     }
 }
 
-//language=postgresql
-define_working_query!(get_functions, FunctionResult, r#"
+impl SchemaReader<'_> {
+    pub(in crate::schema_reader) async fn get_functions(&self) -> crate::Result<Vec<FunctionResult>> {
+        //language=postgresql
+        let query = if self.connection.version() >= 140 {
+            r#"
 select ns.nspname as schema_name,
     proc.proname as function_name,
        pl.lanname as language_name,
@@ -78,6 +81,42 @@ from pg_proc proc
          left join pg_depend dep on proc.oid = dep.objid and dep.deptype = 'e'
          left join pg_extension ext on dep.refobjid = ext.oid
          left join pg_description des on proc.oid = des.objoid
-where ns.nspname = 'public' and ext.extname is null;
-"#);
-
+where ns.nspname = 'public' and ext.extname is null
+order by ns.nspname, proc.proname;
+"#
+        } else {
+            r#"
+select ns.nspname as schema_name,
+    proc.proname as function_name,
+       pl.lanname as language_name,
+       proc.procost as estimated_cost,
+       proc.prorows as estimated_rows,
+       support_function.proname as support_function_name,
+       proc.prokind as function_kind,
+       proc.prosecdef as security_definer,
+       proc.proleakproof as leak_proof,
+       proc.proisstrict as strict,
+       proc.proretset as returns_set,
+       proc.provolatile as volatility,
+       proc.proparallel as parallel,
+       proc.prosrc as sql_body,
+       proc.proconfig as configuration,
+       pg_get_function_arguments(proc.oid) as arguments,
+       pg_get_function_result(proc.oid) as result,
+       des.description
+from pg_proc proc
+         join pg_namespace ns on proc.pronamespace = ns.oid
+         join pg_language pl on proc.prolang = pl.oid
+         left join pg_type variadic_type on proc.provariadic = variadic_type.oid
+         left join pg_proc support_function on proc.prosupport = support_function.oid
+         join pg_type return_type on proc.prorettype = return_type.oid
+         left join pg_depend dep on proc.oid = dep.objid and dep.deptype = 'e'
+         left join pg_extension ext on dep.refobjid = ext.oid
+         left join pg_description des on proc.oid = des.objoid
+where ns.nspname = 'public' and ext.extname is null
+order by ns.nspname, proc.proname;
+"#
+        };
+        self.connection.get_results(query).await
+    }
+}

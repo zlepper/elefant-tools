@@ -1,6 +1,7 @@
+use elefant_test_macros::pg_test;
 use super::*;
 use crate::default;
-use crate::test_helpers::{get_test_helper, TestHelper};
+use crate::test_helpers::{TestHelper};
 
 pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
     let conn = test_helper.get_conn();
@@ -8,35 +9,22 @@ pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
     reader.introspect_database().await.unwrap()
 }
 
-fn test_introspection(create_table_statement: &str, expected: PostgresDatabase) {
-    test_introspection_require_version(120, create_table_statement, expected);
+async fn test_introspection(helper: &TestHelper, create_table_statement: &str, expected: PostgresDatabase) {
+    helper.execute_not_query(create_table_statement).await;
+
+    let db = introspect_schema(helper).await;
+
+    assert_eq!(db, expected)
 }
 
-fn test_introspection_require_version(required_version: i32, create_table_statement: &str, expected: PostgresDatabase) {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .unwrap()
-        .block_on(async {
-            let helper = get_test_helper("helper").await;
-
-            if helper.get_conn().version() < required_version {
-                println!("Test is not supported on version {}, requires at least {}", helper.get_conn().version(), required_version);
-                return;
-            }
-
-            helper.execute_not_query(create_table_statement).await;
-
-            let db = introspect_schema(&helper).await;
-
-            assert_eq!(db, expected)
-        });
-}
-
-#[test]
-fn reads_simple_schema() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn reads_simple_schema(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         id serial primary key,
         name text not null unique,
@@ -48,7 +36,7 @@ fn reads_simple_schema() {
 
     insert into my_table(name, age) values ('foo', 42), ('bar', 22);
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -159,16 +147,20 @@ fn reads_simple_schema() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn table_without_columns() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn table_without_columns(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table();
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 tables: vec![PostgresTable {
                     name: "my_table".to_string(),
@@ -179,19 +171,23 @@ fn table_without_columns() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn table_without_primary_key() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn table_without_primary_key(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         name text not null,
         age int not null
     );
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -218,13 +214,17 @@ fn table_without_primary_key() {
             }],
             ..default()
         },
-    )
+    ).await;
 }
 
-#[test]
-fn composite_primary_keys() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn composite_primary_keys(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         id_part_1 int not null,
         id_part_2 int not null,
@@ -233,7 +233,7 @@ fn composite_primary_keys() {
         constraint my_table_pk primary key (id_part_1, id_part_2)
     );
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -298,13 +298,17 @@ fn composite_primary_keys() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn indices() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn indices(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         value int
     );
@@ -315,7 +319,7 @@ fn indices() {
     create index my_table_value_desc_nulls_last on my_table(value desc nulls last);
 
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -392,13 +396,17 @@ fn indices() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn index_types() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn index_types(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         free_text tsvector
     );
@@ -406,7 +414,7 @@ fn index_types() {
     create index my_table_gist on my_table using gist (free_text);
     create index my_table_gin on my_table using gin (free_text);
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -454,20 +462,24 @@ fn index_types() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn filtered_index() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn filtered_index(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         value int
     );
 
     create index my_table_idx on my_table (value) where (value % 2 = 0);
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -499,13 +511,17 @@ fn filtered_index() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn index_with_include() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn index_with_include(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         value int,
         another_value int
@@ -513,7 +529,7 @@ fn index_with_include() {
 
     create index my_table_idx on my_table (value) include (another_value);
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -557,18 +573,19 @@ fn index_with_include() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn table_with_non_distinct_nulls() {
-    test_introspection_require_version(150,
-        r#"
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn table_with_non_distinct_nulls(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table my_table(
         value int unique nulls not distinct
     );
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -611,13 +628,17 @@ fn table_with_non_distinct_nulls() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn foreign_keys() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn foreign_keys(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     create table items(
         id serial primary key
     );
@@ -627,7 +648,7 @@ fn foreign_keys() {
         item_id int not null references items(id)
     );
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![
@@ -746,13 +767,17 @@ fn foreign_keys() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn foreign_key_constraints() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn foreign_key_constraints(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     CREATE TABLE products (
         product_no int4 PRIMARY KEY
     );
@@ -767,7 +792,7 @@ fn foreign_key_constraints() {
         PRIMARY KEY (product_no, order_id)
     );
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![
@@ -914,19 +939,23 @@ fn foreign_key_constraints() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn generated_column() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn generated_column(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     CREATE TABLE products (
         name text not null,
         search tsvector not null GENERATED ALWAYS AS (to_tsvector('english', name)) STORED
     );
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 sequences: vec![],
@@ -955,20 +984,23 @@ fn generated_column() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn test_views() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+async fn test_views(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
     CREATE TABLE products (
         name text not null
     );
 
     create view products_view (product_name) as select name from products where name like 'a%';
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
@@ -999,13 +1031,61 @@ fn test_views() {
             }],
             ..default()
         },
-    );
+    ).await;
 }
 
-#[test]
-fn test_functions() {
-    test_introspection(
-        r#"
+#[pg_test(arg(postgres = 16))]
+async fn test_views_pg_16(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
+    CREATE TABLE products (
+        name text not null
+    );
+
+    create view products_view (product_name) as select name from products where name like 'a%';
+    "#,
+                       PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![PostgresTable {
+                    name: "products".to_string(),
+                    columns: vec![PostgresColumn {
+                        name: "name".to_string(),
+                        ordinal_position: 1,
+                        is_nullable: false,
+                        data_type: "text".to_string(),
+                        ..default()
+                    }],
+                    ..default()
+                }],
+                views: vec![PostgresView {
+                    name: "products_view".to_string(),
+                    definition: " SELECT name AS product_name
+   FROM products
+  WHERE name ~~ 'a%'::text;"
+                        .to_string(),
+                    columns: vec![PostgresViewColumn {
+                        name: "product_name".to_string(),
+                        ordinal_position: 1,
+                    }],
+                    is_materialized: false,
+                    ..default()
+                }],
+                ..default()
+            }],
+            ..default()
+        },
+    ).await;
+}
+
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn test_functions(helper: &TestHelper) {
+    test_introspection(helper,
+                       r#"
 
     create function add(a int4, b int4) returns int4 as $$ begin return a + b; end; $$ language plpgsql;
 
@@ -1025,7 +1105,7 @@ fn test_functions() {
 
 
     "#,
-        PostgresDatabase {
+                       PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
                 functions: vec![
@@ -1082,12 +1162,16 @@ fn test_functions() {
             }],
             ..default()
         },
-    )
+    ).await;
 }
 
-#[test]
-fn test_quoted_identifier_names() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn test_quoted_identifier_names(helper: &TestHelper) {
+    test_introspection(helper, r#"
         create table "MyTable" (int serial primary key);
     "#, PostgresDatabase {
         schemas: vec![
@@ -1138,12 +1222,16 @@ fn test_quoted_identifier_names() {
             }
         ],
         ..default()
-    })
+    }).await
 }
 
-#[test]
-fn test_extensions() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn test_extensions(helper: &TestHelper) {
+    test_introspection(helper, r#"
         create extension "btree_gin";
     "#, PostgresDatabase {
         schemas: vec![
@@ -1161,12 +1249,16 @@ fn test_extensions() {
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn comments_on_stuff() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn comments_on_stuff(helper: &TestHelper) {
+    test_introspection(helper, r#"
         create table my_table(
             value serial not null,
             another_value int not null unique
@@ -1322,12 +1414,16 @@ fn comments_on_stuff() {
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn array_columns() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn array_columns(helper: &TestHelper) {
+    test_introspection(helper, r#"
         create table my_table(
             int_array int4[]
         );
@@ -1355,12 +1451,16 @@ fn array_columns() {
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn materialized_view() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn materialized_view(helper: &TestHelper) {
+    test_introspection(helper, r#"
         create materialized view my_view as select 1 as value;
     "#, PostgresDatabase {
         schemas: vec![
@@ -1382,12 +1482,16 @@ fn materialized_view() {
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn triggers() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn triggers(helper: &TestHelper) {
+    test_introspection(helper, r#"
         create table my_table(
             value int
         );
@@ -1479,12 +1583,16 @@ fn triggers() {
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn enums() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn enums(helper: &TestHelper) {
+    test_introspection(helper, r#"
     CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy');
     CREATE TABLE person (
         name text,
@@ -1530,12 +1638,16 @@ fn enums() {
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn range_partitions() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn range_partitions(helper: &TestHelper) {
+    test_introspection(helper, r#"
 CREATE TABLE sales (
                        sale_id INT,
                        sale_date DATE,
@@ -1743,12 +1855,16 @@ CREATE TABLE sales_march PARTITION OF sales
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn list_partitions() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn list_partitions(helper: &TestHelper) {
+    test_introspection(helper, r#"
 CREATE TABLE products (
     product_id int,
     category TEXT,
@@ -1927,13 +2043,17 @@ CREATE TABLE furniture PARTITION OF products
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
 
-#[test]
-fn hash_partitions() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn hash_partitions(helper: &TestHelper) {
+    test_introspection(helper, r#"
 CREATE TABLE orders (
     order_id int,
     order_date DATE,
@@ -2112,12 +2232,16 @@ CREATE TABLE orders_3 PARTITION OF orders
             }
         ],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn inherited_tables() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn inherited_tables(helper: &TestHelper) {
+    test_introspection(helper, r#"
 create table pets (
     id serial primary key,
     name text not null check(length(name) > 1)
@@ -2260,12 +2384,16 @@ create table cats(
             ..default()
         }],
         ..default()
-    })
+    }).await;
 }
 
-#[test]
-fn multiple_inheritance() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn multiple_inheritance(helper: &TestHelper) {
+    test_introspection(helper, r#"
 create table animal(
     breed text not null
 );
@@ -2332,13 +2460,16 @@ create table animorph() inherits (animal, human);
             ..default()
         }],
         ..default()
-    })
+    }).await;
 }
 
 
-#[test]
-fn index_storage_parameters() {
-    test_introspection(r#"
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(postgres = 16))]
+async fn index_storage_parameters(helper: &TestHelper) {
+    test_introspection(helper, r#"
     create table my_table(name text not null) with (fillfactor=50);
 
     create index my_index on my_table(name) with (fillfactor = 20, deduplicate_items = off);
@@ -2379,5 +2510,51 @@ fn index_storage_parameters() {
             ..default()
         }],
         ..default()
-    })
+    }).await;
+}
+
+#[pg_test(arg(postgres = 12))]
+async fn index_storage_parameters_pg_12(helper: &TestHelper) {
+    test_introspection(helper, r#"
+    create table my_table(name text not null) with (fillfactor=50);
+
+    create index my_index on my_table(name) with (fillfactor = 20);
+    "#, PostgresDatabase {
+        schemas: vec![PostgresSchema {
+            tables: vec![
+                PostgresTable {
+                    name: "my_table".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![
+                        PostgresIndex {
+                            name: "my_index".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "name".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
+                            }],
+                            index_type: "btree".to_string(),
+                            index_constraint_type: PostgresIndexType::Index,
+                            storage_parameters: vec!["fillfactor=20".to_string()],
+                            ..default()
+                        }
+                    ],
+                    storage_parameters: vec!["fillfactor=50".to_string()],
+                    ..default()
+                }
+            ],
+            name: "public".to_string(),
+            ..default()
+        }],
+        ..default()
+    }).await;
 }

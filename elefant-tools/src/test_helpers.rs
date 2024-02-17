@@ -11,10 +11,15 @@ pub struct TestHelper {
     main_connection: PostgresClientWrapper,
     helper_name: String,
     port: u16,
+    cleaned_up_nicely: bool,
 }
 
 impl Drop for TestHelper {
     fn drop(&mut self) {
+        if self.cleaned_up_nicely {
+            return;
+        }
+
         if std::thread::panicking() {
             eprintln!("Thread is panicking when dropping test helper. Leaving database '{}' ({}) around to be inspected", self.test_db_name, self.helper_name);
         } else {
@@ -59,6 +64,7 @@ pub async fn get_test_helper_on_port(name: &str, port: u16) -> TestHelper {
         main_connection: conn,
         helper_name: name.to_string(),
         port,
+        cleaned_up_nicely: false,
     }
 }
 
@@ -90,6 +96,11 @@ impl TestHelper {
 
     pub fn get_conn(&self) -> &PostgresClientWrapper {
         &self.main_connection
+    }
+
+    pub async fn stop(mut self) {
+        cleanup(&self.test_db_name, self.port).await;
+        self.cleaned_up_nicely = true;
     }
 }
 

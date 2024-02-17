@@ -16,6 +16,7 @@ futures = "0.3"
 uuid = { version = "1.6", features = ["v4"] }
 tar = "0.4"
 ordered-float = "4.2"
+elefant-test-macros = { path = "../elefant-test-macros" }
 
 [dev-dependencies]
 indoc = "2"

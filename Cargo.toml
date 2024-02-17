@@ -2,7 +2,8 @@
 resolver = "2"
 members = [
     "elefant-tools",
-    "elefant-sync"
+    "elefant-sync",
+    "elefant-test-macros"
 ]
 
 

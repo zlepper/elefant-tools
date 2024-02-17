@@ -4,8 +4,8 @@ services:
   pg_15:
     image: postgres:15
     ports:
-      - "5432:5432"
-    environment:
+      - "5415:5432"
+    environment: &env
       POSTGRES_PASSWORD: passw0rd
     command: &cmd
       - postgres
@@ -21,7 +21,20 @@ services:
   pg_14:
     image: postgres:14
     ports:
-      - "5432:5432"
-    environment:
-      POSTGRES_PASSWORD: passw0rd
+      - "5414:5432"
+    environment: *env
+    command: *cmd
+
+  pg_13:
+    image: postgres:13
+    ports:
+      - "5413:5432"
+    environment: *env
+    command: *cmd
+
+  pg_12:
+    image: postgres:12
+    ports:
+      - "5412:5432"
+    environment: *env
     command: *cmd

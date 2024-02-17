@@ -10,6 +10,7 @@ pub struct TestHelper {
     test_db_name: String,
     main_connection: PostgresClientWrapper,
     helper_name: String,
+    port: u16,
 }
 
 impl Drop for TestHelper {
@@ -18,12 +19,13 @@ impl Drop for TestHelper {
             eprintln!("Thread is panicking when dropping test helper. Leaving database '{}' ({}) around to be inspected", self.test_db_name, self.helper_name);
         } else {
             let db_name = self.test_db_name.clone();
+            let port = self.port;
             std::thread::spawn(move || {
                 let runtime = tokio::runtime::Builder::new_current_thread()
                     .enable_all()
                     .build()
                     .unwrap();
-                runtime.block_on(cleanup(&db_name));
+                runtime.block_on(cleanup(&db_name, port));
             })
                 .join()
                 .expect("Failed to run test helper cleanup from drop");
@@ -36,23 +38,27 @@ impl RefUnwindSafe for TestHelper {}
 impl UnwindSafe for TestHelper {}
 
 pub async fn get_test_helper(name: &str) -> TestHelper {
+    get_test_helper_on_port(name, 5415).await
+}
 
+pub async fn get_test_helper_on_port(name: &str, port: u16) -> TestHelper {
     let id = Uuid::new_v4().simple().to_string();
 
     let test_db_name = format!("test_db_{}", id);
     {
-        let conn = get_test_connection("postgres").await;
+        let conn = get_test_connection_on_port("postgres", port).await;
 
         conn.execute_non_query(&format!("create database {}", test_db_name)).await.expect("Failed to create test database");
     }
 
 
-    let conn = get_test_connection(&test_db_name).await;
+    let conn = get_test_connection_on_port(&test_db_name, port).await;
 
     TestHelper {
         test_db_name,
         main_connection: conn,
         helper_name: name.to_string(),
+        port,
     }
 }
 
@@ -87,13 +93,19 @@ impl TestHelper {
     }
 }
 
-async fn get_test_connection(database_name: &str) -> PostgresClientWrapper {
-    PostgresClientWrapper::new(&format!("host=localhost user=postgres password=passw0rd dbname={}", database_name)).await.expect("Connection to test database failed. Is postgres running?")
+async fn get_test_connection_on_port(database_name: &str, port: u16) -> PostgresClientWrapper {
+    PostgresClientWrapper::new(&format!("host=localhost port={port} user=postgres password=passw0rd dbname={database_name}")).await.expect("Connection to test database failed. Is postgres running?")
 }
 
-async fn cleanup(db_name: &str) {
-    let conn = get_test_connection("postgres").await;
-    conn.execute_non_query(&format!("drop database {} with (force);", db_name)).await.expect("Failed to drop test database");
+async fn cleanup(db_name: &str, port: u16) {
+    let conn = get_test_connection_on_port("postgres", port).await;
+    let version: i32 = conn.get_single_result::<String>("show server_version_num;").await.unwrap().parse().unwrap();
+    if version >= 130000 {
+        conn.execute_non_query(&format!("drop database {} with (force);", db_name)).await.expect("Failed to drop test database");
+    } else {
+        conn.execute_non_query(&format!("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{}' AND pid != pg_backend_pid()", db_name)).await.expect("Failed to drop test database");
+        conn.execute_non_query(&format!("drop database {};", db_name)).await.expect("Failed to drop test database");
+    }
 }
 
 
@@ -121,11 +133,13 @@ mod tests {
     use std::panic::catch_unwind;
     use super::*;
     use tokio::test;
+    use elefant_test_macros::pg_test;
 
     #[test]
     async fn creates_and_drops_database() {
-        let test_database_name = {
+        let (test_database_name, port) = {
             let helper = get_test_helper("helper").await;
+            let port = helper.port;
             let test_database_name = helper.test_db_name.clone();
             let db_name: String = helper.get_single_result("select current_database();").await;
             assert_eq!(db_name, helper.test_db_name);
@@ -135,10 +149,10 @@ mod tests {
 
             drop(helper);
 
-            test_database_name
+            (test_database_name, port)
         };
 
-        let conn = get_test_connection("postgres").await;
+        let conn = get_test_connection_on_port("postgres", port).await;
         let databases = conn.get_single_results("select datname from pg_database where datistemplate = false;").await.unwrap();
         assert!(!databases.contains(&test_database_name));
     }
@@ -146,6 +160,7 @@ mod tests {
     #[test]
     async fn database_if_left_around_on_panic() {
         let helper = get_test_helper("helper").await;
+        let port = helper.port;
         let test_database_name = helper.test_db_name.clone();
 
         catch_unwind(move || {
@@ -153,10 +168,47 @@ mod tests {
             panic!("Panic in test");
         }).unwrap_err();
 
-        let conn = get_test_connection("postgres").await;
+        let conn = get_test_connection_on_port("postgres", port).await;
         let databases = conn.get_single_results("select datname from pg_database where datistemplate = false;").await.unwrap();
         assert!(databases.contains(&test_database_name));
 
-        cleanup(&test_database_name).await;
+        cleanup(&test_database_name, port).await;
     }
+
+    #[pg_test(arg(postgres = 14), arg(postgres = 15))]
+    async fn injects_multiple_expected_versions(pg14: &TestHelper, pg15: &TestHelper) {
+        assert_eq!(pg14.get_conn().version(), 140);
+        assert_eq!(pg15.get_conn().version(), 150);
+    }
+
+    #[pg_test(arg(postgres = 14))]
+    #[pg_test(arg(postgres = 15))]
+    async fn tested_multiple_times_async(helper: &TestHelper) {
+        let version =helper.get_conn().version();
+        assert!((140..160).contains(&version));
+    }
+
+    #[pg_test(arg(postgres = 14))]
+    #[pg_test(arg(postgres = 15))]
+    fn tested_multiple_times_sync(helper: &TestHelper) {
+        let version =helper.get_conn().version();
+        assert!((140..160).contains(&version));
+    }
+
+    macro_rules! test_injected_version {
+        ($name:ident, $version:expr) => {
+            #[pg_test(arg(postgres = $version))]
+            async fn $name(helper: &TestHelper) {
+                assert_eq!(helper.get_conn().version(), $version * 10);
+            }
+        };
+    }
+
+
+    test_injected_version!(test_injected_version_12, 12);
+    test_injected_version!(test_injected_version_13, 13);
+    test_injected_version!(test_injected_version_14, 14);
+    test_injected_version!(test_injected_version_15, 15);
 }
+
+

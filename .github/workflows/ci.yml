@@ -8,22 +8,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
-
+  build:
+    name: Build and test
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        pg: [ 'postgres:16', 'postgres:15', 'postgres:14', 'postgres:13', 'postgres:12' ]
-    name: Test on ${{ matrix.pg }}
-    services:
-      pg:
-        image: ${{ matrix.pg }}
-        ports:
-        - "5432:5432"
-        env:
-          POSTGRES_PASSWORD: passw0rd
-        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
     - uses: actions/checkout@v3
 
@@ -32,6 +19,10 @@ jobs:
     
     - name: Build
       run: cargo build
+
+    - uses: isbang/compose-action@v1.5.1
+      with:
+        compose-file: "./docker-compose.yaml"
 
     - name: Run tests
       run: cargo test

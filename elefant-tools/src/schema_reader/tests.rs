@@ -1600,6 +1600,43 @@ CREATE TABLE sales_march PARTITION OF sales
                             partition_expression: "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "sale_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "sale_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "quantity".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 5,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1608,6 +1645,43 @@ CREATE TABLE sales_march PARTITION OF sales
                             partition_expression: "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "sale_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "sale_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "quantity".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 5,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1616,6 +1690,43 @@ CREATE TABLE sales_march PARTITION OF sales
                             partition_expression: "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "sale_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "sale_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "quantity".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 5,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     }
                 ],
@@ -1655,6 +1766,36 @@ CREATE TABLE furniture PARTITION OF products
                             partition_expression: "FOR VALUES IN ('Clothing')".to_string(),
                             parent_table: "products".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "category".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_name".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "price".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1663,6 +1804,36 @@ CREATE TABLE furniture PARTITION OF products
                             partition_expression: "FOR VALUES IN ('Electronics')".to_string(),
                             parent_table: "products".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "category".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_name".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "price".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1671,6 +1842,36 @@ CREATE TABLE furniture PARTITION OF products
                             partition_expression: "FOR VALUES IN ('Furniture')".to_string(),
                             parent_table: "products".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "product_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "category".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "product_name".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "text".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "price".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1789,6 +1990,36 @@ CREATE TABLE orders_3 PARTITION OF orders
                             partition_expression: "FOR VALUES WITH (modulus 3, remainder 0)".to_string(),
                             parent_table: "orders".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "order_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "order_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "customer_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "total_amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1797,6 +2028,36 @@ CREATE TABLE orders_3 PARTITION OF orders
                             partition_expression: "FOR VALUES WITH (modulus 3, remainder 1)".to_string(),
                             parent_table: "orders".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "order_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "order_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "customer_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "total_amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     },
                     PostgresTable {
@@ -1805,6 +2066,36 @@ CREATE TABLE orders_3 PARTITION OF orders
                             partition_expression: "FOR VALUES WITH (modulus 3, remainder 2)".to_string(),
                             parent_table: "orders".to_string(),
                         },
+                        columns: vec![
+                            PostgresColumn {
+                                name: "order_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 1,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "order_date".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 2,
+                                data_type: "date".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "customer_id".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 3,
+                                data_type: "int4".to_string(),
+                                ..default()
+                            },
+                            PostgresColumn {
+                                name: "total_amount".to_string(),
+                                is_nullable: true,
+                                ordinal_position: 4,
+                                data_type: "numeric".to_string(),
+                                ..default()
+                            }
+                        ],
                         ..default()
                     }
                 ],

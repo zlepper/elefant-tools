@@ -73,11 +73,9 @@ impl SchemaReader<'_> {
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
 
-            let table_columns = Self::add_columns(&columns, &row);
-
             let table = PostgresTable {
                 name: row.table_name.clone(),
-                columns: table_columns,
+                columns: Self::add_columns(&columns, &row),
                 constraints: Self::add_constraints(
                     &check_constraints,
                     &foreign_keys,
@@ -240,10 +238,6 @@ impl SchemaReader<'_> {
     }
 
     fn add_columns(columns: &[TableColumnsResult], row: &TablesResult) -> Vec<PostgresColumn> {
-        if row.is_partition {
-            return vec![];
-        }
-
         columns
             .iter()
             .filter(|c| c.schema_name == row.schema_name && c.table_name == row.table_name)

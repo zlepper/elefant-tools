@@ -22,6 +22,10 @@ pub async fn copy_data(source: &impl CopySource, destination: &mut impl CopyDest
     for schema in &definition.schemas {
         for table in &schema.tables {
 
+            if let TableTypeDetails::PartitionedParentTable {..} = &table.table_type {
+                continue;
+            }
+
             let data = source.get_data(schema, table, &data_format).await?;
 
             assert_eq!(data_format, data.get_data_format());
@@ -59,7 +63,15 @@ async fn apply_pre_copy_structure(destination: &mut impl CopyDestination, defini
     }
 
     for schema in &definition.schemas {
-        for table in &schema.tables {
+        let tables = schema.tables.iter().sorted_by_key(|t|
+            match t.table_type {
+                TableTypeDetails::Table => 0,
+                TableTypeDetails::PartitionedParentTable {..} => 1,
+                TableTypeDetails::PartitionedChildTable {..} => 2,
+            }
+        );
+
+        for table in tables {
             destination.apply_ddl_statement(&table.get_create_statement(schema, &identifier_quoter)).await?;
         }
     }

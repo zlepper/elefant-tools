@@ -264,10 +264,26 @@ mod tests {
                 constraint tree_node_pkey primary key (id)
             );
 
+            create table public.my_partitioned_table (
+                value int4 not null
+            ) partition by range (value);
+
+            create table public.my_partitioned_table_1 partition of my_partitioned_table FOR VALUES FROM (1) TO (10);
+
+            create table public.my_partitioned_table_2 partition of my_partitioned_table FOR VALUES FROM (10) TO (20);
+
             insert into public.array_test (name) values
             (E'{foo,bar}'),
             (E'{baz,qux}'),
             (E'{quux,corge}');
+
+            insert into public.my_partitioned_table_1 (value) values
+            (1),
+            (9);
+
+            insert into public.my_partitioned_table_2 (value) values
+            (11),
+            (19);
 
             insert into public.people (id, name, age) values
             (1, E'foo', 42),
@@ -343,6 +359,10 @@ mod tests {
         let array_test_data = destination.get_results::<(Vec<String>,)>("select name from array_test;").await;
 
         assert_eq!(array_test_data, storage::tests::get_expected_array_test_data());
+
+        let partition_test_data = destination.get_results::<(i32,)>("select value from my_partitioned_table order by value;").await;
+
+        assert_eq!(partition_test_data, vec![(1,), (9,), (11,), (19,)]);
     }
 
 

@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
-use crate::{DataFormat, DdlQueryBuilder, default, ElefantToolsError, PostgresIndexType};
+use crate::{DataFormat, default, ElefantToolsError, PostgresIndexType};
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::postgres_client_wrapper::FromPgChar;
@@ -26,68 +26,131 @@ impl PostgresTable {
     }
 
     pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut query_builder = DdlQueryBuilder::new(identifier_quoter);
-        let mut table_builder = query_builder.create_table(&schema.name, &self.name);
 
+        let mut sql = "create table ".to_string();
+        sql.push_str(&schema.name.quote(identifier_quoter));
+        sql.push('.');
+        sql.push_str(&self.name.quote(identifier_quoter));
 
-        for column in &self.columns {
-            let mut column_builder = table_builder.column(&column.name, &column.data_type);
+        if let TableTypeDetails::PartitionedChildTable {partition_expression, parent_table} = &self.table_type {
+            sql.push_str(" partition of ");
+            sql.push_str(&parent_table.quote(identifier_quoter));
+            sql.push(' ');
+            sql.push_str(partition_expression);
+            sql.push(';');
+        } else {
+            sql.push_str(" (");
 
-            if column.array_dimensions > 0 {
-                column_builder.as_array(column.array_dimensions);
-            }
+            let mut text_row_count = 0;
 
-            if !column.is_nullable {
-                column_builder.not_null();
-            }
-
-            if let Some(generated) = &column.generated {
-                column_builder.generated(generated);
-            }
-        }
-
-        for index in &self.indices {
-            if index.index_constraint_type == PostgresIndexType::PrimaryKey {
-                let columns = index.key_columns.iter().sorted_by_key(|c| c.ordinal_position).map(|c| c.name.as_str());
-                table_builder.primary_key(&index.name, columns);
-            }
-        }
-
-        for constraint in &self.constraints {
-            match constraint {
-                PostgresConstraint::Check(check) => {
-                    table_builder.check_constraint(&check.name, &check.check_clause);
+            for column in &self.columns {
+                if text_row_count > 0 {
+                    sql.push(',');
                 }
-                PostgresConstraint::ForeignKey(_) => {
-                    // Deferred until last part of the transaction
-                },
-                PostgresConstraint::Unique(_) => {
-                    // Deferred until last part of the transaction
+                sql.push_str("\n    ");
+                sql.push_str(&column.name.quote(identifier_quoter));
+                sql.push(' ');
+                sql.push_str(&column.data_type.quote(identifier_quoter));
+
+                for _ in 0..column.array_dimensions {
+                    sql.push_str("[]");
+                }
+
+                if !column.is_nullable {
+                    sql.push_str(" not null");
+                }
+
+                if let Some(generated) = &column.generated {
+                    sql.push_str(" generated always as (");
+                    sql.push_str(generated);
+                    sql.push_str(") stored");
+                }
+
+                text_row_count += 1;
+            }
+
+            for index in &self.indices {
+                if index.index_constraint_type == PostgresIndexType::PrimaryKey {
+                    if text_row_count > 0 {
+                        sql.push(',');
+                    }
+
+                    sql.push_str("\n    constraint ");
+                    sql.push_str(&index.name.quote(identifier_quoter));
+                    sql.push_str(" primary key (");
+
+                    for (idx, col) in index.key_columns.iter().enumerate() {
+                        if idx > 0 {
+                            sql.push_str(", ");
+                        }
+                        sql.push_str(&col.name.quote(identifier_quoter));
+                    }
+                    sql.push(')');
+                    text_row_count += 1;
                 }
             }
-        }
 
-        let mut create_table_statement = query_builder.build();
+            for constraint in &self.constraints {
+                if let PostgresConstraint::Check(check) = constraint {
+                    if text_row_count > 0 {
+                        sql.push(',');
+                    }
+                    sql.push_str("\n    constraint ");
+                    sql.push_str(&check.name.quote(identifier_quoter));
+                    sql.push_str(" check ");
+                    sql.push_str(&check.check_clause);
+                    text_row_count += 1;
+                }
+            }
+
+            if let TableTypeDetails::PartitionedParentTable {partition_strategy, partition_columns, ..} = &self.table_type {
+                sql.push_str("\n) partition by ");
+                sql.push_str(match partition_strategy {
+                    TablePartitionStrategy::Hash => "hash",
+                    TablePartitionStrategy::List => "list",
+                    TablePartitionStrategy::Range => "range",
+                });
+                sql.push_str(" (");
+
+                match partition_columns {
+                    PartitionedTableColumns::Columns(columns) => {
+                        for (idx, col) in columns.iter().enumerate() {
+                            if idx > 0 {
+                                sql.push_str(", ");
+                            }
+                            sql.push_str(&col.quote(identifier_quoter));
+                        }
+                    }
+                    PartitionedTableColumns::Expression(expr) => {
+                        sql.push_str(expr);
+                    }
+                }
+
+                sql.push_str(");");
+            } else {
+                sql.push_str("\n);");
+            }
+        }
 
         if let Some(c) = &self.comment {
-            create_table_statement.push_str(&format!("\ncomment on table {}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
+            sql.push_str(&format!("\ncomment on table {}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
         }
 
         for col in &self.columns {
             if let Some(c) = &col.comment {
-                create_table_statement.push_str(&format!("\ncomment on column {}.{}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), col.name.quote(identifier_quoter), quote_value_string(c)));
+                sql.push_str(&format!("\ncomment on column {}.{}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), col.name.quote(identifier_quoter), quote_value_string(c)));
             }
         }
 
         for constraint in &self.constraints {
             if let PostgresConstraint::Check(constraint) = constraint {
                 if let Some(c) = &constraint.comment {
-                    create_table_statement.push_str(&format!("\ncomment on constraint {} on {}.{} is {};", constraint.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
+                    sql.push_str(&format!("\ncomment on constraint {} on {}.{} is {};", constraint.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
                 }
             }
         }
 
-        create_table_statement
+        sql
 
     }
 

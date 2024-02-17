@@ -159,7 +159,15 @@ mod tests {
             ('{"baz", "qux"}'),
             ('{"quux", "corge"}');
 
+        create table my_partitioned_table(
+            value int not null
+        ) partition by range (value);
 
+        create table my_partitioned_table_1 partition of my_partitioned_table for values from (1) to (10);
+        create table my_partitioned_table_2 partition of my_partitioned_table for values from (10) to (20);
+
+        insert into my_partitioned_table(value)
+        values (1), (9), (11), (19);
     "#;
 
     pub fn get_expected_people_data() -> Vec<(i32, String, i32)> {

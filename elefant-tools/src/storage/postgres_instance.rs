@@ -172,6 +172,10 @@ mod tests {
         let array_test_data = destination.get_results::<(Vec<String>,)>("select name from array_test;").await;
 
         assert_eq!(array_test_data, storage::tests::get_expected_array_test_data());
+
+        let partition_test_data = destination.get_results::<(i32,)>("select value from my_partitioned_table order by value;").await;
+
+        assert_eq!(partition_test_data, vec![(1,), (9,), (11,), (19,)]);
     }
 
 
@@ -470,5 +474,60 @@ mod tests {
     );
 
     alter type mood add value 'mehh' before 'ok';
+    "#);
+
+    test_round_trip!(range_partitions, r#"
+    CREATE TABLE sales (
+                       sale_id INT,
+                       sale_date DATE,
+                       product_id INT,
+                       quantity INT,
+                       amount NUMERIC
+) partition by range (sale_date);
+
+CREATE TABLE sales_january PARTITION OF sales
+    FOR VALUES FROM ('2023-01-01') TO ('2023-02-01');
+
+CREATE TABLE sales_february PARTITION OF sales
+    FOR VALUES FROM ('2023-02-01') TO ('2023-03-01');
+
+CREATE TABLE sales_march PARTITION OF sales
+    FOR VALUES FROM ('2023-03-01') TO ('2023-04-01');
+    "#);
+
+    test_round_trip!(list_partitions, r#"
+CREATE TABLE products (
+    product_id int,
+    category TEXT,
+    product_name TEXT,
+    price NUMERIC
+) partition by list(category);
+
+CREATE TABLE electronics PARTITION OF products
+    FOR VALUES IN ('Electronics');
+
+CREATE TABLE clothing PARTITION OF products
+    FOR VALUES IN ('Clothing');
+
+CREATE TABLE furniture PARTITION OF products
+    FOR VALUES IN ('Furniture');
+    "#);
+
+    test_round_trip!(hash_partitions, r#"
+CREATE TABLE orders (
+    order_id int,
+    order_date DATE,
+    customer_id INT,
+    total_amount NUMERIC
+) partition by hash(customer_id);
+
+CREATE TABLE orders_1 PARTITION OF orders
+    FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+
+CREATE TABLE orders_2 PARTITION OF orders
+    FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+
+CREATE TABLE orders_3 PARTITION OF orders
+    FOR VALUES WITH (MODULUS 3, REMAINDER 2);
     "#);
 }

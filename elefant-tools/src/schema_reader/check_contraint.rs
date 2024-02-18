@@ -34,7 +34,9 @@ from pg_constraint ct
          join pg_class cl on cl.oid = ct.conrelid
          join pg_namespace ns on ns.oid = cl.relnamespace
          left join pg_description des on des.objoid = ct.oid
+         left join pg_depend dep on dep.objid = ns.oid
 where ct.oid > 16384
   and ct.contype = 'c'
+  and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, ct.conname;
 "#);

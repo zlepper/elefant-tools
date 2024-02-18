@@ -80,7 +80,9 @@ from pg_class cl
          left join pg_description des on des.objoid = cl.oid and des.objsubid = 0
          left join pg_partitioned_table pt on pt.partrelid = cl.oid
          left join pg_class default_partition on default_partition.oid = pt.partdefid
+         left join pg_depend dep on dep.objid = ns.oid
 where cl.relkind in ('r', 'p')
   and cl.oid > 16384
+  and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname;
 "#);

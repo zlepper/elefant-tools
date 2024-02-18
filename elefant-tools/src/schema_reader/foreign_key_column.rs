@@ -49,7 +49,9 @@ from pg_constraint con
                    on source_table_attr.attrelid = con.conrelid and source_table_attr.attnum = cols.conkey
          left join pg_attribute target_table_attr
                    on target_table_attr.attrelid = con.confrelid and target_table_attr.attnum = cols.confkey
+         left join pg_depend dep on dep.objid = con_ns.oid
 where con.contype = 'f'
+and (dep.objid is null or dep.deptype <> 'e' )
 "#
         } else {
             r#"

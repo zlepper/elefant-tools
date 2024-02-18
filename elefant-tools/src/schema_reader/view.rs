@@ -33,7 +33,9 @@ select tab.relname                   as view_name,
 from pg_class tab
          join pg_namespace ns on tab.relnamespace = ns.oid
          left join pg_description des on des.objoid = tab.oid
+         left join pg_depend dep on dep.objid = ns.oid
 where tab.oid > 16384
-  and tab.relkind = 'v' or tab.relkind = 'm';
+  and tab.relkind in('v', 'm')
+  and (dep.objid is null or dep.deptype <> 'e' );
 
 "#);

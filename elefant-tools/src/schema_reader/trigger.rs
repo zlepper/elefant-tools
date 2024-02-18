@@ -62,8 +62,10 @@ FROM
      join (VALUES (4, 'i'), (8, 'd'), (16, 'u'), (32, 't')) em(num, char) on (t.tgtype & em.num) <> 0
      join pg_proc proc on t.tgfoid = proc.oid
      left join pg_description d on d.objoid = t.oid
+     left join pg_depend dep on dep.objid = n.oid
 WHERE
   NOT t.tgisinternal
   and c.oid > 16384
+  and (dep.objid is null or dep.deptype <> 'e' )
 order by trigger_schema, trigger_name;
 "#);

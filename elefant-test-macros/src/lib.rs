@@ -8,12 +8,14 @@ use syn::{ItemFn, parse_macro_input};
 #[derive(Debug, FromMeta)]
 enum TestArgsArg {
     Postgres(i32),
+    TimescaleDb(i32),
 }
 
 impl TestArgsArg {
     fn get_mod_part_name(&self) -> String {
         match self {
             TestArgsArg::Postgres(v) => format!("postgres_{}", v),
+            TestArgsArg::TimescaleDb(v) => format!("timescale_{}", v),
         }
     }
 
@@ -24,6 +26,8 @@ impl TestArgsArg {
             TestArgsArg::Postgres(14) => Ok(5414),
             TestArgsArg::Postgres(15) => Ok(5415),
             TestArgsArg::Postgres(16) => Ok(5416),
+            TestArgsArg::TimescaleDb(15) => Ok(5515),
+            TestArgsArg::TimescaleDb(16) => Ok(5516),
             _ => Err(darling::Error::custom("Unknown postgres implementation / version"))
         }
     }

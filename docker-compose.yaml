@@ -18,6 +18,13 @@ services:
 #      - -c
 #      - log_min_error_statement=debug1
 
+  timescale_pg_15:
+    image: timescale/timescaledb-ha:pg15
+    ports:
+      - "5515:5432"
+    environment: *env
+    command: *cmd
+
   pg_14:
     image: postgres:14
     ports:
@@ -43,5 +50,12 @@ services:
     image: postgres:16
     ports:
       - "5416:5432"
+    environment: *env
+    command: *cmd
+
+  timescale_pg_16:
+    image: timescale/timescaledb-ha:pg16
+    ports:
+      - "5516:5432"
     environment: *env
     command: *cmd

@@ -12,6 +12,7 @@ pub struct TestHelper {
     helper_name: String,
     port: u16,
     cleaned_up_nicely: bool,
+    is_timescale_db: bool,
 }
 
 impl Drop for TestHelper {
@@ -65,6 +66,7 @@ pub async fn get_test_helper_on_port(name: &str, port: u16) -> TestHelper {
         helper_name: name.to_string(),
         port,
         cleaned_up_nicely: false,
+        is_timescale_db: (5500..5600).contains(&port),
     }
 }
 
@@ -119,6 +121,14 @@ async fn cleanup(db_name: &str, port: u16) {
     }
 }
 
+impl crate::models::TimescaleSupport {
+    pub(crate) fn from_test_helper(helper: &TestHelper) -> Self {
+        Self {
+            is_enabled: helper.is_timescale_db,
+            timescale_toolkit_is_enabled: helper.is_timescale_db,
+        }
+    }
+}
 
 pub fn assert_pg_error(result: crate::Result, code: SqlState) {
     match result {
@@ -126,11 +136,8 @@ pub fn assert_pg_error(result: crate::Result, code: SqlState) {
                 source,
                 ..
             }) => {
-
-
             assert_eq!(*source.as_db_error().unwrap().code(), code);
-
-        },
+        }
         _ => {
             panic!("Expected PostgresErrorWithQuery, got {:?}", result);
         }
@@ -196,14 +203,14 @@ mod tests {
     #[pg_test(arg(postgres = 14))]
     #[pg_test(arg(postgres = 15))]
     async fn tested_multiple_times_async(helper: &TestHelper) {
-        let version =helper.get_conn().version();
+        let version = helper.get_conn().version();
         assert!((140..160).contains(&version));
     }
 
     #[pg_test(arg(postgres = 14))]
     #[pg_test(arg(postgres = 15))]
     fn tested_multiple_times_sync(helper: &TestHelper) {
-        let version =helper.get_conn().version();
+        let version = helper.get_conn().version();
         assert!((140..160).contains(&version));
     }
 

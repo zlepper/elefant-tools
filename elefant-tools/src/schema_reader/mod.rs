@@ -41,6 +41,7 @@ impl SchemaReader<'_> {
     }
 
     pub async fn introspect_database(&self) -> Result<PostgresDatabase> {
+        let mut extensions = self.get_extensions().await?;
         let schemas = self.get_schemas().await?;
         let tables = self.get_tables().await?;
         let columns = self.get_columns().await?;
@@ -54,11 +55,21 @@ impl SchemaReader<'_> {
         let views = self.get_views().await?;
         let view_columns = self.get_view_columns().await?;
         let functions = self.get_functions().await?;
-        let extensions = self.get_extensions().await?;
         let triggers = self.get_triggers().await?;
         let enums = self.get_enums().await?;
 
         let mut db = PostgresDatabase::default();
+
+        if extensions.iter().any(|e| e.extension_name == "timescaledb") {
+            db.timescale_support.is_enabled = true;
+            extensions.retain(|e| e.extension_name != "timescaledb");
+        }
+
+        if extensions.iter().any(|e| e.extension_name == "timescaledb_toolkit") {
+            db.timescale_support.timescale_toolkit_is_enabled = true;
+            extensions.retain(|e| e.extension_name != "timescaledb_toolkit");
+        }
+
 
         for row in schemas {
             let schema = PostgresSchema {

@@ -59,8 +59,10 @@ from pg_index i
          left join pg_tablespace ts on ts.oid = index_class.reltablespace
          join pg_catalog.pg_am pa on index_class.relam = pa.oid
          left join pg_description d on d.objoid = i.indexrelid
+         left join pg_depend dep on dep.objid = n.oid
 where table_class.oid > 16384
 and table_class.relkind = 'r'
+and (dep.objid is null or dep.deptype <> 'e' )
 "#
         } else {
             //language=postgresql
@@ -83,8 +85,10 @@ from pg_index i
          left join pg_tablespace ts on ts.oid = index_class.reltablespace
          join pg_catalog.pg_am pa on index_class.relam = pa.oid
          left join pg_description d on d.objoid = i.indexrelid
+         left join pg_depend dep on dep.objid = n.oid
 where table_class.oid > 16384
 and table_class.relkind = 'r'
+and (dep.objid is null or dep.deptype <> 'e' )
 "#
         };
 

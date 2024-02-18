@@ -28,6 +28,8 @@ from pg_enum e
 join pg_type t on e.enumtypid = t.oid
 join pg_namespace ns on t.typnamespace = ns.oid
 left join pg_description d on d.objoid = t.oid
+         left join pg_depend dep on dep.objid = ns.oid
+where (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, t.typname, e.enumsortorder
 ) as enums
 group by enums.nspname, enums.typname;

@@ -36,7 +36,9 @@ from pg_constraint con
          join pg_index i on i.indexrelid = con.conindid
          join pg_class index_class on i.indexrelid = index_class.oid
          left join pg_description d on d.objoid = con.oid
+         left join pg_depend dep on dep.objid = ns.oid
 where con.oid > 16384
   and con.contype = 'u'
+  and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, con.conname;
 "#);

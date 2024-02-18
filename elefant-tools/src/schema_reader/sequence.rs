@@ -55,8 +55,10 @@ FROM pg_sequence s
          join pg_type t on t.oid = s.seqtypid
          LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
          left join pg_description d on d.objoid = c.oid
+         left join pg_depend dep on dep.objid = n.oid
 WHERE NOT pg_is_other_temp_schema(n.oid)
   AND c.relkind = 'S'::"char"
   and c.oid > 16384
+  and (dep.objid is null or dep.deptype <> 'e' )
 order by schemaname, sequencename
 "#);

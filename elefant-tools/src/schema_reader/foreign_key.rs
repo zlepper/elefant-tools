@@ -49,4 +49,7 @@ from pg_catalog.pg_constraint con
          join pg_catalog.pg_class target on con.confrelid = target.oid
          left join pg_namespace target_ns on target_ns.oid = target.relnamespace
          left join pg_description d on d.objoid = con.oid
-where con.contype = 'f';"#);
+         left join pg_depend dep on dep.objid = con_ns.oid
+where con.contype = 'f'
+  and (dep.objid is null or dep.deptype <> 'e' );
+"#);

@@ -44,9 +44,11 @@ from pg_index i
         left join pg_namespace n on n.oid = table_class.relnamespace
         left join pg_tablespace ts on ts.oid = index_class.reltablespace
         join pg_catalog.pg_attribute a on a.attrelid = index_class.oid
+         left join pg_depend dep on dep.objid = n.oid
 where a.attnum > 0
  and not a.attisdropped
  and table_class.oid > 16384
 and table_class.relkind = 'r'
+  and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name, ordinal_position
 "#);

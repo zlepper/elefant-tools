@@ -6,6 +6,13 @@ use crate::models::schema::PostgresSchema;
 pub struct PostgresDatabase {
     pub schemas: Vec<PostgresSchema>,
     pub enabled_extensions: Vec<PostgresExtension>,
+    pub timescale_support: TimescaleSupport,
+}
+
+#[derive(Debug, Eq, PartialEq, Default)]
+pub struct TimescaleSupport {
+    pub is_enabled: bool,
+    pub timescale_toolkit_is_enabled: bool,
 }
 
 impl PostgresDatabase {

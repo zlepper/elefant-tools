@@ -22,6 +22,8 @@ SELECT n.nspname AS name,
        d.description AS comment
 FROM pg_namespace n
          LEFT JOIN pg_description d ON d.objoid = n.oid and (n.nspname <> 'public' or d.description <> 'standard public schema')
-WHERE n.oid > 16384 or n.nspname = 'public'
+         left join pg_depend dep on dep.objid = n.oid
+WHERE (n.oid > 16384 or n.nspname = 'public')
+    and (dep.objid is null or dep.deptype <> 'e' )
 ORDER BY n.nspname;
 "#);

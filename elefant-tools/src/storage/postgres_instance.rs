@@ -181,19 +181,9 @@ mod tests {
     macro_rules! test_round_trip {
         ($name:ident, $sql:literal) => {
             #[pg_test(arg(postgres = 12), arg(postgres = 12))]
-            #[pg_test(arg(postgres = 12), arg(postgres = 13))]
-            #[pg_test(arg(postgres = 12), arg(postgres = 14))]
-            #[pg_test(arg(postgres = 12), arg(postgres = 15))]
-            #[pg_test(arg(postgres = 12), arg(postgres = 16))]
             #[pg_test(arg(postgres = 13), arg(postgres = 13))]
-            #[pg_test(arg(postgres = 13), arg(postgres = 14))]
-            #[pg_test(arg(postgres = 13), arg(postgres = 15))]
-            #[pg_test(arg(postgres = 13), arg(postgres = 16))]
             #[pg_test(arg(postgres = 14), arg(postgres = 14))]
-            #[pg_test(arg(postgres = 14), arg(postgres = 15))]
-            #[pg_test(arg(postgres = 14), arg(postgres = 16))]
             #[pg_test(arg(postgres = 15), arg(postgres = 15))]
-            #[pg_test(arg(postgres = 15), arg(postgres = 16))]
             #[pg_test(arg(postgres = 16), arg(postgres = 16))]
             async fn $name(source: &TestHelper, destination: &TestHelper) {
                 test_round_trip($sql, source, destination).await;

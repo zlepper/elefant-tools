@@ -1,4 +1,5 @@
 use itertools::Itertools;
+use pg_interval::Interval;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
 use crate::{DataFormat, default, ElefantToolsError, PostgresIndexType};
@@ -155,6 +156,35 @@ impl PostgresTable {
             }
         }
 
+        if let TableTypeDetails::TimescaleHypertable {dimensions} = &self.table_type {
+            // We don't need timescale to create the indices as we do it later on again based on what was exported.
+            for (idx, dim) in dimensions.iter().enumerate() {
+                match dim {
+                    HypertableDimension::Time {column_name, time_interval} => {
+                        if idx == 0 {
+                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_range('{}', INTERVAL '{}'), create_default_indexes => false);", schema.name, self.name, column_name, time_interval.to_postgres()));
+                        } else {
+                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_range('{}', INTERVAL '{}'));", schema.name, self.name, column_name, time_interval.to_postgres()));
+                        }
+                    }
+                    HypertableDimension::SpaceInterval { column_name, integer_interval } => {
+                        if idx == 0 {
+                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_range('{}', {}), create_default_indexes => false);", schema.name, self.name, column_name, integer_interval));
+                        } else {
+                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_range('{}', {}));", schema.name, self.name, column_name, integer_interval));
+                        }
+                    }
+                    HypertableDimension::SpacePartitions { column_name, num_partitions } => {
+                        if idx == 0 {
+                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_hash('{}', {}), create_default_indexes => false);", schema.name, self.name, column_name, num_partitions));
+                        } else {
+                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_hash('{}', {}));", schema.name, self.name, column_name, num_partitions));
+                        }
+                    }
+                }
+            }
+        }
+
         sql
 
     }
@@ -239,7 +269,7 @@ pub enum TableTypeDetails {
         parent_tables: Vec<String>,
     },
     TimescaleHypertable {
-        
+        dimensions: Vec<HypertableDimension>,
     }
 }
 
@@ -265,4 +295,20 @@ impl FromPgChar for TablePartitionStrategy {
             _ => Err(ElefantToolsError::InvalidTablePartitioningStrategy(c.to_string())),
         }
     }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum HypertableDimension {
+    Time {
+        column_name: String,
+        time_interval: Interval,
+    },
+    SpaceInterval {
+        column_name: String,
+        integer_interval: i64,
+    },
+    SpacePartitions {
+        column_name: String,
+        num_partitions: i16,
+    },
 }

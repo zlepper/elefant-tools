@@ -553,4 +553,44 @@ create table animorph() inherits (animal, human);
     create index my_index on my_table(name) with (fillfactor = 20);
     "#, source, destination).await;
     }
+
+    #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+    #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+    async fn timescale_hypertable_time_single_dimension(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
+
+        "#, source, destination).await;
+    }
+
+    #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+    #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+    async fn timescale_hypertable_time_multiple_dimensions(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+SELECT add_dimension('stocks_real_time', by_hash('symbol', 4));
+SELECT add_dimension('stocks_real_time', by_range('day_volume', 100));
+
+CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
+
+        "#, source, destination).await;
+    }
 }

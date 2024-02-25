@@ -31,6 +31,7 @@ mod trigger;
 mod unique_constraint;
 mod view;
 mod view_column;
+mod timescale_hypertable_dimension;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -74,10 +75,13 @@ impl SchemaReader<'_> {
             extensions.retain(|e| e.extension_name != "timescaledb_toolkit");
         }
 
-        let hypertables = if db.timescale_support.is_enabled {
-            self.get_hypertables().await?
+        let (hypertables, hypertable_dimensions) = if db.timescale_support.is_enabled {
+            let hypertables = self.get_hypertables().await?;
+            let hypertable_dimensions = self.get_hypertable_dimensions().await?;
+
+            (hypertables, hypertable_dimensions)
         } else {
-            vec![]
+            (vec![], vec![])
         };
 
         for row in schemas {
@@ -103,6 +107,7 @@ impl SchemaReader<'_> {
                 &foreign_keys,
                 &foreign_key_columns,
                 &hypertables,
+                &hypertable_dimensions
             )?;
 
             current_schema.tables.push(table);
@@ -188,7 +193,7 @@ impl SchemaReader<'_> {
         }
 
         for trigger in triggers {
-            
+
             if db.timescale_support.is_enabled {
                 if let Some(_) = hypertables.iter().find(|h| h.table_name == trigger.table_name && h.table_schema == trigger.schema_name) {
                     // Skip the trigger if it's a TimescaleDB internal trigger
@@ -197,8 +202,8 @@ impl SchemaReader<'_> {
                     }
                 }
             }
-            
-            
+
+
             let current_schema = db.get_or_create_schema_mut(&trigger.schema_name);
 
             let trigger = PostgresTrigger {
@@ -243,6 +248,7 @@ impl SchemaReader<'_> {
         foreign_keys: &[ForeignKeyResult],
         foreign_key_columns: &[ForeignKeyColumnResult],
         hypertables: &[HypertableResult],
+        hypertable_dimensions: &[TimescaleHypertableDimensionResult],
     ) -> Result<PostgresTable> {
         let table_columns = Self::add_columns(columns, &row);
 
@@ -254,14 +260,46 @@ impl SchemaReader<'_> {
             &row,
         );
         let indices = Self::add_indices(indices, index_columns, &row);
-        
+
         let hypertable = hypertables
             .iter()
             .find(|h| h.table_name == row.table_name && h.table_schema == row.schema_name);
 
-        let table_details = if let Some(hypertable) = hypertable {
+        let table_details = if let Some(_) = hypertable {
+
+            let mut dimensions = vec![];
+
+            for dim in hypertable_dimensions.iter() {
+                if dim.table_name == row.table_name && dim.table_schema == row.schema_name {
+
+                    let dim = if let Some(interval) = dim.time_interval {
+                        HypertableDimension::Time {
+                            column_name: dim.column_name.clone(),
+                            time_interval: interval,
+                        }
+                    } else if let Some(interval) = dim.integer_interval {
+                        HypertableDimension::SpaceInterval {
+                            column_name: dim.column_name.clone(),
+                            integer_interval: interval,
+                        }
+                    } else if let Some(num_partitions) = dim.num_partitions {
+                        HypertableDimension::SpacePartitions {
+                            column_name: dim.column_name.clone(),
+                            num_partitions,
+                        }
+                    } 
+                    else {
+                        return Err(ElefantToolsError::HypertableDimensionWithoutInterval {
+                            table_name: row.table_name.clone(),
+                            dimension_number: dim.dimension_number
+                        })
+                    };
+
+                    dimensions.push(dim);
+                }
+            }
             TimescaleHypertable {
-                
+                dimensions,
             }
         } else if row.is_partition {
             let parent_tables = row.parent_tables.clone().ok_or_else(|| {
@@ -528,4 +566,5 @@ macro_rules! define_working_query {
 use crate::schema_reader::timescale_hypertable::HypertableResult;
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 pub(crate) use define_working_query;
+use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDimensionResult;
 use crate::TableTypeDetails::TimescaleHypertable;

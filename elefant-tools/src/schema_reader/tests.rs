@@ -1,3 +1,4 @@
+use pg_interval::Interval;
 use super::*;
 use crate::default;
 use crate::test_helpers::TestHelper;
@@ -2688,10 +2689,12 @@ CREATE TABLE stocks_real_time (
   time TIMESTAMPTZ NOT NULL,
   symbol TEXT NOT NULL,
   price DOUBLE PRECISION NULL,
-  day_volume INT NULL
+  day_volume INT NOT NULL
 );
 
-SELECT create_hypertable('stocks_real_time', by_range('time'));
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+SELECT add_dimension('stocks_real_time', by_hash('symbol', 4));
+SELECT add_dimension('stocks_real_time', by_range('day_volume', 100));
 
 insert into stocks_real_time (time, symbol, price, day_volume) values ('2023-01-01 00:00:00', 'AAPL', 100.0, 1000);
 
@@ -2726,7 +2729,7 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
                         PostgresColumn {
                             name: "day_volume".to_string(),
                             ordinal_position: 4,
-                            is_nullable: true,
+                            is_nullable: false,
                             data_type: "int4".to_string(),
                             ..default()
                         },
@@ -2765,7 +2768,22 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
                         ..default()
                     }
                     ],
-                    table_type: TableTypeDetails::TimescaleHypertable {},
+                    table_type: TableTypeDetails::TimescaleHypertable {
+                        dimensions: vec![
+                            HypertableDimension::Time {
+                                column_name: "time".to_string(),
+                                time_interval: Interval::new(0,7,0),
+                            },
+                            HypertableDimension::SpacePartitions {
+                                column_name: "symbol".to_string(),
+                                num_partitions: 4,
+                            },
+                            HypertableDimension::SpaceInterval {
+                                column_name: "day_volume".to_string(),
+                                integer_interval: 100,
+                            },
+                        ]
+                    },
                     ..default()
                 }],
                 name: "public".to_string(),

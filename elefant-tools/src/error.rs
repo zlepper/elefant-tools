@@ -73,6 +73,12 @@ pub enum ElefantToolsError {
     #[error("Invalid response from postgres when checking version")]
     InvalidPostgresVersionResponse,
 
+    #[error("Hypertable '{table_name}' dimension '{dimension_number}' does not have an interval")]
+    HypertableDimensionWithoutInterval {
+        table_name: String,
+        dimension_number: i64,
+    },
+
     #[error("io error: `{0}`")]
     IoError(#[from] std::io::Error),
 

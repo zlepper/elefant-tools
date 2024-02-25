@@ -26,6 +26,7 @@ mod table;
 mod table_column;
 #[cfg(test)]
 pub mod tests;
+mod timescale_hypertable;
 mod trigger;
 mod unique_constraint;
 mod view;
@@ -65,11 +66,19 @@ impl SchemaReader<'_> {
             extensions.retain(|e| e.extension_name != "timescaledb");
         }
 
-        if extensions.iter().any(|e| e.extension_name == "timescaledb_toolkit") {
+        if extensions
+            .iter()
+            .any(|e| e.extension_name == "timescaledb_toolkit")
+        {
             db.timescale_support.timescale_toolkit_is_enabled = true;
             extensions.retain(|e| e.extension_name != "timescaledb_toolkit");
         }
 
+        let hypertables = if db.timescale_support.is_enabled {
+            self.get_hypertables().await?
+        } else {
+            vec![]
+        };
 
         for row in schemas {
             let schema = PostgresSchema {
@@ -84,67 +93,17 @@ impl SchemaReader<'_> {
         for row in tables {
             let current_schema = db.get_or_create_schema_mut(&row.schema_name);
 
-            let table = PostgresTable {
-                name: row.table_name.clone(),
-                columns: Self::add_columns(&columns, &row),
-                constraints: Self::add_constraints(
-                    &check_constraints,
-                    &foreign_keys,
-                    &foreign_key_columns,
-                    &unique_constraints,
-                    &row,
-                ),
-                indices: Self::add_indices(&indices, &index_columns, &row),
-                comment: row.comment,
-                storage_parameters: row.storage_parameters.unwrap_or_else(Vec::new),
-                table_type: if row.is_partition {
-                    let parent_tables = row.parent_tables.ok_or_else(|| {
-                        ElefantToolsError::PartitionedTableWithoutParent(row.table_name.clone())
-                    })?;
-
-                    if parent_tables.len() != 1 {
-                        return Err(ElefantToolsError::PartitionedTableHasMultipleParent {
-                            table: row.table_name.clone(),
-                            parents: parent_tables.clone(),
-                        })
-                    }
-
-                    TableTypeDetails::PartitionedChildTable {
-                        parent_table: parent_tables[0].clone(),
-                        partition_expression: row.partition_expression.ok_or_else(|| {
-                            ElefantToolsError::PartitionedTableWithoutExpression(
-                                row.table_name.clone(),
-                            )
-                        })?,
-                    }
-                } else if let Some(partition_stat) = &row.partition_strategy {
-                    TableTypeDetails::PartitionedParentTable {
-                        partition_strategy: *partition_stat,
-                        default_partition_name: row.default_partition_name.clone(),
-                        partition_columns: match (row.partition_column_indices, row.partition_expression_columns) {
-                            (None, None) => return Err(ElefantToolsError::PartitionedTableWithoutPartitionColumns(row.table_name.clone())),
-                            (None, Some(expr)) => PartitionedTableColumns::Expression(expr.clone()),
-                            (Some(column_indices), None) => {
-                                let column_names = column_indices.iter()
-                                    .map(|idx| columns.iter()
-                                        .find(|c| c.schema_name == row.schema_name && c.table_name == row.table_name && c.ordinal_position == *idx)
-                                        .unwrap()
-                                        .column_name
-                                        .clone())
-                                    .collect();
-                                PartitionedTableColumns::Columns(column_names)
-                            },
-                            (Some(_), Some(_)) => return Err(ElefantToolsError::PartitionedTableWithBothPartitionColumnsAndExpression(row.table_name.clone())),
-                        }
-                    }
-                } else if let Some(parent_table) = &row.parent_tables {
-                    TableTypeDetails::InheritedTable {
-                        parent_tables: parent_table.clone(),
-                    }
-                } else {
-                    TableTypeDetails::Table
-                },
-            };
+            let table = Self::add_table(
+                row,
+                &columns,
+                &check_constraints,
+                &unique_constraints,
+                &indices,
+                &index_columns,
+                &foreign_keys,
+                &foreign_key_columns,
+                &hypertables,
+            )?;
 
             current_schema.tables.push(table);
         }
@@ -229,6 +188,17 @@ impl SchemaReader<'_> {
         }
 
         for trigger in triggers {
+            
+            if db.timescale_support.is_enabled {
+                if let Some(_) = hypertables.iter().find(|h| h.table_name == trigger.table_name && h.table_schema == trigger.schema_name) {
+                    // Skip the trigger if it's a TimescaleDB internal trigger
+                    if trigger.name == "ts_insert_blocker" {
+                        continue;
+                    }
+                }
+            }
+            
+            
             let current_schema = db.get_or_create_schema_mut(&trigger.schema_name);
 
             let trigger = PostgresTrigger {
@@ -260,6 +230,115 @@ impl SchemaReader<'_> {
         }
 
         Ok(db)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn add_table(
+        row: TablesResult,
+        columns: &[TableColumnsResult],
+        check_constraints: &[CheckConstraintResult],
+        unique_constraints: &[UniqueConstraintResult],
+        indices: &[IndexResult],
+        index_columns: &[IndexColumnResult],
+        foreign_keys: &[ForeignKeyResult],
+        foreign_key_columns: &[ForeignKeyColumnResult],
+        hypertables: &[HypertableResult],
+    ) -> Result<PostgresTable> {
+        let table_columns = Self::add_columns(columns, &row);
+
+        let constraints = Self::add_constraints(
+            check_constraints,
+            foreign_keys,
+            foreign_key_columns,
+            unique_constraints,
+            &row,
+        );
+        let indices = Self::add_indices(indices, index_columns, &row);
+        
+        let hypertable = hypertables
+            .iter()
+            .find(|h| h.table_name == row.table_name && h.table_schema == row.schema_name);
+
+        let table_details = if let Some(hypertable) = hypertable {
+            TimescaleHypertable {
+                
+            }
+        } else if row.is_partition {
+            let parent_tables = row.parent_tables.clone().ok_or_else(|| {
+                ElefantToolsError::PartitionedTableWithoutParent(row.table_name.clone())
+            })?;
+
+            if parent_tables.len() != 1 {
+                return Err(ElefantToolsError::PartitionedTableHasMultipleParent {
+                    table: row.table_name.clone(),
+                    parents: parent_tables.clone(),
+                });
+            }
+
+            TableTypeDetails::PartitionedChildTable {
+                parent_table: parent_tables[0].clone(),
+                partition_expression: row.partition_expression.ok_or_else(|| {
+                    ElefantToolsError::PartitionedTableWithoutExpression(row.table_name.clone())
+                })?,
+            }
+        } else if let Some(partition_stat) = &row.partition_strategy {
+            TableTypeDetails::PartitionedParentTable {
+                partition_strategy: *partition_stat,
+                default_partition_name: row.default_partition_name.clone(),
+                partition_columns: match (
+                    row.partition_column_indices,
+                    row.partition_expression_columns,
+                ) {
+                    (None, None) => {
+                        return Err(ElefantToolsError::PartitionedTableWithoutPartitionColumns(
+                            row.table_name.clone(),
+                        ))
+                    }
+                    (None, Some(expr)) => PartitionedTableColumns::Expression(expr.clone()),
+                    (Some(column_indices), None) => {
+                        let column_names = column_indices
+                            .iter()
+                            .map(|idx| {
+                                columns
+                                    .iter()
+                                    .find(|c| {
+                                        c.schema_name == row.schema_name
+                                            && c.table_name == row.table_name
+                                            && c.ordinal_position == *idx
+                                    })
+                                    .unwrap()
+                                    .column_name
+                                    .clone()
+                            })
+                            .collect();
+                        PartitionedTableColumns::Columns(column_names)
+                    }
+                    (Some(_), Some(_)) => return Err(
+                        ElefantToolsError::PartitionedTableWithBothPartitionColumnsAndExpression(
+                            row.table_name.clone(),
+                        ),
+                    ),
+                },
+            }
+        } else if let Some(parent_table) = &row.parent_tables {
+            TableTypeDetails::InheritedTable {
+                parent_tables: parent_table.clone(),
+            }
+        } else {
+            TableTypeDetails::Table
+        };
+
+        let table = PostgresTable {
+            name: row.table_name.clone(),
+            columns: table_columns,
+            constraints: constraints,
+            indices: indices,
+            comment: row.comment,
+            storage_parameters: row.storage_parameters.unwrap_or_default(),
+            table_type: table_details,
+        };
+
+        Ok(table)
     }
 
     fn add_columns(columns: &[TableColumnsResult], row: &TablesResult) -> Vec<PostgresColumn> {
@@ -446,5 +525,7 @@ macro_rules! define_working_query {
     };
 }
 
+use crate::schema_reader::timescale_hypertable::HypertableResult;
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 pub(crate) use define_working_query;
+use crate::TableTypeDetails::TimescaleHypertable;

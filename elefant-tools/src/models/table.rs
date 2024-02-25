@@ -237,6 +237,9 @@ pub enum TableTypeDetails {
     },
     InheritedTable {
         parent_tables: Vec<String>,
+    },
+    TimescaleHypertable {
+        
     }
 }
 

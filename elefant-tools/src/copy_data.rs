@@ -66,9 +66,10 @@ async fn apply_pre_copy_structure(destination: &mut impl CopyDestination, defini
         let tables = schema.tables.iter().sorted_by_key(|t|
             match t.table_type {
                 TableTypeDetails::Table => 0,
-                TableTypeDetails::PartitionedParentTable {..} => 1,
-                TableTypeDetails::PartitionedChildTable {..} => 2,
-                TableTypeDetails::InheritedTable {..} => 3,
+                TableTypeDetails::TimescaleHypertable {..} => 1,
+                TableTypeDetails::PartitionedParentTable {..} => 2,
+                TableTypeDetails::PartitionedChildTable {..} => 3,
+                TableTypeDetails::InheritedTable {..} => 4,
             }
         );
 

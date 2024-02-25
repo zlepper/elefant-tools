@@ -1162,43 +1162,43 @@ async fn test_functions(helper: &TestHelper) {
 
     "#,
                        PostgresDatabase {
-            schemas: vec![PostgresSchema {
-                name: "public".to_string(),
-                functions: vec![
-                    PostgresFunction {
-                        function_name: "add".to_string(),
-                        language: "plpgsql".to_string(),
-                        estimated_cost: NotNan::new(100.0).unwrap(),
-                        estimated_rows: NotNan::new(0.0).unwrap(),
-                        support_function: None,
-                        kind: FunctionKind::Function,
-                        security_definer: false,
-                        leak_proof: false,
-                        strict: false,
-                        returns_set: false,
-                        volatility: Volatility::Volatile,
-                        parallel: Parallel::Unsafe,
-                        sql_body: r#"begin return a + b; end;"#
-                            .to_string(),
-                        configuration: None,
-                        arguments: "a integer, b integer".to_string(),
-                        result: Some("integer".to_string()),
-                        ..default()
-                    },
-                    PostgresFunction {
-                        function_name: "filter_stuff".to_string(),
-                        language: "plpgsql".to_string(),
-                        estimated_cost: NotNan::new(100.0).unwrap(),
-                        estimated_rows: NotNan::new(1000.0).unwrap(),
-                        support_function: None,
-                        kind: FunctionKind::Function,
-                        security_definer: false,
-                        leak_proof: false,
-                        strict: false,
-                        returns_set: true,
-                        volatility: Volatility::Volatile,
-                        parallel: Parallel::Unsafe,
-                        sql_body: r#"begin
+                           schemas: vec![PostgresSchema {
+                               name: "public".to_string(),
+                               functions: vec![
+                                   PostgresFunction {
+                                       function_name: "add".to_string(),
+                                       language: "plpgsql".to_string(),
+                                       estimated_cost: NotNan::new(100.0).unwrap(),
+                                       estimated_rows: NotNan::new(0.0).unwrap(),
+                                       support_function: None,
+                                       kind: FunctionKind::Function,
+                                       security_definer: false,
+                                       leak_proof: false,
+                                       strict: false,
+                                       returns_set: false,
+                                       volatility: Volatility::Volatile,
+                                       parallel: Parallel::Unsafe,
+                                       sql_body: r#"begin return a + b; end;"#
+                                           .to_string(),
+                                       configuration: None,
+                                       arguments: "a integer, b integer".to_string(),
+                                       result: Some("integer".to_string()),
+                                       ..default()
+                                   },
+                                   PostgresFunction {
+                                       function_name: "filter_stuff".to_string(),
+                                       language: "plpgsql".to_string(),
+                                       estimated_cost: NotNan::new(100.0).unwrap(),
+                                       estimated_rows: NotNan::new(1000.0).unwrap(),
+                                       support_function: None,
+                                       kind: FunctionKind::Function,
+                                       security_definer: false,
+                                       leak_proof: false,
+                                       strict: false,
+                                       returns_set: true,
+                                       volatility: Volatility::Volatile,
+                                       parallel: Parallel::Unsafe,
+                                       sql_body: r#"begin
 
         create temp table temp_table(id int, name text);
 
@@ -1207,18 +1207,18 @@ async fn test_functions(helper: &TestHelper) {
         return query select * from temp_table where name = value;
 
         end;"#
-                            .to_string(),
-                        configuration: None,
-                        arguments: "value text".to_string(),
-                        result: Some("TABLE(id integer, name text)".to_string()),
-                        ..default()
-                    },
-                ],
-                ..default()
-            }],
+                                           .to_string(),
+                                       configuration: None,
+                                       arguments: "value text".to_string(),
+                                       result: Some("TABLE(id integer, name text)".to_string()),
+                                       ..default()
+                                   },
+                               ],
+                               ..default()
+                           }],
                            timescale_support: TimescaleSupport::from_test_helper(helper),
-            ..default()
-        },
+                           ..default()
+                       },
     ).await;
 }
 
@@ -2673,6 +2673,108 @@ async fn index_storage_parameters_pg_12(helper: &TestHelper) {
                 name: "public".to_string(),
                 ..default()
             }],
+            ..default()
+        },
+    )
+    .await;
+}
+
+#[pg_test(arg(timescale_db = 15))]
+async fn inspect_time_hypertable(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time'));
+
+insert into stocks_real_time (time, symbol, price, day_volume) values ('2023-01-01 00:00:00', 'AAPL', 100.0, 1000);
+
+CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                tables: vec![PostgresTable {
+                    name: "stocks_real_time".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "time".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "timestamptz".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "symbol".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "price".to_string(),
+                            ordinal_position: 3,
+                            is_nullable: true,
+                            data_type: "float8".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "day_volume".to_string(),
+                            ordinal_position: 4,
+                            is_nullable: true,
+                            data_type: "int4".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![PostgresIndex {
+                        name: "ix_symbol_time".to_string(),
+                        key_columns: vec![
+                            PostgresIndexKeyColumn {
+                                name: "symbol".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Ascending),
+                                nulls_order: Some(PostgresIndexNullsOrder::Last)
+                            },
+                            PostgresIndexKeyColumn {
+                                name: "\"time\"".to_string(),
+                                ordinal_position: 2,
+                                direction: Some(PostgresIndexColumnDirection::Descending),
+                                nulls_order: Some(PostgresIndexNullsOrder::First)
+                            }
+                        ],
+                        index_type: "btree".to_string(),
+                        index_constraint_type: PostgresIndexType::Index,
+                        ..default()
+                    }, PostgresIndex {
+                        name: "stocks_real_time_time_idx".to_string(),
+                        key_columns: vec![
+                            PostgresIndexKeyColumn {
+                                name: "\"time\"".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Descending),
+                                nulls_order: Some(PostgresIndexNullsOrder::First)
+                            }
+                        ],
+                        index_type: "btree".to_string(),
+                        index_constraint_type: PostgresIndexType::Index,
+                        ..default()
+                    }
+                    ],
+                    table_type: TableTypeDetails::TimescaleHypertable {},
+                    ..default()
+                }],
+                name: "public".to_string(),
+                ..default()
+            }],
+            timescale_support: TimescaleSupport {
+                is_enabled: true,
+                timescale_toolkit_is_enabled: true,
+            },
             ..default()
         },
     )

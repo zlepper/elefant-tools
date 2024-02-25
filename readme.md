@@ -64,3 +64,6 @@ Do note: This uses high level features in Timescale, and doesn't operate directl
 chunks/catalog tables from timescale, unlike pg_dump. This means data might be chunked slightly different
 from the original database, but the data should be the same. For example if you have changed the chunk 
 interval at some point and have chunks with different sizes, they will all have the same size in the dump.
+
+Continuous aggregates are recreated, which means data that was no longer in the original table will also 
+be missing from the continuous aggregate.

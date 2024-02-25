@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema};
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
+use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PostgresSequence {
@@ -36,7 +37,7 @@ impl Default for PostgresSequence {
 impl PostgresSequence {
     pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
         let mut sql = format!("create sequence {}.{} as {} increment by {} minvalue {} maxvalue {} start {} cache {}",
-                              schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), self.data_type, self.increment, self.min_value, self.max_value, self.start_value, self.cache_size);
+                              schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), self.data_type, self.increment, self.min_value, self.max_value, self.start_value, self.cache_size);
 
         if self.cycle {
             sql.push_str(" cycle");
@@ -46,9 +47,9 @@ impl PostgresSequence {
 
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on sequence ");
-            sql.push_str(&schema.name.quote(identifier_quoter));
+            sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
             sql.push_str(".");
-            sql.push_str(&self.name.quote(identifier_quoter));
+            sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));
             sql.push(';');
@@ -58,7 +59,7 @@ impl PostgresSequence {
     }
 
     pub fn get_set_value_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
-        self.last_value.map(|last_value| format!("select pg_catalog.setval('{}.{}', {}, true);", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), last_value))
+        self.last_value.map(|last_value| format!("select pg_catalog.setval('{}.{}', {}, true);", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), last_value))
     }
 }
 

@@ -2895,7 +2895,7 @@ select add_compression_policy('stocks_real_time', interval '7 days');
                                     descending: false,
                                 },
                             ]),
-                            chunk_time_interval: Some(1209600000000),
+                            chunk_time_interval: Some(Interval::new(0,14,0)),
                             compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
                             compress_after: Some(Interval::new(0, 7, 0))
                         }),

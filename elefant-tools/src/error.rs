@@ -45,6 +45,9 @@ pub enum ElefantToolsError {
 
     #[error("Unknown table type '{0}'")]
     InvalidTableType(String),
+    
+    #[error("Unknown keyword type '{0}'")]
+    InvalidKeywordType(String),
 
     #[error("Unknown table partitioning strategy '{0}'")]
     InvalidTablePartitioningStrategy(String),

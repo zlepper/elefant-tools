@@ -1,12 +1,26 @@
-use std::collections::HashSet;
+use std::collections::{HashMap};
 
 #[derive(Debug)]
 pub struct IdentifierQuoter {
-    keywords: HashSet<String>,
+    keywords: HashMap<String, AllowedKeywordUsage>,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct AllowedKeywordUsage {
+    pub column_name: bool,
+    pub type_or_function_name: bool,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum AttemptedKeywordUsage {
+    ColumnName,
+    TypeOrFunctionName,
+    Other,
+}
+
+
 impl IdentifierQuoter {
-    pub fn new(keywords: HashSet<String>) -> Self {
+    pub fn new(keywords: HashMap<String, AllowedKeywordUsage>) -> Self {
         Self {
             keywords,
         }
@@ -14,11 +28,11 @@ impl IdentifierQuoter {
 
     pub fn empty() -> Self {
         Self {
-            keywords: HashSet::new(),
+            keywords: HashMap::new(),
         }
     }
 
-    pub fn quote(&self, identifier: impl AsRef<str>) -> String {
+    pub fn quote(&self, identifier: impl AsRef<str>, usage: AttemptedKeywordUsage) -> String {
         // Ported from: https://github.com/postgres/postgres/blob/97957fdbaa429c7c582d4753b108cb1e23e1b28a/src/backend/utils/adt/ruleutils.c#L11975
 
         let identifier = identifier.as_ref();
@@ -29,7 +43,16 @@ impl IdentifierQuoter {
 
         let mut chars = identifier.chars();
 
-        let safe = matches!(chars.next(), Some('a'..='z' | '_')) && chars.all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_')) && !self.keywords.contains(identifier);
+        let safe = if let Some(allowed) = self.keywords.get(identifier) {
+
+            match usage {
+                AttemptedKeywordUsage::ColumnName => allowed.column_name,
+                AttemptedKeywordUsage::TypeOrFunctionName => allowed.type_or_function_name,
+                AttemptedKeywordUsage::Other => false,
+            }
+        } else {
+            matches!(chars.next(), Some('a'..='z' | '_')) && chars.all(|c| matches!(c, 'a'..='z' | '0'..='9' | '_'))
+        };
 
         if safe {
             identifier.to_string()
@@ -40,13 +63,13 @@ impl IdentifierQuoter {
         }
     }
 
-    pub fn quote_iter<'a, 's, S: AsRef<str>, I: IntoIterator<Item=S>>(&'a self, identifiers: I) -> impl Iterator<Item=String> + 'a where <I as IntoIterator>::IntoIter: 'a {
-        identifiers.into_iter().map(move |i| self.quote(i))
+    pub fn quote_iter<'a, 's, S: AsRef<str>, I: IntoIterator<Item=S>>(&'a self, identifiers: I, usage: AttemptedKeywordUsage) -> impl Iterator<Item=String> + 'a where <I as IntoIterator>::IntoIter: 'a {
+        identifiers.into_iter().map(move |i| self.quote(i, usage))
     }
 }
 
 pub(crate) trait Quotable {
-    fn quote(&self, quoter: &IdentifierQuoter) -> String;
+    fn quote(&self, quoter: &IdentifierQuoter, usage: AttemptedKeywordUsage) -> String;
 }
 
 impl<S> Quotable for S
@@ -54,13 +77,13 @@ impl<S> Quotable for S
 
 {
 
-    fn quote(&self, quoter: &IdentifierQuoter) -> String{
-        quoter.quote(self)
+    fn quote(&self, quoter: &IdentifierQuoter, usage: AttemptedKeywordUsage) -> String{
+        quoter.quote(self, usage)
     }
 }
 
 pub(crate) trait QuotableIter: Sized {
-    fn quote(self, quoter: &IdentifierQuoter) -> IteratorQuoter<Self>;
+    fn quote(self, quoter: &IdentifierQuoter, usage: AttemptedKeywordUsage) -> IteratorQuoter<Self>;
 }
 
 
@@ -68,9 +91,10 @@ impl<I> QuotableIter for I
     where I: Iterator,
           I::Item: AsRef<str>,
 {
-    fn quote(self, quoter: &IdentifierQuoter) -> IteratorQuoter<Self> {
+    fn quote(self, quoter: &IdentifierQuoter, usage: AttemptedKeywordUsage) -> IteratorQuoter<Self> {
         IteratorQuoter {
             quoter,
+            usage,
             iter: self,
         }
     }
@@ -78,6 +102,7 @@ impl<I> QuotableIter for I
 
 pub(crate) struct IteratorQuoter<'q, I> {
     quoter: &'q IdentifierQuoter,
+    usage: AttemptedKeywordUsage,
     iter: I
 }
 
@@ -88,7 +113,7 @@ impl<I> Iterator for IteratorQuoter<'_, I>
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next().map(|i| self.quoter.quote(i))
+        self.iter.next().map(|i| self.quoter.quote(i, self.usage))
     }
 
 }
@@ -100,15 +125,19 @@ pub(crate) fn quote_value_string(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{HashMap};
+    use crate::quoting::{AllowedKeywordUsage, AttemptedKeywordUsage};
 
     #[test]
     fn quoting() {
-        let quoter = super::IdentifierQuoter::new(HashSet::from(["table".to_string()]));
+        let quoter = super::IdentifierQuoter::new(HashMap::from([("table".to_string(), AllowedKeywordUsage {
+            type_or_function_name: false,
+            column_name: false,
+        })]));
 
         macro_rules! test_quote {
             ($identifier:literal, $expected:literal) => {
-                let quoted = quoter.quote($identifier);
+                let quoted = quoter.quote($identifier, AttemptedKeywordUsage::Other);
                 assert_eq!(quoted, $expected);
             };
         }

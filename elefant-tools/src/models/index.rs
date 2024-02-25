@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
 use crate::helpers::StringExt;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
+use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresIndex {
@@ -40,7 +41,7 @@ impl PartialOrd for PostgresIndex {
 impl PostgresIndex {
     pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable, identifier_quoter: &IdentifierQuoter) -> String {
         if PostgresIndexType::PrimaryKey == self.index_constraint_type {
-            return format!("alter table {}.{} add constraint {} primary key ({});", schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.name.quote(identifier_quoter), self.key_columns.iter().map(|c| c.name.quote(identifier_quoter)).collect::<Vec<String>>().join(", "));
+            return format!("alter table {}.{} add constraint {} primary key ({});", schema.name.quote(identifier_quoter, ColumnName), table.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), self.key_columns.iter().map(|c| c.name.quote(identifier_quoter, ColumnName)).collect::<Vec<String>>().join(", "));
         }
 
         let index_type = match self.index_constraint_type {
@@ -48,7 +49,7 @@ impl PostgresIndex {
             _ => "",
         };
 
-        let mut command = format!("create {}index {} on {}.{} using {} (", index_type, self.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), table.name.quote(identifier_quoter), self.index_type);
+        let mut command = format!("create {}index {} on {}.{} using {} (", index_type, self.name.quote(identifier_quoter, ColumnName), schema.name.quote(identifier_quoter, ColumnName), table.name.quote(identifier_quoter, ColumnName), self.index_type);
 
         for (i, column) in self.key_columns.iter().enumerate() {
             if i > 0 {
@@ -83,7 +84,7 @@ impl PostgresIndex {
         if !self.included_columns.is_empty() {
             command.push_str(" include (");
 
-            command.push_join(", ", self.included_columns.iter().map(|c| c.name.quote(identifier_quoter)));
+            command.push_join(", ", self.included_columns.iter().map(|c| c.name.quote(identifier_quoter, ColumnName)));
 
             command.push(')');
         }
@@ -107,7 +108,7 @@ impl PostgresIndex {
 
         if let Some(comment) = &self.comment {
             command.push_str("\ncomment on index ");
-            command.push_str(&self.name.quote(identifier_quoter));
+            command.push_str(&self.name.quote(identifier_quoter, ColumnName));
             command.push_str(" is ");
             command.push_str(&quote_value_string(comment));
             command.push(';');

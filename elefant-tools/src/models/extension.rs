@@ -1,4 +1,5 @@
 use crate::quoting::{IdentifierQuoter, Quotable};
+use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresExtension {
@@ -11,6 +12,6 @@ pub struct PostgresExtension {
 
 impl PostgresExtension {
     pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
-        format!("create extension if not exists {};", self.name.quote(identifier_quoter))
+        format!("create extension if not exists {};", self.name.quote(identifier_quoter, ColumnName))
     }
 }

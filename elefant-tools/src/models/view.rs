@@ -1,5 +1,6 @@
 use crate::PostgresSchema;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresView {
@@ -20,9 +21,9 @@ impl PostgresView {
         }
 
         sql.push_str(" view ");
-        sql.push_str(&schema.name.quote(identifier_quoter));
+        sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
         sql.push('.');
-        sql.push_str(&self.name.quote(identifier_quoter));
+        sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
         sql.push_str(" (");
 
         for (i, column) in self.columns.iter().enumerate() {
@@ -30,7 +31,7 @@ impl PostgresView {
                 sql.push_str(", ");
             }
 
-            sql.push_str(&column.name.quote(identifier_quoter));
+            sql.push_str(&column.name.quote(identifier_quoter, ColumnName));
         }
 
         sql.push_str(") as ");
@@ -43,9 +44,9 @@ impl PostgresView {
                 sql.push_str("materialized ");
             }
             sql.push_str("view ");
-            sql.push_str(&schema.name.quote(identifier_quoter));
+            sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
             sql.push('.');
-            sql.push_str(&self.name.quote(identifier_quoter));
+            sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));
             sql.push(';');

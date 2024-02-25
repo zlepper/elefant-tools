@@ -8,6 +8,7 @@ use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable, QuotableIter};
+use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresTable {
@@ -31,13 +32,13 @@ impl PostgresTable {
     pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
 
         let mut sql = "create table ".to_string();
-        sql.push_str(&schema.name.quote(identifier_quoter));
+        sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
         sql.push('.');
-        sql.push_str(&self.name.quote(identifier_quoter));
+        sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
 
         if let TableTypeDetails::PartitionedChildTable {partition_expression, parent_table} = &self.table_type {
             sql.push_str(" partition of ");
-            sql.push_str(&parent_table.quote(identifier_quoter));
+            sql.push_str(&parent_table.quote(identifier_quoter, ColumnName));
             sql.push(' ');
             sql.push_str(partition_expression);
         } else {
@@ -50,9 +51,9 @@ impl PostgresTable {
                     sql.push(',');
                 }
                 sql.push_str("\n    ");
-                sql.push_str(&column.name.quote(identifier_quoter));
+                sql.push_str(&column.name.quote(identifier_quoter, ColumnName));
                 sql.push(' ');
-                sql.push_str(&column.data_type.quote(identifier_quoter));
+                sql.push_str(&column.data_type.quote(identifier_quoter, ColumnName));
 
                 for _ in 0..column.array_dimensions {
                     sql.push_str("[]");
@@ -78,10 +79,10 @@ impl PostgresTable {
                     }
 
                     sql.push_str("\n    constraint ");
-                    sql.push_str(&index.name.quote(identifier_quoter));
+                    sql.push_str(&index.name.quote(identifier_quoter, ColumnName));
                     sql.push_str(" primary key (");
 
-                    sql.push_join(", ", index.key_columns.iter().map(|c| c.name.quote(identifier_quoter)));
+                    sql.push_join(", ", index.key_columns.iter().map(|c| c.name.quote(identifier_quoter, ColumnName)));
                     sql.push(')');
                     text_row_count += 1;
                 }
@@ -93,7 +94,7 @@ impl PostgresTable {
                         sql.push(',');
                     }
                     sql.push_str("\n    constraint ");
-                    sql.push_str(&check.name.quote(identifier_quoter));
+                    sql.push_str(&check.name.quote(identifier_quoter, ColumnName));
                     sql.push_str(" check ");
                     sql.push_str(&check.check_clause);
                     text_row_count += 1;
@@ -111,7 +112,7 @@ impl PostgresTable {
 
                 match partition_columns {
                     PartitionedTableColumns::Columns(columns) => {
-                        sql.push_join(", ", columns.iter().map(|c| c.quote(identifier_quoter)));
+                        sql.push_join(", ", columns.iter().map(|c| c.quote(identifier_quoter, ColumnName)));
                     }
                     PartitionedTableColumns::Expression(expr) => {
                         sql.push_str(expr);
@@ -122,7 +123,7 @@ impl PostgresTable {
             }
             else if let TableTypeDetails::InheritedTable {parent_tables} = &self.table_type {
                 sql.push_str("\n) inherits (");
-                sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter)));
+                sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter, ColumnName)));
                 sql.push(')');
             }
             else {
@@ -139,49 +140,111 @@ impl PostgresTable {
         sql.push(';');
 
         if let Some(c) = &self.comment {
-            sql.push_str(&format!("\ncomment on table {}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
+            sql.push_str(&format!("\ncomment on table {}.{} is {};", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), quote_value_string(c)));
         }
 
         for col in &self.columns {
             if let Some(c) = &col.comment {
-                sql.push_str(&format!("\ncomment on column {}.{}.{} is {};", schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), col.name.quote(identifier_quoter), quote_value_string(c)));
+                sql.push_str(&format!("\ncomment on column {}.{}.{} is {};", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), col.name.quote(identifier_quoter, ColumnName), quote_value_string(c)));
             }
         }
 
         for constraint in &self.constraints {
             if let PostgresConstraint::Check(constraint) = constraint {
                 if let Some(c) = &constraint.comment {
-                    sql.push_str(&format!("\ncomment on constraint {} on {}.{} is {};", constraint.name.quote(identifier_quoter), schema.name.quote(identifier_quoter), self.name.quote(identifier_quoter), quote_value_string(c)));
+                    sql.push_str(&format!("\ncomment on constraint {} on {}.{} is {};", constraint.name.quote(identifier_quoter, ColumnName), schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), quote_value_string(c)));
                 }
             }
         }
 
-        if let TableTypeDetails::TimescaleHypertable {dimensions, ..} = &self.table_type {
+        if let TableTypeDetails::TimescaleHypertable {dimensions, compression} = &self.table_type {
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {
                 match dim {
                     HypertableDimension::Time {column_name, time_interval} => {
                         if idx == 0 {
-                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_range('{}', INTERVAL '{}'), create_default_indexes => false);", schema.name, self.name, column_name, time_interval.to_postgres()));
+                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_range('{}', INTERVAL '{}'), create_default_indexes => false);", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), column_name.quote(identifier_quoter, ColumnName), time_interval.to_postgres()));
                         } else {
-                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_range('{}', INTERVAL '{}'));", schema.name, self.name, column_name, time_interval.to_postgres()));
+                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_range('{}', INTERVAL '{}'));", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), column_name.quote(identifier_quoter, ColumnName), time_interval.to_postgres()));
                         }
                     }
                     HypertableDimension::SpaceInterval { column_name, integer_interval } => {
                         if idx == 0 {
-                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_range('{}', {}), create_default_indexes => false);", schema.name, self.name, column_name, integer_interval));
+                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_range('{}', {}), create_default_indexes => false);", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), column_name.quote(identifier_quoter, ColumnName), integer_interval));
                         } else {
-                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_range('{}', {}));", schema.name, self.name, column_name, integer_interval));
+                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_range('{}', {}));", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), column_name.quote(identifier_quoter, ColumnName), integer_interval));
                         }
                     }
                     HypertableDimension::SpacePartitions { column_name, num_partitions } => {
                         if idx == 0 {
-                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_hash('{}', {}), create_default_indexes => false);", schema.name, self.name, column_name, num_partitions));
+                            sql.push_str(&format!("\nselect public.create_hypertable('{}.{}', by_hash('{}', {}), create_default_indexes => false);", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), column_name.quote(identifier_quoter, ColumnName), num_partitions));
                         } else {
-                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_hash('{}', {}));", schema.name, self.name, column_name, num_partitions));
+                            sql.push_str(&format!("\nselect public.add_dimension('{}.{}', by_hash('{}', {}));", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), column_name.quote(identifier_quoter, ColumnName), num_partitions));
                         }
                     }
                 }
+            }
+
+            if let Some(compression) = compression {
+                sql.push_str("\nalter table ");
+                sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+                sql.push('.');
+                sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
+                sql.push_str(" set (\n\ttimescaledb.compress = ");
+                sql.push_str(&compression.enabled.to_string());
+
+                if let Some(segment_by) = &compression.segment_by_columns {
+                    sql.push_str(",\n\ttimescaledb.compress_segmentby = '");
+                    sql.push_join(", ", segment_by.iter().map(|c| c.quote(identifier_quoter, ColumnName)));
+                    sql.push('\'');
+                }
+
+                if let Some(order_by) = &compression.order_by_columns {
+                    sql.push_str(",\n\ttimescaledb.compress_orderby = '");
+                    for (idx, order_by) in order_by.iter().enumerate() {
+                        if idx > 0 {
+                            sql.push_str(", ");
+                        }
+                        sql.push_str(&order_by.column_name.quote(identifier_quoter, ColumnName));
+                        if !order_by.descending {
+                            sql.push_str(" ASC");
+                        } else {
+                            sql.push_str(" DESC");
+                        }
+                        if order_by.nulls_first {
+                            sql.push_str(" NULLS FIRST");
+                        } else {
+                            sql.push_str(" NULLS LAST");
+                        }
+                    }
+                    sql.push('\'');
+                }
+
+                if let Some(chunk_time_interval) = compression.chunk_time_interval {
+                    sql.push_str(",\n\ttimescaledb.compress_chunk_time_interval = '");
+                    sql.push_str(&chunk_time_interval.to_postgres());
+                    sql.push('\'');
+                }
+
+                sql.push_str("\n);");
+
+                if let Some(compress_after) = compression.compress_after {
+                    sql.push_str("\nselect public.add_compression_policy('");
+                    sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+                    sql.push('.');
+                    sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
+                    sql.push_str("', compress_after => INTERVAL '");
+                    sql.push_str(&compress_after.to_postgres());
+                    sql.push('\'');
+                    
+                    if let Some(schedule_interval) = compression.compression_schedule_interval {
+                        sql.push_str(", schedule_interval => INTERVAL '");
+                        sql.push_str(&schedule_interval.to_postgres());
+                        sql.push('\'');
+                    }
+                    
+                    sql.push_str(");");
+                } 
             }
         }
 
@@ -191,9 +254,10 @@ impl PostgresTable {
 
     pub fn get_copy_in_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {
         let mut s = "copy ".to_string();
-        s.push_str(&schema.name.quote(identifier_quoter));
+        
+        s.push_str(&schema.name.quote(identifier_quoter, ColumnName));
         s.push('.');
-        s.push_str(&self.name.quote(identifier_quoter));
+        s.push_str(&self.name.quote(identifier_quoter, ColumnName));
 
         s.push_str(" (");
 
@@ -217,16 +281,30 @@ impl PostgresTable {
 
     pub fn get_copy_out_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {
         let mut s = "copy ".to_string();
-        s.push_str(&schema.name.quote(identifier_quoter));
-        s.push('.');
-        s.push_str(&self.name.quote(identifier_quoter));
+        
+        if let TableTypeDetails::TimescaleHypertable {..} = self.table_type {
+            s.push_str("(select ");
+            let cols = self.get_copy_columns_expression(identifier_quoter);
 
-        s.push_str(" (");
+            s.push_str(&cols);
+            s.push_str(" from ");
 
-        let cols = self.get_copy_columns_expression(identifier_quoter);
+            s.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+            s.push('.');
+            s.push_str(&self.name.quote(identifier_quoter, ColumnName));
+            s.push_str(") ");
+        }  else {
+            s.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+            s.push('.');
+            s.push_str(&self.name.quote(identifier_quoter, ColumnName));
 
-        s.push_str(&cols);
-        s.push_str(") ");
+            s.push_str(" (");
+
+            let cols = self.get_copy_columns_expression(identifier_quoter);
+
+            s.push_str(&cols);
+            s.push_str(") ");
+        }
 
         s.push_str(" to stdout with (format ");
         match data_format {
@@ -247,7 +325,7 @@ impl PostgresTable {
             .filter(|c| c.generated.is_none())
             .sorted_by_key(|c| c.ordinal_position)
             .map(|c| c.name.as_str())
-            .quote(identifier_quoter)
+            .quote(identifier_quoter, ColumnName)
             .join(", ")
     }
 }
@@ -319,7 +397,7 @@ pub struct HypertableCompression {
     pub enabled: bool,
     pub segment_by_columns: Option<Vec<String>>,
     pub order_by_columns: Option<Vec<HypertableCompressionOrderedColumn>>,
-    pub chunk_time_interval: Option<i64>,
+    pub chunk_time_interval: Option<Interval>,
     pub compression_schedule_interval: Option<Interval>,
     pub compress_after: Option<Interval>,
 }

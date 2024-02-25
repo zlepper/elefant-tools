@@ -1,17 +1,18 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt, TryStreamExt};
 use futures::stream::MapErr;
-use tokio_postgres::CopyOutStream;
+use tokio_postgres::{CopyOutStream, Row};
 use crate::models::PostgresDatabase;
-use crate::postgres_client_wrapper::PostgresClientWrapper;
+use crate::postgres_client_wrapper::{FromPgChar, FromRow, PostgresClientWrapper, RowEnumExt};
 use crate::schema_reader::SchemaReader;
 use crate::storage::{BaseCopyTarget, CopyDestination, CopySource, DataFormat, TableData};
 use crate::*;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
-use crate::quoting::IdentifierQuoter;
+use crate::quoting::{AllowedKeywordUsage, IdentifierQuoter};
 
 pub struct PostgresInstanceStorage<'a> {
     connection: &'a PostgresClientWrapper,
@@ -23,15 +24,59 @@ impl<'a> PostgresInstanceStorage<'a> {
     pub async fn new(connection: &'a PostgresClientWrapper) -> Result<Self> {
         let postgres_version = connection.get_single_result("select version()").await?;
 
-        let keywords = connection.get_single_results("select word from pg_get_keywords() where catcode <> 'U'").await?;
+        let keywords = connection.get_results::<Keyword>("select word, catcode from pg_get_keywords() where catcode <> 'U'").await?;
 
-        let quoter = IdentifierQuoter::new(keywords.into_iter().collect());
+        let mut keyword_info = HashMap::new();
+
+        for keyword in keywords {
+            keyword_info.insert(keyword.word, AllowedKeywordUsage {
+                column_name: keyword.category == KeywordType::AllowedInColumnName || keyword.category == KeywordType::AllowedInTypeOrFunctionName,
+                type_or_function_name: keyword.category == KeywordType::AllowedInTypeOrFunctionName,
+            });
+        }
+        
+        
+        let quoter = IdentifierQuoter::new(keyword_info);
 
         Ok(PostgresInstanceStorage {
             connection,
             postgres_version,
             identifier_quoter: Arc::new(quoter),
         })
+    }
+}
+
+struct Keyword {
+    word: String,
+    category: KeywordType,
+}
+
+impl FromRow for Keyword {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok(Keyword {
+            word: row.try_get(0)?,
+            category: row.try_get_enum_value(1)?,
+        })
+    }
+}
+
+#[derive(Eq, PartialEq, Debug)]
+enum KeywordType {
+    Unreserved,
+    AllowedInColumnName,
+    AllowedInTypeOrFunctionName,
+    Reserved,
+}
+
+impl FromPgChar for KeywordType {
+    fn from_pg_char(c: char) -> Result<Self> {
+        match c {
+            'U' => Ok(KeywordType::Unreserved),
+            'C' => Ok(KeywordType::AllowedInColumnName),
+            'T' => Ok(KeywordType::AllowedInTypeOrFunctionName),
+            'R' => Ok(KeywordType::Reserved),
+            _ => Err(ElefantToolsError::InvalidKeywordType(c.to_string())),
+        }
     }
 }
 
@@ -570,7 +615,13 @@ SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval
 
 CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
 
+insert into stocks_real_time(time, symbol, price, day_volume) values ('2023-01-01', 'AAPL', 100.0, 1000);
+
         "#, source, destination).await;
+        
+        let items = destination.get_results::<(String, f64, i32)>("select symbol, price, day_volume from stocks_real_time;").await;
+        
+        assert_eq!(items, vec![("AAPL".to_string(), 100.0, 1000)]);
     }
 
     #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
@@ -590,6 +641,32 @@ SELECT add_dimension('stocks_real_time', by_hash('symbol', 4));
 SELECT add_dimension('stocks_real_time', by_range('day_volume', 100));
 
 CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
+
+        "#, source, destination).await;
+    }
+
+    #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+    #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+    async fn timescale_hypertable_compression(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NOT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+alter table stocks_real_time set(
+    timescaledb.compress,
+        timescaledb.compress_segmentby = 'symbol',
+        timescaledb.compress_orderby = 'time,day_volume',
+        timescaledb.compress_chunk_time_interval='14 days'
+        );
+
+select add_compression_policy('stocks_real_time', interval '7 days');
 
         "#, source, destination).await;
     }

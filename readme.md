@@ -53,7 +53,7 @@
     ✅ Space partitioning
     ✅ Time partitioning
     ✅ Multiple dimensions
-    ❌ Compression
+    ✅ Compression
     ❌ Distributed hypertables
 ❌ Continuous aggregates
 ❌ Retention policies

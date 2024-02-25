@@ -27,11 +27,11 @@ mod table_column;
 #[cfg(test)]
 pub mod tests;
 mod timescale_hypertable;
+mod timescale_hypertable_dimension;
 mod trigger;
 mod unique_constraint;
 mod view;
 mod view_column;
-mod timescale_hypertable_dimension;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -107,7 +107,7 @@ impl SchemaReader<'_> {
                 &foreign_keys,
                 &foreign_key_columns,
                 &hypertables,
-                &hypertable_dimensions
+                &hypertable_dimensions,
             )?;
 
             current_schema.tables.push(table);
@@ -193,16 +193,16 @@ impl SchemaReader<'_> {
         }
 
         for trigger in triggers {
-
             if db.timescale_support.is_enabled {
-                if let Some(_) = hypertables.iter().find(|h| h.table_name == trigger.table_name && h.table_schema == trigger.schema_name) {
+                if let Some(_) = hypertables.iter().find(|h| {
+                    h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
+                }) {
                     // Skip the trigger if it's a TimescaleDB internal trigger
                     if trigger.name == "ts_insert_blocker" {
                         continue;
                     }
                 }
             }
-
 
             let current_schema = db.get_or_create_schema_mut(&trigger.schema_name);
 
@@ -265,13 +265,11 @@ impl SchemaReader<'_> {
             .iter()
             .find(|h| h.table_name == row.table_name && h.table_schema == row.schema_name);
 
-        let table_details = if let Some(_) = hypertable {
-
+        let table_details = if let Some(hypertable) = hypertable {
             let mut dimensions = vec![];
 
             for dim in hypertable_dimensions.iter() {
                 if dim.table_name == row.table_name && dim.table_schema == row.schema_name {
-
                     let dim = if let Some(interval) = dim.time_interval {
                         HypertableDimension::Time {
                             column_name: dim.column_name.clone(),
@@ -287,19 +285,58 @@ impl SchemaReader<'_> {
                             column_name: dim.column_name.clone(),
                             num_partitions,
                         }
-                    } 
-                    else {
+                    } else {
                         return Err(ElefantToolsError::HypertableDimensionWithoutInterval {
                             table_name: row.table_name.clone(),
-                            dimension_number: dim.dimension_number
-                        })
+                            dimension_number: dim.dimension_number,
+                        });
                     };
 
                     dimensions.push(dim);
                 }
             }
+
+            let compression = if let (false, None, None, None, None, None) = (
+                hypertable.compression_enabled,
+                hypertable.compress_after,
+                hypertable.compression_chunk_interval,
+                hypertable.compression_schedule_interval,
+                &hypertable.compress_segment_by,
+                &hypertable.compress_order_by,
+            ) {
+                None
+            } else {
+                Some(HypertableCompression {
+                    enabled: hypertable.compression_enabled,
+                    compression_schedule_interval: hypertable.compression_schedule_interval,
+                    chunk_time_interval: hypertable.compression_chunk_interval,
+                    compress_after: hypertable.compress_after,
+                    order_by_columns: if let (Some(order_by), Some(desc), Some(nulls_first)) = (
+                        &hypertable.compress_order_by,
+                        &hypertable.compress_order_by_desc,
+                        &hypertable.compress_order_by_nulls_first,
+                    ) {
+                        let cols = itertools::izip!(order_by, desc, nulls_first)
+                            .map(
+                                |(column, desc, nulls_first)| HypertableCompressionOrderedColumn {
+                                    column_name: column.clone(),
+                                    descending: *desc,
+                                    nulls_first: *nulls_first,
+                                },
+                            )
+                            .collect();
+                        
+                        Some(cols)
+                    } else {
+                        None
+                    },
+                    segment_by_columns: hypertable.compress_segment_by.clone(),
+                })
+            };
+
             TimescaleHypertable {
                 dimensions,
+                compression,
             }
         } else if row.is_partition {
             let parent_tables = row.parent_tables.clone().ok_or_else(|| {
@@ -564,7 +601,7 @@ macro_rules! define_working_query {
 }
 
 use crate::schema_reader::timescale_hypertable::HypertableResult;
-use crate::schema_reader::unique_constraint::UniqueConstraintResult;
-pub(crate) use define_working_query;
 use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDimensionResult;
+use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 use crate::TableTypeDetails::TimescaleHypertable;
+pub(crate) use define_working_query;

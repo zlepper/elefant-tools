@@ -156,7 +156,7 @@ impl PostgresTable {
             }
         }
 
-        if let TableTypeDetails::TimescaleHypertable {dimensions} = &self.table_type {
+        if let TableTypeDetails::TimescaleHypertable {dimensions, ..} = &self.table_type {
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {
                 match dim {
@@ -270,6 +270,7 @@ pub enum TableTypeDetails {
     },
     TimescaleHypertable {
         dimensions: Vec<HypertableDimension>,
+        compression: Option<HypertableCompression>,
     }
 }
 
@@ -311,4 +312,31 @@ pub enum HypertableDimension {
         column_name: String,
         num_partitions: i16,
     },
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
+pub struct HypertableCompression {
+    pub enabled: bool,
+    pub segment_by_columns: Option<Vec<String>>,
+    pub order_by_columns: Option<Vec<HypertableCompressionOrderedColumn>>,
+    pub chunk_time_interval: Option<i64>,
+    pub compression_schedule_interval: Option<Interval>,
+    pub compress_after: Option<Interval>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct HypertableCompressionOrderedColumn {
+    pub column_name: String,
+    pub descending: bool,
+    pub nulls_first: bool,
+}
+
+impl Default for HypertableCompressionOrderedColumn {
+    fn default() -> Self {
+        Self {
+            column_name: "".to_string(),
+            descending: true,
+            nulls_first: true,
+        }
+    }
 }

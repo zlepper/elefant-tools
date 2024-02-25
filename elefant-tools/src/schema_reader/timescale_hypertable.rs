@@ -1,3 +1,4 @@
+use pg_interval::Interval;
 use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
@@ -5,8 +6,14 @@ use crate::schema_reader::define_working_query;
 pub struct HypertableResult {
     pub table_schema: String,
     pub table_name: String,
-    pub number_of_dimensions: i16,
     pub compression_enabled: bool,
+    pub compression_chunk_interval: Option<i64>,
+    pub compression_schedule_interval: Option<Interval>,
+    pub compress_after: Option<Interval>,
+    pub compress_order_by: Option<Vec<String>>,
+    pub compress_order_by_desc: Option<Vec<bool>>,
+    pub compress_order_by_nulls_first: Option<Vec<bool>>,
+    pub compress_segment_by: Option<Vec<String>>,
 }
 
 impl FromRow for HypertableResult {
@@ -14,17 +21,61 @@ impl FromRow for HypertableResult {
         Ok(HypertableResult {
             table_schema: row.try_get(0)?,
             table_name: row.try_get(1)?,
-            number_of_dimensions: row.try_get(2)?,
-            compression_enabled: row.try_get(3)?,
+            compression_enabled: row.try_get(2)?,
+            compression_chunk_interval: row.try_get(3)?,
+            compression_schedule_interval: row.try_get(4)?,
+            compress_after: row.try_get(5)?,
+            compress_order_by: row.try_get(6)?,
+            compress_order_by_desc: row.try_get(7)?,
+            compress_order_by_nulls_first: row.try_get(8)?,
+            compress_segment_by: row.try_get(9)?,
         })
     }
 }
 
 //language=postgresql
 define_working_query!(get_hypertables, HypertableResult, r#"
-select h.hypertable_schema,
-         h.hypertable_name,
-         h.num_dimensions,
-         h.compression_enabled
-from timescaledb_information.hypertables h
+select ht.schema_name,
+         ht.table_name,
+         ht.compression_state = 1 as compression_enabled,
+        dim.compress_interval_length as compress_chunk_time_interval,
+        j.schedule_interval,
+        (j.config->>'compress_after')::interval as compress_after,
+        cs.orderby,
+        cs.orderby_desc,
+        cs.orderby_nullsfirst,
+        cs.segmentby
+from _timescaledb_catalog.hypertable ht
+left join _timescaledb_catalog.dimension dim on ht.id = dim.hypertable_id and dim.compress_interval_length is not null
+left join _timescaledb_config.bgw_job j on j.hypertable_id = ht.id and j.proc_name = 'policy_compression' and j.proc_schema = '_timescaledb_functions'
+left join _timescaledb_catalog.compression_settings cs on cs.relid = (ht.schema_name || '.' || ht.table_name)::regclass
+join pg_catalog.pg_namespace n on ht.schema_name = n.nspname
+         left join pg_depend dep on dep.objid = n.oid
+WHERE (n.oid > 16384 or n.nspname = 'public')
+    and (dep.objid is null or dep.deptype <> 'e' )
+ORDER BY ht.schema_name, ht.table_name;
 "#);
+
+/*
+SELECT j.id           AS job_id,
+       j.application_name,
+       j.schedule_interval,
+       j.max_runtime,
+       j.max_retries,
+       j.retry_period,
+       j.proc_schema,
+       j.proc_name,
+       j.owner,
+       j.scheduled,
+       j.fixed_schedule,
+       j.config,
+       js.next_start,
+       j.initial_start,
+       ht.schema_name AS hypertable_schema,
+       ht.table_name  AS hypertable_name,
+       j.check_schema,
+       j.check_name
+FROM _timescaledb_config.bgw_job j
+         LEFT JOIN _timescaledb_catalog.hypertable ht ON ht.id = j.hypertable_id
+         LEFT JOIN _timescaledb_internal.bgw_job_stat js ON js.job_id = j.id
+ */

@@ -2681,7 +2681,8 @@ async fn index_storage_parameters_pg_12(helper: &TestHelper) {
 }
 
 #[pg_test(arg(timescale_db = 15))]
-async fn inspect_time_hypertable(helper: &TestHelper) {
+#[pg_test(arg(timescale_db = 16))]
+async fn inspect_hypertable(helper: &TestHelper) {
     test_introspection(
         helper,
         r#"
@@ -2782,7 +2783,122 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
                                 column_name: "day_volume".to_string(),
                                 integer_interval: 100,
                             },
-                        ]
+                        ],
+                        compression: None,
+                    },
+                    ..default()
+                }],
+                name: "public".to_string(),
+                ..default()
+            }],
+            timescale_support: TimescaleSupport {
+                is_enabled: true,
+                timescale_toolkit_is_enabled: true,
+            },
+            ..default()
+        },
+    )
+    .await;
+}
+
+#[pg_test(arg(timescale_db = 15))]
+async fn inspect_compressed(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NOT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+alter table stocks_real_time set(
+    timescaledb.compress,
+        timescaledb.compress_segmentby = 'symbol',
+        timescaledb.compress_orderby = 'time,day_volume',
+        timescaledb.compress_chunk_time_interval='14 days'
+        );
+
+select add_compression_policy('stocks_real_time', interval '7 days');
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                tables: vec![PostgresTable {
+                    name: "stocks_real_time".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "time".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "timestamptz".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "symbol".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "price".to_string(),
+                            ordinal_position: 3,
+                            is_nullable: true,
+                            data_type: "float8".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "day_volume".to_string(),
+                            ordinal_position: 4,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![PostgresIndex {
+                        name: "stocks_real_time_time_idx".to_string(),
+                        key_columns: vec![
+                            PostgresIndexKeyColumn {
+                                name: "\"time\"".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Descending),
+                                nulls_order: Some(PostgresIndexNullsOrder::First)
+                            }
+                        ],
+                        index_type: "btree".to_string(),
+                        index_constraint_type: PostgresIndexType::Index,
+                        ..default()
+                    }
+                    ],
+                    table_type: TableTypeDetails::TimescaleHypertable {
+                        dimensions: vec![
+                            HypertableDimension::Time {
+                                column_name: "time".to_string(),
+                                time_interval: Interval::new(0,7,0),
+                            },
+                        ],
+                        compression: Some(HypertableCompression {
+                            enabled: true,
+                            segment_by_columns: Some(vec!["symbol".to_string()]),
+                            order_by_columns: Some(vec![
+                                HypertableCompressionOrderedColumn {
+                                    column_name: "time".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                },
+                                HypertableCompressionOrderedColumn {
+                                    column_name: "day_volume".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                },
+                            ]),
+                            chunk_time_interval: Some(1209600000000),
+                            compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
+                            compress_after: Some(Interval::new(0, 7, 0))
+                        }),
                     },
                     ..default()
                 }],

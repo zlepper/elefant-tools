@@ -165,7 +165,7 @@ impl PostgresFunction {
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on ");
             sql.push_str(function_keyword);
-            sql.push_str(" ");
+            String::push_str(&mut sql, " ");
             sql.push_str(&fn_name);
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));

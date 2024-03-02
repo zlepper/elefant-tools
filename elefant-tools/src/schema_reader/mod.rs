@@ -184,14 +184,12 @@ impl SchemaReader<'_> {
         }
 
         for trigger in triggers {
-            if db.timescale_support.is_enabled {
-                if hypertables.iter().any(|h| {
+            if db.timescale_support.is_enabled && hypertables.iter().any(|h| {
                     h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
                 }) {
-                    // Skip the trigger if it's a TimescaleDB internal trigger
-                    if trigger.name == "ts_insert_blocker" || trigger.name == "ts_cagg_invalidation_trigger" {
-                        continue;
-                    }
+                // Skip the trigger if it's a TimescaleDB internal trigger
+                if trigger.name == "ts_insert_blocker" || trigger.name == "ts_cagg_invalidation_trigger" {
+                    continue;
                 }
             }
 

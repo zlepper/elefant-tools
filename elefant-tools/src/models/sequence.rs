@@ -48,7 +48,7 @@ impl PostgresSequence {
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on sequence ");
             sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
-            sql.push_str(".");
+            sql.push('.');
             sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));

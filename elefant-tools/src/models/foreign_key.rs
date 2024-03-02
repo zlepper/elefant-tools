@@ -102,7 +102,7 @@ impl PostgresForeignKey {
             sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
             sql.push_str(" on ");
             sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
-            sql.push_str(".");
+            sql.push('.');
             sql.push_str(&table.name.quote(identifier_quoter, ColumnName));
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));

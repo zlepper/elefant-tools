@@ -93,7 +93,7 @@ impl PostgresIndex {
             command.push_str(" nulls not distinct")
         }
 
-        if self.storage_parameters.len() > 0 {
+        if !self.storage_parameters.is_empty() {
             command.push_str(" with (");
             command.push_join(", ", self.storage_parameters.iter());
             command.push(')');

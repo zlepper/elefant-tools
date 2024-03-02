@@ -116,6 +116,7 @@ pub struct PostgresViewColumn {
     pub ordinal_position: i32,
 }
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Eq, PartialEq, Default)]
 pub enum ViewOptions {
     #[default]

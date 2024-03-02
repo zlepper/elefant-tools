@@ -32,8 +32,6 @@ impl Default for TimescaleDbUserDefinedJob {
 
 impl TimescaleDbUserDefinedJob {
     pub fn get_create_sql(&self, identifier_quoter: &IdentifierQuoter) -> String {
-        // SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}');
-
         let mut sql = "select add_job('".to_string();
         sql.push_str(&self.function_schema.quote(identifier_quoter, TypeOrFunctionName));
         sql.push('.');

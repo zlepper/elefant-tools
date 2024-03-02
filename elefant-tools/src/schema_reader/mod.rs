@@ -33,6 +33,7 @@ mod unique_constraint;
 mod view;
 mod view_column;
 mod timescale_continuous_aggregate;
+mod timescale_job;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -76,14 +77,15 @@ impl SchemaReader<'_> {
             extensions.retain(|e| e.extension_name != "timescaledb_toolkit");
         }
 
-        let (hypertables, hypertable_dimensions, continuous_aggregates) = if db.timescale_support.is_enabled {
+        let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) = if db.timescale_support.is_enabled {
             let hypertables = self.get_hypertables().await?;
             let hypertable_dimensions = self.get_hypertable_dimensions().await?;
             let continuous_aggregates = self.get_continuous_aggregates().await?;
+            let jobs = self.get_timescale_jobs().await?;
 
-            (hypertables, hypertable_dimensions, continuous_aggregates)
+            (hypertables, hypertable_dimensions, continuous_aggregates, jobs)
         } else {
-            (vec![], vec![], vec![])
+            (vec![], vec![], vec![], vec![])
         };
 
         for row in schemas {
@@ -191,7 +193,6 @@ impl SchemaReader<'_> {
                         continue;
                     }
                 }
-
             }
 
             let current_schema = db.get_or_create_schema_mut(&trigger.schema_name);
@@ -222,6 +223,19 @@ impl SchemaReader<'_> {
             };
 
             current_schema.enums.push(enumeration);
+        }
+
+        for timescale_job in timescale_jobs {
+            db.timescale_support.user_defined_jobs.push(TimescaleDbUserDefinedJob {
+                function_name: timescale_job.function_name.clone(),
+                function_schema: timescale_job.function_schema.clone(),
+                check_config_name: timescale_job.check_config_name.clone(),
+                check_config_schema: timescale_job.check_config_schema.clone(),
+                schedule_interval: timescale_job.schedule_interval,
+                fixed_schedule: timescale_job.fixed_schedule,
+                config: timescale_job.config.clone().map(|c| c.into()),
+                scheduled: timescale_job.scheduled,
+            })
         }
 
         Ok(db)
@@ -291,7 +305,7 @@ impl SchemaReader<'_> {
                 ViewOptions::TimescaleContinuousAggregate {
                     refresh,
                     compression,
-                    retention
+                    retention,
                 }
             } else {
                 ViewOptions::None

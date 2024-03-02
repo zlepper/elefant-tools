@@ -1,4 +1,4 @@
-use crate::default;
+use crate::{default, TimescaleDbUserDefinedJob};
 use crate::models::extension::PostgresExtension;
 use crate::models::schema::PostgresSchema;
 
@@ -13,6 +13,7 @@ pub struct PostgresDatabase {
 pub struct TimescaleSupport {
     pub is_enabled: bool,
     pub timescale_toolkit_is_enabled: bool,
+    pub user_defined_jobs: Vec<TimescaleDbUserDefinedJob>,
 }
 
 impl PostgresDatabase {

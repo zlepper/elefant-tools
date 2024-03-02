@@ -54,7 +54,7 @@ impl Display for WhitespaceIgnorantString {
 
 impl PartialEq<Self> for WhitespaceIgnorantString {
     fn eq(&self, other: &Self) -> bool {
-        self.inner.split_whitespace().eq(other.inner.split_whitespace())
+        self.inner.split_whitespace().collect::<String>() == other.inner.split_whitespace().collect::<String>()
     }
 }
 
@@ -63,7 +63,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn simple() {
+    fn a() {
         let s1 = WhitespaceIgnorantString::from("  hello  ".to_string());
         let s2 = WhitespaceIgnorantString::from("hello".to_string());
         assert_eq!(s1, s2);
@@ -72,7 +72,7 @@ mod tests {
     }
 
     #[test]
-    fn middle() {
+    fn b() {
         let s1 = WhitespaceIgnorantString::from("hel        lo".to_string());
         let s2 = WhitespaceIgnorantString::from("hel lo".to_string());
         assert_eq!(s1, s2);
@@ -81,9 +81,23 @@ mod tests {
     }
 
     #[test]
-    fn whitespace_still_counts() {
-        let s1 = WhitespaceIgnorantString::from("hel lo".to_string());
-        let s2 = WhitespaceIgnorantString::from("hello".to_string());
-        assert_ne!(s1, s2);
+    fn c() {
+        let s1 = WhitespaceIgnorantString::from("  hel        lo  ".to_string());
+        let s2 = WhitespaceIgnorantString::from("hel lo".to_string());
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn d() {
+        let s1 = WhitespaceIgnorantString::from("  hel        lo  ".to_string());
+        let s2 = WhitespaceIgnorantString::from(" hel lo     ".to_string());
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn e() {
+        let s1 = WhitespaceIgnorantString::from(r#"{"hypertable":"metrics"}"#.to_string());
+        let s2 = WhitespaceIgnorantString::from(r#"{"hypertable": "metrics"}"#.to_string());
+        assert_eq!(s1, s2);
     }
 }

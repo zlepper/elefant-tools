@@ -727,4 +727,20 @@ SELECT create_hypertable('conditions', by_range('time', '1 hour'::interval));
 SELECT add_retention_policy('conditions', INTERVAL '24 hours');
        "#, source, destination).await;
     }
+    
+    #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+    #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+    async fn timescale_user_defined_jobs(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+CREATE PROCEDURE user_defined_action(job_id INT, config JSONB)
+    LANGUAGE PLPGSQL AS
+    $$
+    BEGIN
+        RAISE NOTICE 'Executing job % with config %', job_id, config;
+    END
+    $$;
+    
+SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}');
+       "#, source, destination).await;
+    }
 }

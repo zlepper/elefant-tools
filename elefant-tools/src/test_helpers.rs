@@ -126,6 +126,7 @@ impl crate::models::TimescaleSupport {
         Self {
             is_enabled: helper.is_timescale_db,
             timescale_toolkit_is_enabled: helper.is_timescale_db,
+            user_defined_jobs: vec![],
         }
     }
 }

@@ -58,7 +58,7 @@
 ✅ Continuous aggregates
     ✅ Compression
 ✅ Retention policies
-❌ User defined actions/jobs
+✅ User defined actions/jobs
 ```
 
 Do note: This uses high level features in Timescale, and doesn't operate directly on the underlying

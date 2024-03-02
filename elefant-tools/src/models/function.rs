@@ -88,7 +88,14 @@ pub struct PostgresFunction {
 impl PostgresFunction {
     pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
         let fn_name = identifier_quoter.quote(&self.function_name, TypeOrFunctionName);
-        let mut sql = format!("create function {} ({})", fn_name, self.arguments);
+        
+        let function_keyword = if self.kind == FunctionKind::Procedure {
+            "procedure"
+        } else {
+            "function"
+        };
+        
+        let mut sql = format!("create {} {} ({})", function_keyword, fn_name, self.arguments);
 
         if let Some(result) = &self.result {
             sql.push_str(" returns ");
@@ -103,24 +110,26 @@ impl PostgresFunction {
             sql.push_str("window ");
         }
 
-        match self.volatility {
-            Volatility::Immutable => sql.push_str(" immutable "),
-            Volatility::Stable => sql.push_str(" stable "),
-            Volatility::Volatile => sql.push_str(" volatile "),
-        }
+        if self.kind != FunctionKind::Procedure {
+            match self.volatility {
+                Volatility::Immutable => sql.push_str(" immutable "),
+                Volatility::Stable => sql.push_str(" stable "),
+                Volatility::Volatile => sql.push_str(" volatile "),
+            }
 
-        match self.parallel {
-            Parallel::Safe => sql.push_str(" parallel safe "),
-            Parallel::Restricted => sql.push_str(" parallel restricted "),
-            Parallel::Unsafe => sql.push_str(" parallel unsafe "),
-        }
+            match self.parallel {
+                Parallel::Safe => sql.push_str(" parallel safe "),
+                Parallel::Restricted => sql.push_str(" parallel restricted "),
+                Parallel::Unsafe => sql.push_str(" parallel unsafe "),
+            }
 
-        if self.leak_proof {
-            sql.push_str(" leakproof ");
-        }
+            if self.leak_proof {
+                sql.push_str(" leakproof ");
+            }
 
-        if self.strict {
-            sql.push_str(" strict ");
+            if self.strict {
+                sql.push_str(" strict ");
+            }
         }
 
         if self.security_definer {
@@ -133,18 +142,20 @@ impl PostgresFunction {
                 sql.push_str(cfg);
             }
         }
+        
+        if self.kind != FunctionKind::Procedure {
+            sql.push_str("cost ");
+            sql.push_str(&self.estimated_cost.to_string());
 
-        sql.push_str("cost ");
-        sql.push_str(&self.estimated_cost.to_string());
+            if self.estimated_rows.into_inner() > 0. {
+                sql.push_str(" rows ");
+                sql.push_str(&self.estimated_rows.to_string());
+            }
 
-        if self.estimated_rows.into_inner() > 0. {
-            sql.push_str(" rows ");
-            sql.push_str(&self.estimated_rows.to_string());
-        }
-
-        if let Some(support_function_name) = &self.support_function {
-            sql.push_str(" support ");
-            sql.push_str(support_function_name);
+            if let Some(support_function_name) = &self.support_function {
+                sql.push_str(" support ");
+                sql.push_str(support_function_name);
+            }
         }
 
         sql.push_str(" as $$");
@@ -152,7 +163,9 @@ impl PostgresFunction {
         sql.push_str("$$;");
 
         if let Some(comment) = &self.comment {
-            sql.push_str("\ncomment on function ");
+            sql.push_str("\ncomment on ");
+            sql.push_str(function_keyword);
+            sql.push_str(" ");
             sql.push_str(&fn_name);
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));

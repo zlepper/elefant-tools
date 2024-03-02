@@ -146,6 +146,10 @@ async fn apply_post_copy_structure(destination: &mut impl CopyDestination, defin
         }
     }
 
+    for job in &definition.timescale_support.user_defined_jobs {
+        destination.apply_ddl_statement(&job.get_create_sql(&identifier_quoter)).await?;
+    }
+
     Ok(())
 }
 

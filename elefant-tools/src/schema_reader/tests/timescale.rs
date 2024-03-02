@@ -1,6 +1,7 @@
+use ordered_float::NotNan;
 use pg_interval::Interval;
 use elefant_test_macros::pg_test;
-use crate::{default, HypertableCompression, HypertableCompressionOrderedColumn, HypertableDimension, HypertableRetention, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable, PostgresView, PostgresViewColumn, TableTypeDetails, TimescaleContinuousAggregateRefreshOptions, TimescaleSupport, ViewOptions};
+use crate::{default, FunctionKind, HypertableCompression, HypertableCompressionOrderedColumn, HypertableDimension, HypertableRetention, PostgresColumn, PostgresDatabase, PostgresFunction, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable, PostgresView, PostgresViewColumn, TableTypeDetails, TimescaleContinuousAggregateRefreshOptions, TimescaleDbUserDefinedJob, TimescaleSupport, ViewOptions};
 use crate::schema_reader::tests::test_introspection;
 use crate::TableTypeDetails::TimescaleHypertable;
 use crate::test_helpers::TestHelper;
@@ -120,6 +121,7 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
             timescale_support: TimescaleSupport {
                 is_enabled: true,
                 timescale_toolkit_is_enabled: true,
+                ..default()
             },
             ..default()
         },
@@ -236,6 +238,7 @@ select add_compression_policy('stocks_real_time', interval '7 days');
             timescale_support: TimescaleSupport {
                 is_enabled: true,
                 timescale_toolkit_is_enabled: true,
+                ..default()
             },
             ..default()
         },
@@ -403,7 +406,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                             retention: Some(HypertableRetention {
                                 schedule_interval: Interval::new(0, 1, 0),
                                 drop_after: Interval::new(24, 0, 0),
-                            })
+                            }),
                         },
                         ..default()
                     }
@@ -413,6 +416,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
             timescale_support: TimescaleSupport {
                 is_enabled: true,
                 timescale_toolkit_is_enabled: true,
+                ..default()
             },
             ..default()
         },
@@ -579,7 +583,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                             retention: Some(HypertableRetention {
                                 schedule_interval: Interval::new(0, 1, 0),
                                 drop_after: Interval::new(24, 0, 0),
-                            })
+                            }),
                         },
                         ..default()
                     }
@@ -589,6 +593,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
             timescale_support: TimescaleSupport {
                 is_enabled: true,
                 timescale_toolkit_is_enabled: true,
+                ..default()
             },
             ..default()
         },
@@ -658,6 +663,58 @@ SELECT add_retention_policy('conditions', INTERVAL '24 hours');
             timescale_support: TimescaleSupport {
                 is_enabled: true,
                 timescale_toolkit_is_enabled: true,
+                ..default()
+            },
+            ..default()
+        },
+    )
+        .await;
+}
+
+#[pg_test(arg(timescale_db = 15))]
+async fn inspect_user_defined_jobs(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+CREATE PROCEDURE user_defined_action(job_id INT, config JSONB)
+    LANGUAGE PLPGSQL AS
+    $$
+    BEGIN
+        RAISE NOTICE 'Executing job % with config %', job_id, config;
+    END
+    $$;
+    
+SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}');
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                functions: vec![PostgresFunction {
+                    function_name: "user_defined_action".to_string(),
+                    language: "plpgsql".to_string(),
+                    sql_body: r#"BEGIN
+                        RAISE NOTICE 'Executing job % with config %', job_id, config;
+                    END"#.into(),
+                    arguments: "IN job_id integer, IN config jsonb".to_string(),
+                    estimated_cost: NotNan::new(100.0).unwrap(),
+                    kind: FunctionKind::Procedure,
+                    ..default()
+                }],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport {
+                is_enabled: true,
+                timescale_toolkit_is_enabled: true,
+                user_defined_jobs: vec![TimescaleDbUserDefinedJob {
+                    function_name: "user_defined_action".to_string(),
+                    function_schema: "public".to_string(),
+                    schedule_interval: Interval::new(0, 0, 3600000000),
+                    config: Some(r#"{"hypertable":"metrics"}"#.into()),
+                    scheduled: true,
+                    check_config_name: None,
+                    check_config_schema: None,
+                    fixed_schedule: true,
+                }]
             },
             ..default()
         },

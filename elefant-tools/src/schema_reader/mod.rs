@@ -1,7 +1,7 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::postgres_client_wrapper::PostgresClientWrapper;
-use crate::schema_reader::check_contraint::CheckConstraintResult;
+use crate::schema_reader::check_constraint::CheckConstraintResult;
 use crate::schema_reader::foreign_key::ForeignKeyResult;
 use crate::schema_reader::foreign_key_column::ForeignKeyColumnResult;
 use crate::schema_reader::index::IndexResult;
@@ -12,7 +12,7 @@ use crate::{ElefantToolsError, Result};
 use itertools::Itertools;
 use ordered_float::NotNan;
 
-mod check_contraint;
+mod check_constraint;
 mod enumeration;
 mod extension;
 mod foreign_key;
@@ -32,7 +32,7 @@ mod trigger;
 mod unique_constraint;
 mod view;
 mod view_column;
-mod timescale_continuous_aggegate;
+mod timescale_continuous_aggregate;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -278,9 +278,20 @@ impl SchemaReader<'_> {
                     })
                 };
 
+
+                let retention = if let (Some(schedule_interval), Some(drop_after)) = (ca.retention_schedule_interval, ca.retention_drop_after) {
+                    Some(HypertableRetention {
+                        schedule_interval,
+                        drop_after,
+                    })
+                } else {
+                    None
+                };
+
                 ViewOptions::TimescaleContinuousAggregate {
                     refresh,
                     compression,
+                    retention
                 }
             } else {
                 ViewOptions::None
@@ -391,9 +402,19 @@ impl SchemaReader<'_> {
                 })
             };
 
+            let retention = if let (Some(schedule_interval), Some(drop_after)) = (hypertable.retention_schedule_interval, hypertable.retention_drop_after) {
+                Some(HypertableRetention {
+                    schedule_interval,
+                    drop_after,
+                })
+            } else {
+                None
+            };
+
             TimescaleHypertable {
                 dimensions,
                 compression,
+                retention,
             }
         } else if row.is_partition {
             let parent_tables = row.parent_tables.clone().ok_or_else(|| {
@@ -662,6 +683,6 @@ use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDim
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 use crate::TableTypeDetails::TimescaleHypertable;
 pub(crate) use define_working_query;
-use crate::schema_reader::timescale_continuous_aggegate::ContinuousAggregateResult;
+use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
 use crate::schema_reader::view::ViewResult;
 use crate::schema_reader::view_column::ViewColumnResult;

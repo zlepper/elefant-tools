@@ -21,6 +21,8 @@ pub struct ContinuousAggregateResult {
     pub compress_order_by_nulls_first: Option<Vec<bool>>,
     pub compress_segment_by: Option<Vec<String>>,
     pub compress_chunk_time_interval: Option<Interval>,
+    pub retention_schedule_interval: Option<Interval>,
+    pub retention_drop_after: Option<Interval>,
 }
 
 impl FromRow for ContinuousAggregateResult {
@@ -43,6 +45,8 @@ impl FromRow for ContinuousAggregateResult {
             compress_order_by_nulls_first: row.try_get(14)?,
             compress_segment_by: row.try_get(15)?,
             compress_chunk_time_interval: row.try_get(16)?,
+            retention_schedule_interval: row.try_get(17)?,
+            retention_drop_after: row.try_get(18)?,
         })
     }
 }
@@ -69,7 +73,9 @@ SELECT ht.schema_name                                       AS hypertable_schema
        cs.orderby_desc                                      as compress_orderby_desc,
        cs.orderby_nullsfirst                                as compress_orderby_nullsfirst,
        cs.segmentby                                         as compress_segmentby,
-        _timescaledb_functions.to_interval(dim.compress_interval_length) as compress_chunk_time_interval
+        _timescaledb_functions.to_interval(dim.compress_interval_length) as compress_chunk_time_interval,
+        retention_job.schedule_interval as retention_schedule_interval,
+        (retention_job.config->>'drop_after')::interval as retention_drop_after
 FROM _timescaledb_catalog.continuous_agg cagg
          join _timescaledb_catalog.hypertable ht on cagg.raw_hypertable_id = ht.id
          join _timescaledb_catalog.hypertable mat_ht on cagg.mat_hypertable_id = mat_ht.id
@@ -84,5 +90,6 @@ FROM _timescaledb_catalog.continuous_agg cagg
                    on compress_job.hypertable_id = mat_ht.id and compress_job.proc_name = 'policy_compression' and
                       compress_job.proc_schema = '_timescaledb_functions'
          left join _timescaledb_catalog.compression_settings cs
-                   on cs.relid = (mat_ht.schema_name || '.' || mat_ht.table_name)::regclass;
+                   on cs.relid = (mat_ht.schema_name || '.' || mat_ht.table_name)::regclass
+left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = mat_ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
 "#);

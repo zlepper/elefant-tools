@@ -14,6 +14,7 @@ mod unique_constraint;
 mod trigger;
 mod enumeration;
 mod hypertable_compression;
+mod hypertable_retention;
 
 pub use constraint::*;
 pub use check_constraint::*;
@@ -31,3 +32,4 @@ pub use unique_constraint::*;
 pub use trigger::*;
 pub use enumeration::*;
 pub use hypertable_compression::*;
+pub use hypertable_retention::*;

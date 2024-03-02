@@ -1,5 +1,6 @@
 use pg_interval::Interval;
 use crate::{HypertableCompression, PostgresSchema};
+use crate::models::hypertable_retention::HypertableRetention;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
@@ -68,7 +69,7 @@ impl PostgresView {
         }
 
 
-        if let ViewOptions::TimescaleContinuousAggregate { refresh, compression} = &self.view_options {
+        if let ViewOptions::TimescaleContinuousAggregate { refresh, compression, retention} = &self.view_options {
             if let Some(refresh) = refresh {
                 sql.push_str("\nselect add_continuous_aggregate_policy('");
                 sql.push_str(&escaped_relation_name);
@@ -84,6 +85,12 @@ impl PostgresView {
             if let Some(compression) = compression {
                 sql.push_str("alter materialized view ");
                 compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
+            }
+
+
+            if let Some(retention) = retention {
+                sql.push('\n');
+                retention.add_retention(&mut sql, &escaped_relation_name);
             }
         }
 
@@ -104,6 +111,7 @@ pub enum ViewOptions {
     TimescaleContinuousAggregate {
         refresh: Option<TimescaleContinuousAggregateRefreshOptions>,
         compression: Option<HypertableCompression>,
+        retention: Option<HypertableRetention>,
     },
 }
 

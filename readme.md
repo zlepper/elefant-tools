@@ -57,7 +57,7 @@
     ❌ Distributed hypertables
 ✅ Continuous aggregates
     ✅ Compression
-❌ Retention policies
+✅ Retention policies
 ❌ User defined actions/jobs
 ```
 

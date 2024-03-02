@@ -4,6 +4,7 @@ use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
 use crate::{DataFormat, default, ElefantToolsError, HypertableCompression, PostgresIndexType};
 use crate::helpers::StringExt;
+use crate::models::hypertable_retention::HypertableRetention;
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::postgres_client_wrapper::FromPgChar;
@@ -156,7 +157,7 @@ impl PostgresTable {
             }
         }
 
-        if let TableTypeDetails::TimescaleHypertable {dimensions, compression} = &self.table_type {
+        if let TableTypeDetails::TimescaleHypertable {dimensions, compression, retention} = &self.table_type {
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {
                 match dim {
@@ -187,6 +188,11 @@ impl PostgresTable {
             if let Some(compression) = compression {
                 sql.push_str("\nalter table ");
                 compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
+            }
+            
+            if let Some(retention) = retention {
+                sql.push('\n');
+                retention.add_retention(&mut sql, &escaped_relation_name);
             }
         }
 
@@ -291,6 +297,7 @@ pub enum TableTypeDetails {
     TimescaleHypertable {
         dimensions: Vec<HypertableDimension>,
         compression: Option<HypertableCompression>,
+        retention: Option<HypertableRetention>,
     }
 }
 
@@ -333,3 +340,4 @@ pub enum HypertableDimension {
         num_partitions: i16,
     },
 }
+

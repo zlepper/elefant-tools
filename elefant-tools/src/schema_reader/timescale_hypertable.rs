@@ -14,6 +14,8 @@ pub struct HypertableResult {
     pub compress_order_by_desc: Option<Vec<bool>>,
     pub compress_order_by_nulls_first: Option<Vec<bool>>,
     pub compress_segment_by: Option<Vec<String>>,
+    pub retention_schedule_interval: Option<Interval>,
+    pub retention_drop_after: Option<Interval>,
 }
 
 impl FromRow for HypertableResult {
@@ -29,6 +31,8 @@ impl FromRow for HypertableResult {
             compress_order_by_desc: row.try_get(7)?,
             compress_order_by_nulls_first: row.try_get(8)?,
             compress_segment_by: row.try_get(9)?,
+            retention_schedule_interval: row.try_get(10)?,
+            retention_drop_after: row.try_get(11)?,
         })
     }
 }
@@ -39,16 +43,19 @@ select ht.schema_name,
          ht.table_name,
          ht.compression_state = 1 as compression_enabled,
         _timescaledb_functions.to_interval(dim.compress_interval_length) as compress_chunk_time_interval,
-        j.schedule_interval,
-        (j.config->>'compress_after')::interval as compress_after,
+        compression_job.schedule_interval,
+        (compression_job.config->>'compress_after')::interval as compress_after,
         cs.orderby,
         cs.orderby_desc,
         cs.orderby_nullsfirst,
-        cs.segmentby
+        cs.segmentby,
+        retention_job.schedule_interval as retention_schedule_interval,
+        (retention_job.config->>'drop_after')::interval as retention_drop_after
 from _timescaledb_catalog.hypertable ht
 left join _timescaledb_catalog.dimension dim on ht.id = dim.hypertable_id and dim.compress_interval_length is not null
-left join _timescaledb_config.bgw_job j on j.hypertable_id = ht.id and j.proc_name = 'policy_compression' and j.proc_schema = '_timescaledb_functions'
+left join _timescaledb_config.bgw_job compression_job on compression_job.hypertable_id = ht.id and compression_job.proc_name = 'policy_compression' and compression_job.proc_schema = '_timescaledb_functions'
 left join _timescaledb_catalog.compression_settings cs on cs.relid = (ht.schema_name || '.' || ht.table_name)::regclass
+left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
 join pg_catalog.pg_namespace n on ht.schema_name = n.nspname
          left join pg_depend dep on dep.objid = n.oid
 WHERE (n.oid > 16384 or n.nspname = 'public')

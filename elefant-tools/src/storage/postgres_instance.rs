@@ -675,7 +675,6 @@ select add_compression_policy('stocks_real_time', interval '7 days');
     #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
     async fn timescale_continuous_aggregate(source: &TestHelper, destination: &TestHelper) {
         test_round_trip(r#"
-        
 CREATE TABLE stocks_real_time (
   time TIMESTAMPTZ NOT NULL,
   symbol TEXT NOT NULL,
@@ -707,6 +706,20 @@ SELECT add_continuous_aggregate_policy('stock_candlestick_daily',
 alter materialized view stock_candlestick_daily set (timescaledb.compress = true);
 
 SELECT add_compression_policy('stock_candlestick_daily', compress_after=>'360 days'::interval);
+SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
+       "#, source, destination).await;
+    }
+
+    #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+    #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+    async fn timescale_retention_policy(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+CREATE TABLE conditions (
+  time TIMESTAMPTZ NOT NULL
+);
+
+SELECT create_hypertable('conditions', by_range('time', '1 hour'::interval));
+SELECT add_retention_policy('conditions', INTERVAL '24 hours');
        "#, source, destination).await;
     }
 }

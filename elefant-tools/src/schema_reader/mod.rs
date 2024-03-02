@@ -32,6 +32,7 @@ mod trigger;
 mod unique_constraint;
 mod view;
 mod view_column;
+mod timescale_continuous_aggegate;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -75,13 +76,14 @@ impl SchemaReader<'_> {
             extensions.retain(|e| e.extension_name != "timescaledb_toolkit");
         }
 
-        let (hypertables, hypertable_dimensions) = if db.timescale_support.is_enabled {
+        let (hypertables, hypertable_dimensions, continuous_aggregates) = if db.timescale_support.is_enabled {
             let hypertables = self.get_hypertables().await?;
             let hypertable_dimensions = self.get_hypertable_dimensions().await?;
+            let continuous_aggregates = self.get_continuous_aggregates().await?;
 
-            (hypertables, hypertable_dimensions)
+            (hypertables, hypertable_dimensions, continuous_aggregates)
         } else {
-            (vec![], vec![])
+            (vec![], vec![], vec![])
         };
 
         for row in schemas {
@@ -135,20 +137,7 @@ impl SchemaReader<'_> {
         for view in &views {
             let current_schema = db.get_or_create_schema_mut(&view.schema_name);
 
-            let view = PostgresView {
-                name: view.view_name.clone(),
-                definition: view.definition.clone(),
-                columns: view_columns
-                    .iter()
-                    .filter(|c| c.view_name == view.view_name && c.schema_name == view.schema_name)
-                    .map(|c| PostgresViewColumn {
-                        name: c.column_name.clone(),
-                        ordinal_position: c.ordinal_position,
-                    })
-                    .collect(),
-                comment: view.comment.clone(),
-                is_materialized: view.is_materialized,
-            };
+            let view = Self::add_view(view, &view_columns, &continuous_aggregates);
 
             current_schema.views.push(view);
         }
@@ -171,7 +160,7 @@ impl SchemaReader<'_> {
                 returns_set: function.returns_set,
                 volatility: function.volatility,
                 parallel: function.parallel,
-                sql_body: function.sql_body.trim().to_string(),
+                sql_body: function.sql_body.trim().into(),
                 configuration: function.configuration.clone(),
                 arguments: function.arguments.clone(),
                 result: function.result.clone(),
@@ -194,14 +183,15 @@ impl SchemaReader<'_> {
 
         for trigger in triggers {
             if db.timescale_support.is_enabled {
-                if let Some(_) = hypertables.iter().find(|h| {
+                if hypertables.iter().any(|h| {
                     h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
                 }) {
                     // Skip the trigger if it's a TimescaleDB internal trigger
-                    if trigger.name == "ts_insert_blocker" {
+                    if trigger.name == "ts_insert_blocker" || trigger.name == "ts_cagg_invalidation_trigger" {
                         continue;
                     }
                 }
+
             }
 
             let current_schema = db.get_or_create_schema_mut(&trigger.schema_name);
@@ -235,6 +225,91 @@ impl SchemaReader<'_> {
         }
 
         Ok(db)
+    }
+
+    fn add_view(view: &ViewResult, view_columns: &[ViewColumnResult], continuous_aggregates: &[ContinuousAggregateResult]) -> PostgresView {
+        let continuous_aggregate = continuous_aggregates.iter().find(|c| c.view_name == view.view_name && c.view_schema == view.schema_name);
+        PostgresView {
+            name: view.view_name.clone(),
+            definition: if let Some(ca) = &continuous_aggregate {
+                &ca.view_definition
+            } else {
+                &view.definition
+            }.clone().into(),
+            columns: view_columns
+                .iter()
+                .filter(|c| c.view_name == view.view_name && c.schema_name == view.schema_name)
+                .map(|c| PostgresViewColumn {
+                    name: c.column_name.clone(),
+                    ordinal_position: c.ordinal_position,
+                })
+                .collect(),
+            comment: view.comment.clone(),
+            is_materialized: view.is_materialized || continuous_aggregate.is_some(),
+            view_options: if let Some(ca) = continuous_aggregate {
+                let refresh = if let (Some(refresh), Some(start), Some(end)) = (ca.refresh_interval, ca.refresh_start_offset, ca.refresh_end_offset) {
+                    Some(TimescaleContinuousAggregateRefreshOptions {
+                        interval: refresh,
+                        start_offset: start,
+                        end_offset: end,
+                    })
+                } else {
+                    None
+                };
+
+
+                let compression = if let (false, None, None, None, None, None) = (
+                    ca.compression_enabled,
+                    ca.compress_after,
+                    ca.compress_job_interval,
+                    &ca.compress_segment_by,
+                    &ca.compress_order_by,
+                    &ca.compress_chunk_time_interval,
+                ) {
+                    None
+                } else {
+                    Some(HypertableCompression {
+                        enabled: ca.compression_enabled,
+                        compression_schedule_interval: ca.compress_job_interval,
+                        chunk_time_interval: ca.compress_chunk_time_interval,
+                        compress_after: ca.compress_after,
+                        order_by_columns: Self::get_hypertable_compression_order_by_columns(&ca.compress_order_by, &ca.compress_order_by_desc, &ca.compress_order_by_nulls_first),
+                        segment_by_columns: ca.compress_segment_by.clone(),
+                    })
+                };
+
+                ViewOptions::TimescaleContinuousAggregate {
+                    refresh,
+                    compression,
+                }
+            } else {
+                ViewOptions::None
+            },
+        }
+    }
+
+    fn get_hypertable_compression_order_by_columns(compress_order_by: &Option<Vec<String>>,
+                                                   compress_order_by_desc: &Option<Vec<bool>>,
+                                                   compress_order_by_nulls_first: &Option<Vec<bool>>) -> Option<Vec<HypertableCompressionOrderedColumn>> {
+        if let (Some(order_by), Some(desc), Some(nulls_first)) = (
+            &compress_order_by,
+            &compress_order_by_desc,
+            &compress_order_by_nulls_first,
+        ) {
+            let cols = itertools::izip!(order_by, desc, nulls_first)
+                .map(
+                    |(column, desc, nulls_first)| HypertableCompressionOrderedColumn {
+                        column_name: column.clone(),
+                        descending: *desc,
+                        nulls_first: *nulls_first,
+                    },
+                )
+                .collect();
+
+            Some(cols)
+        } else {
+            None
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -311,25 +386,7 @@ impl SchemaReader<'_> {
                     compression_schedule_interval: hypertable.compression_schedule_interval,
                     chunk_time_interval: hypertable.compression_chunk_interval,
                     compress_after: hypertable.compress_after,
-                    order_by_columns: if let (Some(order_by), Some(desc), Some(nulls_first)) = (
-                        &hypertable.compress_order_by,
-                        &hypertable.compress_order_by_desc,
-                        &hypertable.compress_order_by_nulls_first,
-                    ) {
-                        let cols = itertools::izip!(order_by, desc, nulls_first)
-                            .map(
-                                |(column, desc, nulls_first)| HypertableCompressionOrderedColumn {
-                                    column_name: column.clone(),
-                                    descending: *desc,
-                                    nulls_first: *nulls_first,
-                                },
-                            )
-                            .collect();
-                        
-                        Some(cols)
-                    } else {
-                        None
-                    },
+                    order_by_columns: Self::get_hypertable_compression_order_by_columns(&hypertable.compress_order_by, &hypertable.compress_order_by_desc, &hypertable.compress_order_by_nulls_first),
                     segment_by_columns: hypertable.compress_segment_by.clone(),
                 })
             };
@@ -367,7 +424,7 @@ impl SchemaReader<'_> {
                     (None, None) => {
                         return Err(ElefantToolsError::PartitionedTableWithoutPartitionColumns(
                             row.table_name.clone(),
-                        ))
+                        ));
                     }
                     (None, Some(expr)) => PartitionedTableColumns::Expression(expr.clone()),
                     (Some(column_indices), None) => {
@@ -406,8 +463,8 @@ impl SchemaReader<'_> {
         let table = PostgresTable {
             name: row.table_name.clone(),
             columns: table_columns,
-            constraints: constraints,
-            indices: indices,
+            constraints,
+            indices,
             comment: row.comment,
             storage_parameters: row.storage_parameters.unwrap_or_default(),
             table_type: table_details,
@@ -437,10 +494,10 @@ impl SchemaReader<'_> {
             .map(|check_constraint| {
                 PostgresCheckConstraint {
                     name: check_constraint.constraint_name.clone(),
-                    check_clause: check_constraint.check_clause.clone(),
+                    check_clause: check_constraint.check_clause.clone().into(),
                     comment: check_constraint.comment.clone(),
                 }
-                .into()
+                    .into()
             })
             .collect();
 
@@ -491,7 +548,7 @@ impl SchemaReader<'_> {
                         .collect(),
                     comment: fk.comment.clone(),
                 }
-                .into()
+                    .into()
             })
             .collect();
 
@@ -605,3 +662,6 @@ use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDim
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 use crate::TableTypeDetails::TimescaleHypertable;
 pub(crate) use define_working_query;
+use crate::schema_reader::timescale_continuous_aggegate::ContinuousAggregateResult;
+use crate::schema_reader::view::ViewResult;
+use crate::schema_reader::view_column::ViewColumnResult;

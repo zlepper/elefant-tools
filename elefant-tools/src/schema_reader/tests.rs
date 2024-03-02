@@ -77,12 +77,12 @@ async fn reads_simple_schema(helper: &TestHelper) {
                         PostgresConstraint::Check(PostgresCheckConstraint {
                             name: "my_multi_check".to_string(),
                             check_clause: "(((age > 21) AND (age < 65) AND (name IS NOT NULL)))"
-                                .to_string(),
+                                .into(),
                             ..default()
                         }),
                         PostgresConstraint::Check(PostgresCheckConstraint {
                             name: "my_table_age_check".to_string(),
-                            check_clause: "((age > 21))".to_string(),
+                            check_clause: "((age > 21))".into(),
                             ..default()
                         }),
                         PostgresConstraint::Unique(PostgresUniqueConstraint {
@@ -157,7 +157,7 @@ async fn reads_simple_schema(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -186,7 +186,7 @@ async fn table_without_columns(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -234,7 +234,7 @@ async fn table_without_primary_key(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -321,7 +321,7 @@ async fn composite_primary_keys(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -424,7 +424,7 @@ async fn indices(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -495,7 +495,7 @@ async fn index_types(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -549,7 +549,7 @@ async fn filtered_index(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -616,7 +616,7 @@ async fn index_with_include(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 15))]
@@ -672,7 +672,7 @@ async fn table_with_non_distinct_nulls(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -810,7 +810,7 @@ async fn foreign_keys(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -981,7 +981,7 @@ async fn foreign_key_constraints(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1031,7 +1031,7 @@ async fn generated_column(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1068,7 +1068,7 @@ async fn test_views(helper: &TestHelper) {
                     definition: " SELECT products.name AS product_name
    FROM products
   WHERE products.name ~~ 'a%'::text;"
-                        .to_string(),
+                        .into(),
                     columns: vec![PostgresViewColumn {
                         name: "product_name".to_string(),
                         ordinal_position: 1,
@@ -1082,7 +1082,7 @@ async fn test_views(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 16))]
@@ -1116,7 +1116,7 @@ async fn test_views_pg_16(helper: &TestHelper) {
                     definition: " SELECT name AS product_name
    FROM products
   WHERE name ~~ 'a%'::text;"
-                        .to_string(),
+                        .into(),
                     columns: vec![PostgresViewColumn {
                         name: "product_name".to_string(),
                         ordinal_position: 1,
@@ -1130,7 +1130,7 @@ async fn test_views_pg_16(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1180,7 +1180,7 @@ async fn test_functions(helper: &TestHelper) {
                                        volatility: Volatility::Volatile,
                                        parallel: Parallel::Unsafe,
                                        sql_body: r#"begin return a + b; end;"#
-                                           .to_string(),
+                                           .into(),
                                        configuration: None,
                                        arguments: "a integer, b integer".to_string(),
                                        result: Some("integer".to_string()),
@@ -1208,7 +1208,7 @@ async fn test_functions(helper: &TestHelper) {
         return query select * from temp_table where name = value;
 
         end;"#
-                                           .to_string(),
+                                           .into(),
                                        configuration: None,
                                        arguments: "value text".to_string(),
                                        result: Some("TABLE(id integer, name text)".to_string()),
@@ -1276,7 +1276,7 @@ async fn test_quoted_identifier_names(helper: &TestHelper) {
             ..default()
         },
     )
-    .await
+        .await
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1307,7 +1307,7 @@ async fn test_extensions(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1378,7 +1378,7 @@ async fn comments_on_stuff(helper: &TestHelper) {
                         constraints: vec![
                             PostgresConstraint::Check(PostgresCheckConstraint {
                                 name: "my_table_value_check".to_string(),
-                                check_clause: "((value > 0))".to_string(),
+                                check_clause: "((value > 0))".into(),
                                 comment: Some("This is a constraint".to_string()),
                             }),
                             PostgresConstraint::Unique(PostgresUniqueConstraint {
@@ -1423,7 +1423,7 @@ async fn comments_on_stuff(helper: &TestHelper) {
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
                         sql_body: r#"begin return 1; end;"#
-                            .to_string(),
+                            .into(),
                         configuration: None,
                         arguments: "".to_string(),
                         result: Some("integer".to_string()),
@@ -1443,7 +1443,7 @@ async fn comments_on_stuff(helper: &TestHelper) {
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
                         sql_body: r#"begin return a + b; end;"#
-                            .to_string(),
+                            .into(),
                         configuration: None,
                         arguments: "a integer, b integer".to_string(),
                         result: Some("integer".to_string()),
@@ -1453,7 +1453,7 @@ async fn comments_on_stuff(helper: &TestHelper) {
                 views: vec![
                     PostgresView {
                         name: "my_view".to_string(),
-                        definition: " SELECT 1 AS value;".to_string(),
+                        definition: "SELECT 1 AS value;".into(),
                         columns: vec![PostgresViewColumn {
                             name: "value".to_string(),
                             ordinal_position: 1,
@@ -1514,7 +1514,7 @@ async fn array_columns(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1535,7 +1535,7 @@ async fn materialized_view(helper: &TestHelper) {
                 name: "public".to_string(),
                 views: vec![PostgresView {
                     name: "my_view".to_string(),
-                    definition: " SELECT 1 AS value;".to_string(),
+                    definition: "SELECT 1 AS value;".into(),
                     columns: vec![PostgresViewColumn {
                         name: "value".to_string(),
                         ordinal_position: 1,
@@ -1549,7 +1549,7 @@ async fn materialized_view(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1610,7 +1610,7 @@ async fn triggers(helper: &TestHelper) {
                         returns_set: false,
                         volatility: Volatility::Volatile,
                         parallel: Parallel::Unsafe,
-                        sql_body: "begin return new; end;".to_string(),
+                        sql_body: "begin return new; end;".into(),
                         configuration: None,
                         arguments: "".to_string(),
                         result: Some("trigger".to_string()),
@@ -1715,7 +1715,7 @@ async fn enums(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -1802,7 +1802,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         name: "sales_february".to_string(),
                         table_type: TableTypeDetails::PartitionedChildTable {
                             partition_expression:
-                                "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
+                            "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
                         columns: vec![
@@ -1848,7 +1848,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         name: "sales_january".to_string(),
                         table_type: TableTypeDetails::PartitionedChildTable {
                             partition_expression:
-                                "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
+                            "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
                         columns: vec![
@@ -1894,7 +1894,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         name: "sales_march".to_string(),
                         table_type: TableTypeDetails::PartitionedChildTable {
                             partition_expression:
-                                "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
+                            "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
                         columns: vec![
@@ -1943,7 +1943,7 @@ CREATE TABLE sales_march PARTITION OF sales
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -2139,7 +2139,7 @@ CREATE TABLE furniture PARTITION OF products
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -2338,7 +2338,7 @@ CREATE TABLE orders_3 PARTITION OF orders
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -2396,7 +2396,7 @@ create table cats(
                         ],
                         constraints: vec![PostgresConstraint::Check(PostgresCheckConstraint {
                             name: "pets_name_check".to_string(),
-                            check_clause: "((length(name) > 1))".to_string(),
+                            check_clause: "((length(name) > 1))".into(),
                             ..default()
                         })],
                         table_type: TableTypeDetails::InheritedTable {
@@ -2433,12 +2433,12 @@ create table cats(
                         constraints: vec![
                             PostgresConstraint::Check(PostgresCheckConstraint {
                                 name: "dogs_breed_check".to_string(),
-                                check_clause: "((length(breed) > 1))".to_string(),
+                                check_clause: "((length(breed) > 1))".into(),
                                 ..default()
                             }),
                             PostgresConstraint::Check(PostgresCheckConstraint {
                                 name: "pets_name_check".to_string(),
-                                check_clause: "((length(name) > 1))".to_string(),
+                                check_clause: "((length(name) > 1))".into(),
                                 ..default()
                             }),
                         ],
@@ -2468,7 +2468,7 @@ create table cats(
                         ],
                         constraints: vec![PostgresConstraint::Check(PostgresCheckConstraint {
                             name: "pets_name_check".to_string(),
-                            check_clause: "((length(name) > 1))".to_string(),
+                            check_clause: "((length(name) > 1))".into(),
                             ..default()
                         })],
                         indices: vec![PostgresIndex {
@@ -2498,7 +2498,7 @@ create table cats(
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -2578,7 +2578,7 @@ create table animorph() inherits (animal, human);
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 13))]
@@ -2632,7 +2632,7 @@ async fn index_storage_parameters(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -2677,7 +2677,7 @@ async fn index_storage_parameters_pg_12(helper: &TestHelper) {
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(timescale_db = 15))]
@@ -2742,14 +2742,14 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
                                 name: "symbol".to_string(),
                                 ordinal_position: 1,
                                 direction: Some(PostgresIndexColumnDirection::Ascending),
-                                nulls_order: Some(PostgresIndexNullsOrder::Last)
+                                nulls_order: Some(PostgresIndexNullsOrder::Last),
                             },
                             PostgresIndexKeyColumn {
                                 name: "\"time\"".to_string(),
                                 ordinal_position: 2,
                                 direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First)
-                            }
+                                nulls_order: Some(PostgresIndexNullsOrder::First),
+                            },
                         ],
                         index_type: "btree".to_string(),
                         index_constraint_type: PostgresIndexType::Index,
@@ -2761,19 +2761,19 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
                                 name: "\"time\"".to_string(),
                                 ordinal_position: 1,
                                 direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First)
+                                nulls_order: Some(PostgresIndexNullsOrder::First),
                             }
                         ],
                         index_type: "btree".to_string(),
                         index_constraint_type: PostgresIndexType::Index,
                         ..default()
-                    }
+                    },
                     ],
                     table_type: TableTypeDetails::TimescaleHypertable {
                         dimensions: vec![
                             HypertableDimension::Time {
                                 column_name: "time".to_string(),
-                                time_interval: Interval::new(0,7,0),
+                                time_interval: Interval::new(0, 7, 0),
                             },
                             HypertableDimension::SpacePartitions {
                                 column_name: "symbol".to_string(),
@@ -2798,10 +2798,11 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
             ..default()
         },
     )
-    .await;
+        .await;
 }
 
 #[pg_test(arg(timescale_db = 15))]
+#[pg_test(arg(timescale_db = 16))]
 async fn inspect_compressed(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -2865,7 +2866,7 @@ select add_compression_policy('stocks_real_time', interval '7 days');
                                 name: "\"time\"".to_string(),
                                 ordinal_position: 1,
                                 direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First)
+                                nulls_order: Some(PostgresIndexNullsOrder::First),
                             }
                         ],
                         index_type: "btree".to_string(),
@@ -2877,7 +2878,7 @@ select add_compression_policy('stocks_real_time', interval '7 days');
                         dimensions: vec![
                             HypertableDimension::Time {
                                 column_name: "time".to_string(),
-                                time_interval: Interval::new(0,7,0),
+                                time_interval: Interval::new(0, 7, 0),
                             },
                         ],
                         compression: Some(HypertableCompression {
@@ -2895,9 +2896,9 @@ select add_compression_policy('stocks_real_time', interval '7 days');
                                     descending: false,
                                 },
                             ]),
-                            chunk_time_interval: Some(Interval::new(0,14,0)),
+                            chunk_time_interval: Some(Interval::new(0, 14, 0)),
                             compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
-                            compress_after: Some(Interval::new(0, 7, 0))
+                            compress_after: Some(Interval::new(0, 7, 0)),
                         }),
                     },
                     ..default()
@@ -2912,5 +2913,176 @@ select add_compression_policy('stocks_real_time', interval '7 days');
             ..default()
         },
     )
-    .await;
+        .await;
+}
+
+
+#[pg_test(arg(timescale_db = 15))]
+async fn inspect_continuous_aggregates(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NOT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+
+CREATE MATERIALIZED VIEW stock_candlestick_daily
+WITH (timescaledb.continuous) AS
+SELECT
+  time_bucket('1 day', "time") AS day,
+  symbol,
+  max(price) AS high,
+  first(price, time) AS open,
+  last(price, time) AS close,
+  min(price) AS low
+FROM stocks_real_time srt
+GROUP BY day, symbol
+WITH NO DATA;
+
+SELECT add_continuous_aggregate_policy('stock_candlestick_daily',
+                                       start_offset => INTERVAL '6 month',
+                                       end_offset => INTERVAL '1 day',
+                                       schedule_interval => INTERVAL '1 hour');
+
+alter materialized view stock_candlestick_daily set (timescaledb.compress = true);
+
+SELECT add_compression_policy('stock_candlestick_daily', compress_after=>'360 days'::interval);
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![PostgresTable {
+                    name: "stocks_real_time".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "time".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "timestamptz".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "symbol".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "price".to_string(),
+                            ordinal_position: 3,
+                            is_nullable: true,
+                            data_type: "float8".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "day_volume".to_string(),
+                            ordinal_position: 4,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![PostgresIndex {
+                        name: "stocks_real_time_time_idx".to_string(),
+                        key_columns: vec![
+                            PostgresIndexKeyColumn {
+                                name: "\"time\"".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Descending),
+                                nulls_order: Some(PostgresIndexNullsOrder::First),
+                            }
+                        ],
+                        index_type: "btree".to_string(),
+                        index_constraint_type: PostgresIndexType::Index,
+                        ..default()
+                    }
+                    ],
+                    table_type: TableTypeDetails::TimescaleHypertable {
+                        dimensions: vec![
+                            HypertableDimension::Time {
+                                column_name: "time".to_string(),
+                                time_interval: Interval::new(0, 7, 0),
+                            },
+                        ],
+                        compression: None,
+                    },
+                    ..default()
+                }],
+                views: vec![
+                    PostgresView {
+                        name: "stock_candlestick_daily".to_string(),
+                        columns: vec![
+                            PostgresViewColumn {
+                                name: "day".to_string(),
+                                ordinal_position: 1,
+                            },
+                            PostgresViewColumn {
+                                name: "symbol".to_string(),
+                                ordinal_position: 2,
+                            },
+                            PostgresViewColumn {
+                                name: "high".to_string(),
+                                ordinal_position: 3,
+                            },
+                            PostgresViewColumn {
+                                name: "open".to_string(),
+                                ordinal_position: 4,
+                            },
+                            PostgresViewColumn {
+                                name: "close".to_string(),
+                                ordinal_position: 5,
+                            },
+                            PostgresViewColumn {
+                                name: "low".to_string(),
+                                ordinal_position: 6,
+                            },
+                        ],
+                        is_materialized: true,
+                        definition: r#"SELECT time_bucket('1 day'::interval, srt."time") AS day,
+    srt.symbol,
+    max(srt.price) AS high,
+    first(srt.price, srt."time") AS open,
+    last(srt.price, srt."time") AS close,
+    min(srt.price) AS low
+   FROM stocks_real_time srt
+  GROUP BY (time_bucket('1 day'::interval, srt."time")), srt.symbol;"#.into(),
+                        view_options: ViewOptions::TimescaleContinuousAggregate {
+                            refresh: Some(TimescaleContinuousAggregateRefreshOptions {
+                                start_offset: Interval::new(6, 0, 0),
+                                end_offset: Interval::new(0, 1, 0),
+                                interval: Interval::new(0, 0, 3600000000),
+                            }),
+                            compression: Some(HypertableCompression {
+                                enabled: true,
+                                segment_by_columns: Some(vec!["symbol".to_string()]),
+                                order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
+                                    column_name: "day".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                }]),
+                                chunk_time_interval: None,
+                                compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
+                                compress_after: Some(Interval::new(0, 360, 0)),
+                            }),
+                        },
+                        ..default()
+                    }
+                ],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport {
+                is_enabled: true,
+                timescale_toolkit_is_enabled: true,
+            },
+            ..default()
+        },
+    )
+        .await;
 }

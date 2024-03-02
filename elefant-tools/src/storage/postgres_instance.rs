@@ -670,4 +670,43 @@ select add_compression_policy('stocks_real_time', interval '7 days');
 
         "#, source, destination).await;
     }
+
+    #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+    #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+    async fn timescale_continuous_aggregate(source: &TestHelper, destination: &TestHelper) {
+        test_round_trip(r#"
+        
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NOT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+
+CREATE MATERIALIZED VIEW stock_candlestick_daily
+WITH (timescaledb.continuous) AS
+SELECT
+  time_bucket('1 day', "time") AS day,
+  symbol,
+  max(price) AS high,
+  first(price, time) AS open,
+  last(price, time) AS close,
+  min(price) AS low
+FROM stocks_real_time srt
+GROUP BY day, symbol
+WITH NO DATA;
+
+SELECT add_continuous_aggregate_policy('stock_candlestick_daily',
+                                       start_offset => INTERVAL '6 month',
+                                       end_offset => INTERVAL '1 day',
+                                       schedule_interval => INTERVAL '1 hour');
+
+alter materialized view stock_candlestick_daily set (timescaledb.compress = true);
+
+SELECT add_compression_policy('stock_candlestick_daily', compress_after=>'360 days'::interval);
+       "#, source, destination).await;
+    }
 }

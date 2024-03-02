@@ -1,6 +1,7 @@
 use crate::ElefantToolsError;
 use crate::postgres_client_wrapper::FromPgChar;
 use ordered_float::NotNan;
+use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 use crate::quoting::{IdentifierQuoter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 
@@ -77,7 +78,7 @@ pub struct PostgresFunction {
     pub returns_set: bool,
     pub volatility: Volatility,
     pub parallel: Parallel,
-    pub sql_body: String,
+    pub sql_body: WhitespaceIgnorantString,
     pub configuration: Option<Vec<String>>,
     pub arguments: String,
     pub result: Option<String>,

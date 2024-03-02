@@ -55,7 +55,8 @@
     ✅ Multiple dimensions
     ✅ Compression
     ❌ Distributed hypertables
-❌ Continuous aggregates
+✅ Continuous aggregates
+    ✅ Compression
 ❌ Retention policies
 ❌ User defined actions/jobs
 ```

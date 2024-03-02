@@ -1,9 +1,10 @@
 use std::cmp::Ordering;
+use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresCheckConstraint {
     pub name: String,
-    pub check_clause: String,
+    pub check_clause: WhitespaceIgnorantString,
     pub comment: Option<String>
 }
 

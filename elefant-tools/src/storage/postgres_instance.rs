@@ -684,6 +684,7 @@ CREATE TABLE stocks_real_time (
 
 SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
 
+insert into stocks_real_time(time, symbol, price, day_volume) values ('2023-01-01', 'AAPL', 100.0, 1000);
 
 CREATE MATERIALIZED VIEW stock_candlestick_daily
 WITH (timescaledb.continuous) AS
@@ -708,6 +709,10 @@ alter materialized view stock_candlestick_daily set (timescaledb.compress = true
 SELECT add_compression_policy('stock_candlestick_daily', compress_after=>'360 days'::interval);
 SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
        "#, source, destination).await;
+        
+        let items = destination.get_results::<(String, String, f64, f64, f64, f64)>("select day::text, symbol, high, open, close, low from stock_candlestick_daily;").await;
+        
+        assert_eq!(items, vec![("2023-01-01 00:00:00+00".to_string(), "AAPL".to_string(), 100.0, 100.0, 100.0, 100.0)]);
     }
 
     #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]

@@ -12,7 +12,7 @@ pub struct PostgresView {
     pub columns: Vec<PostgresViewColumn>,
     pub comment: Option<String>,
     pub is_materialized: bool,
-    pub view_options: ViewOptions
+    pub view_options: ViewOptions,
 }
 
 impl PostgresView {
@@ -40,7 +40,7 @@ impl PostgresView {
 
         sql.push_str(") ");
 
-        if let ViewOptions::TimescaleContinuousAggregate {..} = &self.view_options {
+        if let ViewOptions::TimescaleContinuousAggregate { .. } = &self.view_options {
             sql.push_str("with (timescaledb.continuous) ");
         }
 
@@ -49,7 +49,7 @@ impl PostgresView {
 
         sql.push_str(&self.definition);
 
-        if let ViewOptions::TimescaleContinuousAggregate {..} = &self.view_options {
+        if let ViewOptions::TimescaleContinuousAggregate { .. } = &self.view_options {
             while sql.ends_with(';') {
                 sql.pop();
             }
@@ -69,7 +69,7 @@ impl PostgresView {
         }
 
 
-        if let ViewOptions::TimescaleContinuousAggregate { refresh, compression, retention} = &self.view_options {
+        if let ViewOptions::TimescaleContinuousAggregate { refresh, compression, retention } = &self.view_options {
             if let Some(refresh) = refresh {
                 sql.push_str("\nselect add_continuous_aggregate_policy('");
                 sql.push_str(&escaped_relation_name);
@@ -95,6 +95,18 @@ impl PostgresView {
         }
 
         sql
+    }
+
+    pub fn get_refresh_sql(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
+        if let ViewOptions::TimescaleContinuousAggregate { .. } = &self.view_options {
+            let sql = format!("call refresh_continuous_aggregate('{}.{}', null, null);", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+            Some(sql)
+        } else if self.is_materialized {
+            let sql = format!("refresh materialized view {}.{};", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+            Some(sql)
+        } else {
+            None
+        }
     }
 }
 

@@ -138,6 +138,14 @@ async fn apply_post_copy_structure(destination: &mut impl CopyDestination, defin
         }
     }
 
+    for schema in &definition.schemas {
+        for view in &schema.views {
+            if let Some(sql) = view.get_refresh_sql(schema, &identifier_quoter) {
+                destination.apply_ddl_statement(&sql).await?;
+            }
+        }
+    }
+
     Ok(())
 }
 

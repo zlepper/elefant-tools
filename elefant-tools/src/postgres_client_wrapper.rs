@@ -151,6 +151,42 @@ impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned> FromRow for (T1, T2, 
     }
 }
 
+impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned> FromRow for (T1, T2, T3, T4) {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok((
+            row.try_get(0)?,
+            row.try_get(1)?,
+            row.try_get(2)?,
+            row.try_get(3)?,
+        ))
+    }
+}
+
+impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5: FromSqlOwned> FromRow for (T1, T2, T3, T4, T5) {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok((
+            row.try_get(0)?,
+            row.try_get(1)?,
+            row.try_get(2)?,
+            row.try_get(3)?,
+            row.try_get(4)?,
+        ))
+    }
+}
+
+impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5: FromSqlOwned, T6: FromSqlOwned> FromRow for (T1, T2, T3, T4, T5, T6) {
+    fn from_row(row: Row) -> Result<Self> {
+        Ok((
+            row.try_get(0)?,
+            row.try_get(1)?,
+            row.try_get(2)?,
+            row.try_get(3)?,
+            row.try_get(4)?,
+            row.try_get(5)?,
+        ))
+    }
+}
+
 
 pub(crate) trait FromPgChar: Sized {
     fn from_pg_char(c: char) -> std::result::Result<Self, crate::ElefantToolsError>;

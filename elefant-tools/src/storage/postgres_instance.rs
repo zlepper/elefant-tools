@@ -1,18 +1,20 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt, TryStreamExt};
 use futures::stream::MapErr;
+use tokio::sync::{Mutex};
 use tokio_postgres::{CopyOutStream, Row};
 use crate::models::PostgresDatabase;
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, PostgresClientWrapper, RowEnumExt};
 use crate::schema_reader::SchemaReader;
-use crate::storage::{BaseCopyTarget, CopyDestination, CopySource, DataFormat, TableData};
+use crate::storage::{BaseCopyTarget, CopyDestination, CopySource};
 use crate::*;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
 use crate::quoting::{AllowedKeywordUsage, IdentifierQuoter};
+use crate::storage::data_format::DataFormat;
+use crate::storage::table_data::TableData;
 
 pub struct PostgresInstanceStorage<'a> {
     connection: &'a PostgresClientWrapper,
@@ -80,7 +82,6 @@ impl FromPgChar for KeywordType {
     }
 }
 
-#[async_trait]
 impl BaseCopyTarget for PostgresInstanceStorage<'_> {
     async fn supported_data_format(&self) -> Result<Vec<DataFormat>> {
         Ok(vec![
@@ -96,49 +97,191 @@ fn tokio_postgres_error_to_crate_error(e: tokio_postgres::Error) -> ElefantTools
     e.into()
 }
 
-#[async_trait]
-impl<'a> CopySource for PostgresInstanceStorage<'a> {
+impl<'a> CopySourceFactory for PostgresInstanceStorage<'a> {
+    type SequentialSource = ParallelSafePostgresInstanceCopySourceStorage<'a>;
+    type ParallelSource = ParallelSafePostgresInstanceCopySourceStorage<'a>;
+
+    async fn create_source(&self) -> Result<SequentialOrParallel<Self::SequentialSource, Self::ParallelSource>> {
+
+        let parallel = ParallelSafePostgresInstanceCopySourceStorage::new(self).await?;
+
+        Ok(SequentialOrParallel::Sequential(parallel))
+    }
+}
+
+#[derive(Clone)]
+struct ConnectionPool {
+    connection_pool: Arc<Mutex<Vec<PostgresClientWrapper>>>,
+}
+
+impl ConnectionPool {
+
+    fn new() -> Self {
+        Self {
+            connection_pool: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    async fn get_connection(&self) -> Option<PostgresClientWrapper> {
+        let mut pool = self.connection_pool.lock().await;
+        pool.pop()
+    }
+
+    async fn release_connection(&self, connection: PostgresClientWrapper)  {
+        let mut pool = self.connection_pool.lock().await;
+        pool.push(connection);
+    }
+}
+
+#[derive(Clone)]
+pub struct ParallelSafePostgresInstanceCopySourceStorage<'a> {
+    connection_pool: ConnectionPool,
+    main_connection: &'a PostgresClientWrapper,
+    transaction_id: String,
+    identifier_quoter: Arc<IdentifierQuoter>,
+}
+
+impl<'a> ParallelSafePostgresInstanceCopySourceStorage<'a> {
+    async fn new(storage: &PostgresInstanceStorage<'a>) -> Result<Self> {
+        let main_connection = storage.connection;
+
+        main_connection.execute_non_query("begin transaction isolation level repeatable read read only;").await?;
+        let transaction_id = main_connection.get_single_result("select pg_export_snapshot();").await?;
+
+        Ok(ParallelSafePostgresInstanceCopySourceStorage {
+            connection_pool: ConnectionPool::new(),
+            transaction_id,
+            main_connection,
+            identifier_quoter: storage.identifier_quoter.clone(),
+        })
+    }
+
+    async fn get_connection(&self) -> Result<PostgresClientWrapper> {
+
+        if let Some(existing) = self.connection_pool.get_connection().await {
+            Ok(existing)
+        } else {
+            let new_conn = self.main_connection.create_another_connection().await?;
+
+            new_conn.execute_non_query(&format!("begin transaction isolation level repeatable read read only; set transaction snapshot '{}';", self.transaction_id)).await?;
+
+            Ok(new_conn)
+        }
+
+    }
+
+    async fn release_connection(&self, connection: PostgresClientWrapper)  {
+        self.connection_pool.release_connection(connection).await;
+    }
+}
+
+impl<'a> CopySource for ParallelSafePostgresInstanceCopySourceStorage<'a> {
     type DataStream = MapErr<CopyOutStream, fn(tokio_postgres::Error) -> ElefantToolsError>;
+    type Cleanup = ReleaseConnection;
 
     async fn get_introspection(&self) -> Result<PostgresDatabase> {
-        let reader = SchemaReader::new(self.connection);
+        let reader = SchemaReader::new(self.main_connection);
         reader.introspect_database().await
     }
 
-    async fn get_data(&self, schema: &PostgresSchema, table: &PostgresTable, data_format: &DataFormat) -> Result<TableData<Self::DataStream>> {
+    async fn get_data(&self, schema: &PostgresSchema, table: &PostgresTable, data_format: &DataFormat) -> Result<TableData<Self::DataStream, Self::Cleanup>> {
         let copy_command = table.get_copy_out_command(schema, data_format, &self.identifier_quoter);
-        let copy_out_stream = self.connection.copy_out(&copy_command).await?;
+
+        let connection = self.get_connection().await?;
+
+        let copy_out_stream = connection.copy_out(&copy_command).await?;
 
         let stream = copy_out_stream.map_err(tokio_postgres_error_to_crate_error as fn(tokio_postgres::Error) -> ElefantToolsError);
 
-        match data_format {
-            DataFormat::Text => {
-                Ok(TableData::Text {
-                    data: stream
-                })
+
+        Ok(TableData {
+            data_format: data_format.clone(),
+            data: stream,
+            cleanup: ReleaseConnection {
+                pool: self.connection_pool.clone(),
+                connection,
             }
-            DataFormat::PostgresBinary { .. } => {
-                Ok(TableData::PostgresBinary {
-                    postgres_version: self.postgres_version.clone(),
-                    data: stream,
-                })
-            }
-        }
+        })
+    }
+}
+
+pub struct ReleaseConnection {
+    pool: ConnectionPool,
+    connection: PostgresClientWrapper,
+}
+
+impl AsyncCleanup for ReleaseConnection {
+    async fn cleanup(self) -> Result<()> {
+        self.pool.release_connection(self.connection).await;
+        Ok(())
+    }
+}
+
+impl<'a> CopyDestinationFactory<'a> for PostgresInstanceStorage<'a> {
+    type SequentialDestination = ParallelSafePostgresInstanceCopyDestinationStorage<'a>;
+    type ParallelDestination = ParallelSafePostgresInstanceCopyDestinationStorage<'a>;
+
+    async fn create_destination(&'a mut self) -> Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>> {
+        let par = ParallelSafePostgresInstanceCopyDestinationStorage::new(self).await?;
+
+        Ok(SequentialOrParallel::Parallel(par))
     }
 }
 
 
-#[async_trait]
-impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
-    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()> {
-        let data_format = data.get_data_format();
+#[derive(Clone)]
+pub struct ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
+    connection_pool: ConnectionPool,
+    main_connection: &'a PostgresClientWrapper,
+    identifier_quoter: Arc<IdentifierQuoter>,
+}
+
+impl<'a> ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
+    async fn new(storage: &PostgresInstanceStorage<'a>) -> Result<Self> {
+        let main_connection = storage.connection;
+
+        main_connection.execute_non_query("begin transaction isolation level serializable ;").await?;
+        // let transaction_id = main_connection.get_single_result("select pg_export_snapshot();").await?;
+
+        Ok(ParallelSafePostgresInstanceCopyDestinationStorage {
+            connection_pool: ConnectionPool::new(),
+            main_connection,
+            identifier_quoter: storage.identifier_quoter.clone(),
+        })
+    }
+
+
+    async fn get_connection(&self) -> Result<PostgresClientWrapper> {
+
+        if let Some(existing) = self.connection_pool.get_connection().await {
+            Ok(existing)
+        } else {
+            let new_conn = self.main_connection.create_another_connection().await?;
+
+            Ok(new_conn)
+        }
+
+    }
+
+    async fn release_connection(&self, connection: PostgresClientWrapper)  {
+        self.connection_pool.release_connection(connection).await;
+    }
+
+} 
+
+
+impl<'a> CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
+    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>) -> Result<()> {
+        let data_format = data.data_format;
 
         let copy_statement = table.get_copy_in_command(schema, &data_format, &self.identifier_quoter);
 
-        let sink = self.connection.copy_in::<Bytes>(&copy_statement).await?;
+        let connection = self.get_connection().await?;
+        
+        let sink = connection.copy_in::<Bytes>(&copy_statement).await?;
         pin_mut!(sink);
 
-        let stream = data.into_stream();
+        let stream = data.data;
 
         pin_mut!(stream);
 
@@ -149,11 +292,31 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 
         sink.close().await?;
 
+        data.cleanup.cleanup().await?;
+        self.release_connection(connection).await;
+        
         Ok(())
     }
 
-    async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()> {
-        self.connection.execute_non_query(statement).await?;
+    async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
+        self.main_connection.execute_non_query(statement).await?;
+        Ok(())
+    }
+
+    async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
+        let connection = self.get_connection().await?;
+        connection.execute_non_query(statement).await?;
+        self.release_connection(connection).await;
+        Ok(())
+    }
+
+    async fn begin_transaction(&mut self) -> Result<()> {
+        self.main_connection.execute_non_query("begin transaction isolation level serializable read write;").await?;
+        Ok(())
+    }
+
+    async fn commit_transaction(&mut self) -> Result<()> {
+        self.main_connection.execute_non_query("commit;").await?;
         Ok(())
     }
 
@@ -164,10 +327,11 @@ impl<'a> CopyDestination for PostgresInstanceStorage<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroUsize;
     use elefant_test_macros::pg_test;
     use crate::copy_data::{copy_data, CopyDataOptions};
     use crate::schema_reader::tests::introspect_schema;
-    use crate::storage::tests::{validate_copy_state};
+    use crate::storage::tests::validate_copy_state;
     use super::*;
     use crate::test_helpers::*;
 
@@ -182,7 +346,8 @@ mod tests {
         let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn()).await.unwrap();
 
         copy_data(&source, &mut destination_worker, CopyDataOptions {
-            data_format: Some(data_format)
+            data_format: Some(data_format),
+            max_parallel: Some(NonZeroUsize::new(16).unwrap())
         }).await.expect("Failed to copy data");
 
         let destination_schema = introspect_schema(destination).await;
@@ -215,7 +380,8 @@ mod tests {
         let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn()).await.unwrap();
 
         copy_data(&source, &mut destination_worker, CopyDataOptions {
-            data_format: None
+            data_format: None,
+            max_parallel: Some(NonZeroUsize::new(16).unwrap())
         }).await.expect("Failed to copy data");
 
         let destination_schema = introspect_schema(destination).await;
@@ -709,9 +875,9 @@ alter materialized view stock_candlestick_daily set (timescaledb.compress = true
 SELECT add_compression_policy('stock_candlestick_daily', compress_after=>'360 days'::interval);
 SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
        "#, source, destination).await;
-        
+
         let items = destination.get_results::<(String, String, f64, f64, f64, f64)>("select day::text, symbol, high, open, close, low from stock_candlestick_daily;").await;
-        
+
         assert_eq!(items, vec![("2023-01-01 00:00:00+00".to_string(), "AAPL".to_string(), 100.0, 100.0, 100.0, 100.0)]);
     }
 
@@ -727,7 +893,7 @@ SELECT create_hypertable('conditions', by_range('time', '1 hour'::interval));
 SELECT add_retention_policy('conditions', INTERVAL '24 hours');
        "#, source, destination).await;
     }
-    
+
     #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
     #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
     async fn timescale_user_defined_jobs(source: &TestHelper, destination: &TestHelper) {
@@ -739,8 +905,39 @@ CREATE PROCEDURE user_defined_action(job_id INT, config JSONB)
         RAISE NOTICE 'Executing job % with config %', job_id, config;
     END
     $$;
-    
+
 SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}');
        "#, source, destination).await;
+    }
+
+    // This is quite slow, so we only test against 1 postgres instance
+    // We are not really testing postgres, but the internal parallel handling
+    // in this program.
+    #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+    async fn ensure_survives_many_tables(source: &TestHelper, destination: &TestHelper) {
+        
+        let mut sql = String::new();
+        
+        
+        for i in 0..50 {
+            sql.push_str(&format!("create table my_table_{}(id serial primary key, name text);\n", i));
+            sql.push_str(&format!(r#"
+insert into my_table_{} (
+    name
+)
+select
+    md5(random()::text)
+from generate_series(1, 1000) s(i);"#, i))
+        }
+        
+        
+        test_round_trip(&sql, source, destination).await;
+        
+        
+        for i in 0..50 {
+            let items = destination.get_results::<(i32, String)>(&format!("select id, name from my_table_{};", i)).await;
+            assert_eq!(items.len(), 1000);
+        }
+        
     }
 }

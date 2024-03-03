@@ -6,7 +6,6 @@ mod schema_reader;
 mod models;
 mod error;
 mod copy_data;
-mod parallel_runner;
 mod storage;
 mod quoting;
 mod helpers;

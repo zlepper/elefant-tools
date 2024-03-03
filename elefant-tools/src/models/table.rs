@@ -2,14 +2,15 @@ use itertools::Itertools;
 use pg_interval::Interval;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
-use crate::{DataFormat, default, ElefantToolsError, HypertableCompression, PostgresIndexType};
+use crate::{default, ElefantToolsError, HypertableCompression, PostgresIndexType};
 use crate::helpers::StringExt;
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::postgres_client_wrapper::FromPgChar;
-use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable, QuotableIter};
+use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::storage::DataFormat;
 
 #[derive(Debug, Eq, PartialEq, Default)]
 pub struct PostgresTable {
@@ -189,7 +190,7 @@ impl PostgresTable {
                 sql.push_str("\nalter table ");
                 compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
             }
-            
+
             if let Some(retention) = retention {
                 sql.push('\n');
                 retention.add_retention(&mut sql, &escaped_relation_name);

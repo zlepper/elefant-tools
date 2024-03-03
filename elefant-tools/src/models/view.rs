@@ -49,7 +49,7 @@ impl PostgresView {
 
         sql.push_str(&self.definition);
 
-        if let ViewOptions::TimescaleContinuousAggregate { .. } = &self.view_options {
+        if self.is_materialized {
             while sql.ends_with(';') {
                 sql.pop();
             }

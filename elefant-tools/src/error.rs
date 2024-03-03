@@ -91,6 +91,9 @@ pub enum ElefantToolsError {
         supported_by_source: Vec<DataFormat>,
         required_format: Option<DataFormat>,
     },
+
+    #[error("join error: `{0}`")]
+    JoinError(#[from] tokio::task::JoinError)
 }
 
 pub type Result<T = ()> = std::result::Result<T, ElefantToolsError>;

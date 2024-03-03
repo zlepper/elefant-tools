@@ -2,7 +2,6 @@ use std::io::BufRead;
 use std::ops::Deref;
 use std::sync::Arc;
 use std::vec;
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{pin_mut, Stream, StreamExt};
 use itertools::Itertools;
@@ -11,9 +10,11 @@ use tokio::io::{AsyncWrite, AsyncWriteExt, BufWriter};
 use crate::models::SimplifiedDataType;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
-use crate::storage::{BaseCopyTarget, CopyDestination, DataFormat, TableData};
-use crate::{Result};
+use crate::storage::{BaseCopyTarget, CopyDestination};
+use crate::{AsyncCleanup, CopyDestinationFactory, ParallelCopyDestinationNotAvailable, Result, SequentialOrParallel};
 use crate::quoting::IdentifierQuoter;
+use crate::storage::data_format::DataFormat;
+use crate::storage::table_data::TableData;
 
 pub struct SqlFileOptions {
     pub max_rows_per_insert: usize,
@@ -46,21 +47,29 @@ impl<'q, F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     }
 }
 
-#[async_trait]
 impl<F: AsyncWrite + Unpin + Send + Sync> BaseCopyTarget for SqlFile<F> {
     async fn supported_data_format(&self) -> Result<Vec<DataFormat>> {
         Ok(vec![DataFormat::Text])
     }
 }
 
-#[async_trait]
-impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
-    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()> {
+
+impl<'a, F: AsyncWrite + Unpin + Send + Sync + 'a> CopyDestinationFactory<'a> for SqlFile<F> {
+    type SequentialDestination = &'a mut SqlFile<F>;
+    type ParallelDestination = ParallelCopyDestinationNotAvailable;
+
+    async fn create_destination(&'a mut self) -> Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>> {
+        Ok(SequentialOrParallel::Sequential(self))
+    }
+}
+
+impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
+    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>) -> Result<()> {
         let file = &mut self.file;
 
         let column_types = table.columns.iter().map(|c| c.get_simplified_data_type()).collect_vec();
 
-        let stream = data.into_stream();
+        let stream = data.data;
 
         pin_mut!(stream);
 
@@ -164,7 +173,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
         Ok(())
     }
 
-    async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()> {
+    async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
         if self.is_empty {
             self.file.write_all(statement.as_bytes()).await?;
             self.is_empty = false;
@@ -173,6 +182,18 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for SqlFile<F> {
             self.file.write_all(statement.as_bytes()).await?;
         }
 
+        Ok(())
+    }
+
+    async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
+        self.apply_transactional_statement(statement).await
+    }
+
+    async fn begin_transaction(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn commit_transaction(&mut self) -> Result<()> {
         Ok(())
     }
 
@@ -191,7 +212,7 @@ mod tests {
     use crate::schema_reader::tests::introspect_schema;
     use crate::storage;
     use crate::storage::postgres_instance::PostgresInstanceStorage;
-    use crate::storage::tests::{validate_copy_state};
+    use crate::storage::tests::validate_copy_state;
 
     async fn export_to_string(source: &TestHelper) -> String {
         let mut result_file = Vec::<u8>::new();
@@ -219,9 +240,9 @@ mod tests {
 
     #[test]
     async fn exports_to_fake_file_15() {
-        let source = get_test_helper("source").await;
+        let source = get_test_helper_on_port("source", 5415).await;
         if source.get_conn().version() < 150 {
-            return;
+            panic!("This test is only for 15");
         }
 
         //language=postgresql
@@ -348,13 +369,13 @@ mod tests {
 
             create sequence public.people_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
-            select pg_catalog.setval('public.people_id_seq', 6, true);
-
             create sequence public.pets_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
-            select pg_catalog.setval('public.pets_id_seq', 3, true);
-
             create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
+            select pg_catalog.setval('public.people_id_seq', 6, true);
+
+            select pg_catalog.setval('public.pets_id_seq', 3, true);
 
             alter table public.cats alter column id set default nextval('pets_id_seq'::regclass);
 
@@ -386,7 +407,7 @@ mod tests {
 
             alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;"#});
 
-        let destination = get_test_helper("destination").await;
+        let destination = get_test_helper_on_port("destination", 5415).await;
         destination.execute_not_query(&result_file).await;
 
         let source_schema = introspect_schema(&source).await;
@@ -399,9 +420,9 @@ mod tests {
 
     #[test]
     async fn exports_to_fake_file_14() {
-        let source = get_test_helper("source").await;
+        let source = get_test_helper_on_port("source", 5414).await;
         if source.get_conn().version() < 140 || source.get_conn().version() >= 150 {
-            return;
+            panic!("This test is only for 14");
         }
 
         //language=postgresql
@@ -528,13 +549,13 @@ mod tests {
 
             create sequence public.people_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
 
-            select pg_catalog.setval('public.people_id_seq', 6, true);
-
             create sequence public.pets_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
-
-            select pg_catalog.setval('public.pets_id_seq', 3, true);
-
+            
             create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
+            select pg_catalog.setval('public.people_id_seq', 6, true);
+            
+            select pg_catalog.setval('public.pets_id_seq', 3, true);
 
             alter table public.cats alter column id set default nextval('pets_id_seq'::regclass);
 
@@ -566,7 +587,7 @@ mod tests {
 
             alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;"#});
 
-        let destination = get_test_helper("destination").await;
+        let destination = get_test_helper_on_port("destination", 5414).await;
         destination.execute_not_query(&result_file).await;
 
 

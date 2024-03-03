@@ -10,7 +10,6 @@ tokio = { version = "1", features = ["rt", "fs"], default-features = false }
 tokio-postgres = "0.7"
 thiserror = "1.0"
 itertools = "0.12"
-async-trait = "0.1"
 bytes = "1.5"
 futures = "0.3"
 uuid = { version = "1.7", features = ["v4"] }

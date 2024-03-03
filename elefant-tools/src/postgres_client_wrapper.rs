@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::ops::Deref;
 use tokio::task::JoinHandle;
 use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
 use tokio_postgres::types::{FromSqlOwned};
@@ -7,12 +8,62 @@ use bytes::Buf;
 use tokio_postgres::row::RowIndex;
 
 pub struct PostgresClientWrapper {
-    client: Client,
-    join_handle: JoinHandle<Result<()>>,
+    client: PostgresClient,
     version: i32,
+    connection_string: String,
 }
 
 impl PostgresClientWrapper {
+    pub async fn new(connection_string: &str) -> Result<Self> {
+        let client = PostgresClient::new(connection_string).await?;
+
+        let version = match &client.client.simple_query("SHOW server_version_num;").await?[0] {
+            tokio_postgres::SimpleQueryMessage::Row(row) => {
+                let version: i32 = row.get(0).expect("failed to get version from row").parse().expect("failed to parse version");
+                if version < 120000 {
+                    return Err(crate::ElefantToolsError::UnsupportedPostgresVersion(version));
+                }
+                version / 1000
+            }
+            _ => return Err(crate::ElefantToolsError::InvalidPostgresVersionResponse)
+        };
+
+        Ok(PostgresClientWrapper {
+            client,
+            version,
+            connection_string: connection_string.to_string(),
+        })
+    }
+
+    pub fn version(&self) -> i32 {
+        self.version
+    }
+    
+    pub async fn create_another_connection(&self) -> Result<Self> {
+        let client = PostgresClient::new(&self.connection_string).await?;
+        Ok(PostgresClientWrapper {
+            client,
+            version: self.version,
+            connection_string: self.connection_string.clone(),
+        })
+    }
+}
+
+impl Deref for PostgresClientWrapper {
+    type Target = PostgresClient;
+
+    fn deref(&self) -> &Self::Target {
+        &self.client
+    }
+}
+
+pub struct PostgresClient {
+    client: Client,
+    join_handle: JoinHandle<Result<()>>,
+}
+
+impl PostgresClient {
+
     pub async fn new(connection_string: &str) -> Result<Self> {
         let (client, connection) =
             tokio_postgres::connect(connection_string, NoTls).await?;
@@ -26,23 +77,12 @@ impl PostgresClientWrapper {
             }
         });
 
-        let version = match &client.simple_query("SHOW server_version_num;").await?[0] {
-            tokio_postgres::SimpleQueryMessage::Row(row) => {
-                let version: i32 = row.get(0).expect("failed to get version from row").parse().expect("failed to parse version");
-                if version < 120000 {
-                    return Err(crate::ElefantToolsError::UnsupportedPostgresVersion(version));
-                }
-                version / 1000
-            }
-            _ => return Err(crate::ElefantToolsError::InvalidPostgresVersionResponse)
-        };
-
-        Ok(PostgresClientWrapper {
+        Ok(PostgresClient {
             client,
             join_handle,
-            version
         })
     }
+
 
     pub async fn execute_non_query(&self, sql: &str) -> Result {
         self.client.batch_execute(sql).await.map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
@@ -108,17 +148,15 @@ impl PostgresClientWrapper {
         let stream = self.client.copy_out(sql).await?;
         Ok(stream)
     }
-
-    pub fn version(&self) -> i32 {
-        self.version
-    }
 }
 
-impl Drop for PostgresClientWrapper {
+
+impl Drop for PostgresClient {
     fn drop(&mut self) {
         self.join_handle.abort();
     }
 }
+
 
 pub trait FromRow: Sized {
     fn from_row(row: Row) -> Result<Self>;

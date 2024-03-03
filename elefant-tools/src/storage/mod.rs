@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use async_trait::async_trait;
 use bytes::Bytes;
 use futures::Stream;
 use crate::models::PostgresDatabase;
@@ -8,94 +7,129 @@ use crate::*;
 mod elefant_file;
 mod sql_file;
 mod postgres_instance;
+mod table_data;
+mod data_format;
 
 // pub use elefant_file::ElefantFileDestinationStorage;
 pub use sql_file::SqlFile;
+pub use data_format::*;
+pub use table_data::*;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
 use crate::quoting::IdentifierQuoter;
 
-#[async_trait]
 pub trait BaseCopyTarget {
     /// Which data format is supported by this destination.
-    async fn supported_data_format(&self) -> Result<Vec<DataFormat>>;
+    fn supported_data_format(&self) -> impl std::future::Future<Output = Result<Vec<DataFormat>>> + Send;
 }
 
-#[async_trait]
-pub trait CopySource: BaseCopyTarget {
+pub trait CopySourceFactory: BaseCopyTarget {
+    type SequentialSource: CopySource;
+    type ParallelSource: CopySource + Clone + Sync;
+
+    fn create_source(&self) -> impl std::future::Future<Output = Result<SequentialOrParallel<Self::SequentialSource, Self::ParallelSource>>> + Send;
+}
+
+pub trait CopySource: Send {
     type DataStream: Stream<Item=Result<Bytes>> + Send;
+    type Cleanup: AsyncCleanup;
 
-    async fn get_introspection(&self) -> Result<PostgresDatabase>;
+    fn get_introspection(&self) -> impl std::future::Future<Output = Result<PostgresDatabase>> + Send;
 
-    async fn get_data(&self, schema: &PostgresSchema, table: &PostgresTable, data_format: &DataFormat) -> Result<TableData<Self::DataStream>>;
+    fn get_data(&self, schema: &PostgresSchema, table: &PostgresTable, data_format: &DataFormat) -> impl std::future::Future<Output = Result<TableData<Self::DataStream, Self::Cleanup>>> + Send;
 }
 
-#[async_trait]
-pub trait CopyDestination: BaseCopyTarget {
+
+pub trait CopyDestinationFactory<'a>: BaseCopyTarget {
+    type SequentialDestination: CopyDestination;
+    type ParallelDestination: CopyDestination + Clone + Sync;
+
+    fn create_destination(&'a mut self) -> impl std::future::Future<Output = Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>>> + Send;
+}
+
+pub trait CopyDestination: Send {
     /// This should apply the data to the destination. The data is expected to be in the
     /// format returned by `supported_data_format`, if possible.
-    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S>) -> Result<()>;
+    fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>) -> impl std::future::Future<Output = Result<()>> + Send;
 
     /// This should apply the DDL statements to the destination.
-    async fn apply_ddl_statement(&mut self, statement: &str) -> Result<()>;
+    fn apply_transactional_statement(&mut self, statement: &str) -> impl std::future::Future<Output = Result<()>> + Send;
 
+    /// This should apply the DDL statements to the destination.
+    fn apply_non_transactional_statement(&mut self, statement: &str) -> impl std::future::Future<Output = Result<()>> + Send;
+
+    fn begin_transaction(&mut self) ->impl std::future::Future<Output = Result<()>> + Send;
+    
+    fn commit_transaction(&mut self) -> impl std::future::Future<Output = Result<()>> + Send;
+    
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter>;
 }
 
-#[derive(Debug, Clone)]
-pub enum DataFormat {
-    /// Slightly slower, but works across postgres versions, is human-readable and can be
-    /// outputted in text files.
-    Text,
-
-    /// Faster, but has strict requirements to the postgres version and is not human-readable.
-    PostgresBinary {
-        postgres_version: Option<String>,
-    },
+pub enum SequentialOrParallel<S: Send, P: Send + Clone + Sync> {
+    Sequential(S),
+    Parallel(P),
 }
 
-impl PartialEq for DataFormat {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (DataFormat::Text, DataFormat::Text) => true,
-            (DataFormat::PostgresBinary { postgres_version: left_pg_version }, DataFormat::PostgresBinary { postgres_version: right_pg_version }) => match (left_pg_version, right_pg_version) {
-                (None, _) => true,
-                (_, None) => true,
-                (Some(left), Some(right)) => left == right,
-            },
-            _ => false,
+impl< S: CopySource, P: CopySource + Clone + Sync> SequentialOrParallel<S, P> 
+{
+    pub async fn get_introspection(&self) -> Result<PostgresDatabase> {
+        match self {
+            SequentialOrParallel::Sequential(s) => s.get_introspection().await,
+            SequentialOrParallel::Parallel(p) => p.get_introspection().await,
         }
     }
-}
+    
+} 
 
-pub enum TableData<S: Stream<Item=Result<Bytes>> + Send> {
-    /// Data is provided as a stream in the Postgres "Text" format
-    Text {
-        data: S,
-    },
-
-    /// Data is provided as a stream in the Postgres "Binary" format
-    PostgresBinary {
-        postgres_version: String,
-        data: S,
-    },
-}
-
-impl<S: Stream<Item=Result<Bytes>> + Send> TableData<S> {
-    pub fn into_stream(self) -> S {
+impl< S: CopyDestination, P: CopyDestination + Clone + Sync> SequentialOrParallel<S, P> 
+{
+    pub async fn begin_transaction(&mut self) -> Result<()> {
         match self {
-            TableData::Text { data } => data,
-            TableData::PostgresBinary { data, .. } => data,
+            SequentialOrParallel::Sequential(s) => s.begin_transaction().await,
+            SequentialOrParallel::Parallel(p) => p.begin_transaction().await,
         }
     }
-
-    pub fn get_data_format(&self) -> DataFormat {
+    
+    pub async fn commit_transaction(&mut self) -> Result<()> {
         match self {
-            TableData::Text { .. } => DataFormat::Text,
-            TableData::PostgresBinary { postgres_version, .. } => DataFormat::PostgresBinary {
-                postgres_version: Some(postgres_version.to_string()),
-            },
+            SequentialOrParallel::Sequential(s) => s.commit_transaction().await,
+            SequentialOrParallel::Parallel(p) => p.commit_transaction().await,
         }
+    }
+    
+} 
+
+/// A CopyDestination that panics when used.
+/// Cannot be constructed outside this module, but is available for type reference
+/// to indicate Parallel copy is not supported. 
+#[derive(Copy, Clone)]
+pub struct ParallelCopyDestinationNotAvailable {
+    _private: (),
+}
+
+impl CopyDestination for ParallelCopyDestinationNotAvailable {
+    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, _schema: &PostgresSchema, _table: &PostgresTable, _data: TableData<S, C>) -> Result<()> {
+        unreachable!("Parallel copy destination not available")
+    }
+
+    async fn apply_transactional_statement(&mut self, _statement: &str) -> Result<()> {
+        unreachable!("Parallel copy destination not available")
+    }
+
+    async fn apply_non_transactional_statement(&mut self, _statement: &str) -> Result<()> {
+        unreachable!("Parallel copy destination not available")
+    }
+
+    async fn begin_transaction(&mut self) -> Result<()> {
+        unreachable!("Parallel copy destination not available")
+    }
+
+    async fn commit_transaction(&mut self) -> Result<()> {
+        unreachable!("Parallel copy destination not available")
+    }
+
+    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
+        unreachable!("Parallel copy destination not available")
     }
 }
 
@@ -105,7 +139,6 @@ mod tests {
     use crate::test_helpers::{assert_pg_error, TestHelper};
 
     pub fn get_copy_source_database_create_script(version: i32) -> &'static str {
-
         if version >= 150 {
             r#"
         create extension btree_gin;
@@ -292,11 +325,11 @@ mod tests {
         ]
     }
 
-    pub fn get_expected_array_test_data() -> Vec<(Vec<String>,)> {
+    pub fn get_expected_array_test_data() -> Vec<(Vec<String>, )> {
         vec![
-            (vec!["foo".to_string(), "bar".to_string()],),
-            (vec!["baz".to_string(), "qux".to_string()],),
-            (vec!["quux".to_string(), "corge".to_string()],),
+            (vec!["foo".to_string(), "bar".to_string()], ),
+            (vec!["baz".to_string(), "qux".to_string()], ),
+            (vec!["quux".to_string(), "corge".to_string()], ),
         ]
     }
 
@@ -320,8 +353,6 @@ mod tests {
     }
 
     pub async fn validate_copy_state(destination: &TestHelper) {
-
-
         let items = destination.get_results::<(i32, String, i32)>("select id, name, age from people;").await;
 
         assert_eq!(items, get_expected_people_data());
@@ -356,6 +387,4 @@ mod tests {
 
         validate_pets(destination).await;
     }
-
-
 }

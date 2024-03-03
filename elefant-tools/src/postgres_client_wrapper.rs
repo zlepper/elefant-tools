@@ -38,7 +38,7 @@ impl PostgresClientWrapper {
     pub fn version(&self) -> i32 {
         self.version
     }
-    
+
     pub async fn create_another_connection(&self) -> Result<Self> {
         let client = PostgresClient::new(&self.connection_string).await?;
         Ok(PostgresClientWrapper {
@@ -63,7 +63,6 @@ pub struct PostgresClient {
 }
 
 impl PostgresClient {
-
     pub async fn new(connection_string: &str) -> Result<Self> {
         let (client, connection) =
             tokio_postgres::connect(connection_string, NoTls).await?;
@@ -94,7 +93,6 @@ impl PostgresClient {
     }
 
     pub async fn get_results<T: FromRow>(&self, sql: &str) -> Result<Vec<T>> {
-
         let query_results = self.client.query(sql, &[]).await.map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
             source: e,
             query: sql.to_string(),
@@ -112,7 +110,7 @@ impl PostgresClient {
     pub async fn get_result<T: FromRow>(&self, sql: &str) -> Result<T> {
         let results = self.get_results(sql).await?;
         if results.len() != 1 {
-            return Err(crate::ElefantToolsError::InvalidNumberOfResults{
+            return Err(crate::ElefantToolsError::InvalidNumberOfResults {
                 actual: results.len(),
                 expected: 1,
             });
@@ -124,8 +122,8 @@ impl PostgresClient {
         Ok(r)
     }
 
-    pub async  fn get_single_results<T: FromSqlOwned>(&self, sql: &str) -> Result<Vec<T>> {
-        let r = self.get_results::<(T,)>(sql).await?.into_iter()
+    pub async fn get_single_results<T: FromSqlOwned>(&self, sql: &str) -> Result<Vec<T>> {
+        let r = self.get_results::<(T, )>(sql).await?.into_iter()
             .map(|t| t.0)
             .collect();
 
@@ -133,7 +131,7 @@ impl PostgresClient {
     }
 
     pub async fn get_single_result<T: FromSqlOwned>(&self, sql: &str) -> Result<T> {
-        let result = self.get_result::<(T,)>(sql).await?;
+        let result = self.get_result::<(T, )>(sql).await?;
         Ok(result.0)
     }
 
@@ -162,7 +160,7 @@ pub trait FromRow: Sized {
     fn from_row(row: Row) -> Result<Self>;
 }
 
-impl<T1: FromSqlOwned> FromRow for (T1,) {
+impl<T1: FromSqlOwned> FromRow for (T1, ) {
     fn from_row(row: Row) -> Result<Self> {
         Ok((
             row.try_get(0)?,

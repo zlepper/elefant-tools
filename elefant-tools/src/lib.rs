@@ -10,6 +10,7 @@ mod storage;
 mod quoting;
 mod helpers;
 mod whitespace_ignorant_string;
+mod parallel_runner;
 
 pub use error::*;
 pub use storage::*;

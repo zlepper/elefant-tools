@@ -1,9 +1,7 @@
 use std::num::NonZeroUsize;
-use std::sync::Arc;
 use itertools::Itertools;
-use tokio::sync::{Semaphore, TryAcquireError};
 use crate::*;
-use crate::helpers::JoinHandles;
+use crate::parallel_runner::ParallelRunner;
 use crate::quoting::IdentifierQuoter;
 use crate::storage::{CopyDestination, CopySource};
 use crate::storage::DataFormat;
@@ -17,14 +15,18 @@ pub struct CopyDataOptions {
     pub max_parallel: Option<NonZeroUsize>,
 }
 
-pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(source: &S, destination: &'d mut D, options: CopyDataOptions) -> Result<()> {
-    let parallel_permits =  Arc::new(Semaphore::new(options.max_parallel.map(|p| p.get()).unwrap_or(1)));
+impl CopyDataOptions {
+    fn get_max_parallel_or_1(&self) -> NonZeroUsize {
+        self.max_parallel.unwrap_or(NonZeroUsize::new(1).unwrap())
+    }
+}
 
+pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(source: &S, destination: &'d mut D, options: CopyDataOptions) -> Result<()> {
     let data_format = get_data_type(source, destination, &options).await?;
 
     let source = source.create_source().await?;
     let mut destination = destination.create_destination().await?;
-    
+
     let definition = source.get_introspection().await?;
     destination.begin_transaction().await?;
 
@@ -36,10 +38,10 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
             apply_pre_copy_structure(d, &definition).await?;
         }
     }
-    
+
     destination.commit_transaction().await?;
-    
-    let mut join_handles = JoinHandles::new();
+
+    let mut parallel_runner = ParallelRunner::new(options.get_max_parallel_or_1());
 
 
     for schema in &definition.schemas {
@@ -65,46 +67,32 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
                             do_copy(source, destination, schema, table, &data_format).await?
                         }
                         SequentialOrParallel::Parallel(ref mut destination) => {
-                            loop {
-                                match Arc::clone(&parallel_permits).try_acquire_owned() {
-                                    Ok(permit) => {
-                                        let source = source.clone();
-                                        let destination = destination.clone();
-                                        let df = data_format.clone();
-                                        join_handles.push( async move {
-                                            let _p = permit;
-                                            let source = source;
-                                            let mut destination = destination;
-                                            do_copy(&source, &mut destination, schema, table, &df).await
-                                        });
-                                        break;
-                                    },
-                                    Err(TryAcquireError::NoPermits) => {
-                                        join_handles.wait_one().await?;
-                                    },
-                                    Err(_) => {
-                                        panic!("Failed to acquire semaphore permit to parallel processing. This should never happen...")
-                                    }
-                                }
-                            }
+                            let source = source.clone();
+                            let destination = destination.clone();
+                            let df = data_format.clone();
+                            parallel_runner.enqueue(async move {
+                                let source = source;
+                                let mut destination = destination;
+                                do_copy(&source, &mut destination, schema, table, &df).await
+                            }).await?;
                         }
                     }
                 }
             }
         }
     }
-    
-    join_handles.join_all().await?;
+
+    parallel_runner.run_remaining().await?;
 
     match &mut destination {
         SequentialOrParallel::Sequential(ref mut destination) => {
             apply_post_copy_structure_sequential(destination, &definition).await?;
         }
         SequentialOrParallel::Parallel(ref mut destination) => {
-            apply_post_copy_structure_parallel(destination, &definition, parallel_permits).await?;
+            apply_post_copy_structure_parallel(destination, &definition, &options).await?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -188,7 +176,7 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
                 }
             }
         }
-        
+
         statements.push(group_1);
         statements.push(group_2);
 
@@ -199,7 +187,7 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
     }
 
     for schema in &definition.schemas {
-        let mut group_3 = Vec::new(); 
+        let mut group_3 = Vec::new();
         for table in &schema.tables {
             for constraint in &table.constraints {
                 if let PostgresConstraint::ForeignKey(fk) = constraint {
@@ -235,18 +223,17 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
         group_4.push(job.get_create_sql(identifier_quoter));
     }
     statements.push(group_4);
-    
-    
-    
+
+
     statements
 }
 
 
 async fn apply_post_copy_structure_sequential<D: CopyDestination>(destination: &mut D, definition: &PostgresDatabase) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
-    
+
     let statement_groups = get_post_apply_statement_groups(definition, &identifier_quoter);
-    
+
     for group in statement_groups {
         for statement in group {
             destination.apply_non_transactional_statement(&statement).await?;
@@ -256,45 +243,30 @@ async fn apply_post_copy_structure_sequential<D: CopyDestination>(destination: &
     Ok(())
 }
 
-async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(destination: &mut D, definition: &PostgresDatabase, parallel_permits: Arc<Semaphore>) -> Result<()> {
+async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(destination: &mut D, definition: &PostgresDatabase, options: &CopyDataOptions) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
-    
+
     let statement_groups = get_post_apply_statement_groups(definition, &identifier_quoter);
-    
+
     for group in statement_groups {
         if group.is_empty() {
             continue;
         }
-        
+
         if group.len() == 1 {
             destination.apply_non_transactional_statement(&group[0]).await?;
         } else {
-            
-            let mut join_handles = JoinHandles::new();
-            
-            
+            let mut join_handles = ParallelRunner::new(options.get_max_parallel_or_1());
+
+
             for statement in group {
-                loop {
-                    match Arc::clone(&parallel_permits).try_acquire_owned() {
-                        Ok(permit) => {
-                            let mut destination = destination.clone();
-                            join_handles.push(async move {
-                                let _p = permit;
-                                destination.apply_non_transactional_statement(&statement).await
-                            });
-                            break;
-                        },
-                        Err(TryAcquireError::NoPermits) => {
-                            join_handles.wait_one().await?;
-                        },
-                        Err(_) => {
-                            panic!("Failed to acquire semaphore permit to parallel processing. This should never happen...")
-                        }
-                    }
-                }
+                let mut destination = destination.clone();
+                join_handles.enqueue(async move {
+                    destination.apply_non_transactional_statement(&statement).await
+                }).await?;
             }
-            
-            join_handles.join_all().await?;
+
+            join_handles.run_remaining().await?;
         }
     }
 

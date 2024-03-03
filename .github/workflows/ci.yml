@@ -25,4 +25,4 @@ jobs:
         compose-file: "./docker-compose.yaml"
 
     - name: Run tests
-      run: cargo test
+      run: cargo test -- -Zunstable-options --report-time

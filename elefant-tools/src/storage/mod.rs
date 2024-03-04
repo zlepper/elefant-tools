@@ -11,7 +11,8 @@ mod table_data;
 mod data_format;
 
 // pub use elefant_file::ElefantFileDestinationStorage;
-pub use sql_file::SqlFile;
+pub use sql_file::{SqlFile, SqlFileOptions};
+pub use postgres_instance::PostgresInstanceStorage;
 pub use data_format::*;
 pub use table_data::*;
 use crate::models::PostgresSchema;

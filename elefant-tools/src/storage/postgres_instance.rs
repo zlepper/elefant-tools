@@ -54,6 +54,10 @@ impl<'a> PostgresInstanceStorage<'a> {
             identifier_quoter: Arc::new(quoter),
         })
     }
+    
+    pub fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
+        self.identifier_quoter.clone()
+    }
 }
 
 struct Keyword {
@@ -1226,10 +1230,5 @@ from generate_series(1, 1000) s(i);
 
         let items = destination.get_results::<(i32, String)>("select id, name from my_table;").await.unwrap();
         assert_eq!(items.len(), 1000);
-
-        
-        
-        
-        
     }
 }

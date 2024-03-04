@@ -17,6 +17,9 @@ pub use error::*;
 pub use storage::*;
 pub use copy_data::*;
 pub use models::*;
+pub use postgres_client_wrapper::PostgresClientWrapper;
+pub use object_id::ObjectId;
+pub use quoting::IdentifierQuoter;
 
 
 pub(crate) fn default<T: Default>() -> T {

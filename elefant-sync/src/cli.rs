@@ -69,7 +69,19 @@ pub struct ExportDbArgs {
 
     /// The schema to export. If not specified, all schemas will be exported
     #[arg(long)]
-    pub schema: Option<String>,
+    pub source_schema: Option<String>,
+}
+
+impl ExportDbArgs {
+    pub(crate) fn get_connection_string(&self) -> String {
+        let mut connection_string = format!("host={} port={} user={} password={} dbname={}", self.source_db_host, self.source_db_port, self.source_db_user, self.source_db_password, self.source_db_name);
+        
+        if let Some(schema) = &self.source_schema {
+            connection_string.push_str(&format!(" options=--search_path={}", schema));
+        }
+        
+        connection_string
+    }
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -81,32 +93,35 @@ pub enum Storage {
     SqlFile {
         #[arg(long)]
         path: String,
+        
+        #[arg(long, default_value_t = 1000)]
+        max_rows_per_insert: usize,
     },
-
-    /// Export to a directory of SQL files. This directory can be run directly against postgres without needing the
-    /// elefant-sync tool to import it, however no additional processing can be done during import.
-    /// Filenames are specified so files can be imported in alphabetical order.
-    /// This is only recommended for very small databases. For larger databases, use one of the Elefant options.
-    SqlDirectory {
-        #[arg(long)]
-        path: String,
-    },
-
-    /// Export to a single 'Elefant' file. This file can be imported later on using the import command
-    /// and supports advanced processing such as moving between schemas or only importing certain schemas or tables
-    ElefantFile {
-        #[arg(long)]
-        path: String,
-    },
-
-    /// Export to a directory of 'Elefant' files. This directory can be imported later on using the import command
-    /// and supports advanced processing such as moving between schemas or only importing certain schemas or tables.
-    /// The benefit of this over the single file is that it is easier to manage in source control
-    /// and supports parallel processing of the export and import command.
-    ElefantDirectory {
-        #[arg(long)]
-        path: String,
-    },
+    // 
+    // /// Export to a directory of SQL files. This directory can be run directly against postgres without needing the
+    // /// elefant-sync tool to import it, however no additional processing can be done during import.
+    // /// Filenames are specified so files can be imported in alphabetical order.
+    // /// This is only recommended for very small databases. For larger databases, use one of the Elefant options.
+    // SqlDirectory {
+    //     #[arg(long)]
+    //     path: String,
+    // },
+    // 
+    // /// Export to a single 'Elefant' file. This file can be imported later on using the import command
+    // /// and supports advanced processing such as moving between schemas or only importing certain schemas or tables
+    // ElefantFile {
+    //     #[arg(long)]
+    //     path: String,
+    // },
+    // 
+    // /// Export to a directory of 'Elefant' files. This directory can be imported later on using the import command
+    // /// and supports advanced processing such as moving between schemas or only importing certain schemas or tables.
+    // /// The benefit of this over the single file is that it is easier to manage in source control
+    // /// and supports parallel processing of the export and import command.
+    // ElefantDirectory {
+    //     #[arg(long)]
+    //     path: String,
+    // },
 }
 
 #[derive(Args, Debug, Clone)]
@@ -114,19 +129,42 @@ pub struct ImportDbArgs {
     /// The host of the target database to import to
     #[arg(long)]
     pub target_db_host: String,
+    
     /// The port of the target database to import to
     #[arg(long, default_value_t = 5432)]
     pub target_db_port: u16,
+    
     /// The username to use when connecting to the target database
     #[arg(long)]
     pub target_db_user: String,
+    
     /// The password to use when connecting to the target database
     #[arg(long)]
     pub target_db_password: String,
+    
     /// The name of the target database to import to
     #[arg(long)]
     pub target_db_name: String,
+    
+    /// The schema to import to. If not specified, the schema will be imported to 
+    /// the same schema as it was exported from.
+    #[arg(long)]
+    pub target_schema: Option<String>,
 }
+
+
+impl ImportDbArgs {
+    pub(crate) fn get_connection_string(&self) -> String {
+        let mut connection_string = format!("host={} port={} user={} password={} dbname={}", self.target_db_host, self.target_db_port, self.target_db_user, self.target_db_password, self.target_db_name);
+
+        if let Some(schema) = &self.target_schema {
+            connection_string.push_str(&format!(" options=--search_path={},public", schema));
+        }
+
+        connection_string
+    }
+}
+
 
 #[derive(Args, Debug, Clone)]
 pub struct CopyArgs {

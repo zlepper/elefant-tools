@@ -1,12 +1,14 @@
+use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresExtension {
     pub name: String,
     pub schema_name: String,
     pub version: String,
     pub relocatable: bool,
+    pub object_id: ObjectId,
 }
 
 

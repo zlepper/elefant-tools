@@ -13,6 +13,13 @@ pub struct CopyDataOptions {
     pub data_format: Option<DataFormat>,
     /// How many tables to copy in parallel at most
     pub max_parallel: Option<NonZeroUsize>,
+    
+    /// The schema to inspect
+    pub target_schema: Option<String>,
+    
+    /// If `target_schema` is specified it will be renamed to this
+    /// when applied to the destination.
+    pub rename_schema_to: Option<String>,
 }
 
 impl CopyDataOptions {
@@ -28,14 +35,27 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
     let mut destination = destination.create_destination().await?;
 
     let definition = source.get_introspection().await?;
+    
+    let source_definition = if let Some(target_schema) = &options.target_schema {
+        definition.filtered_to_schema(target_schema)
+    } else {
+        definition
+    };
+    
+    let target_definition = if let (Some(target_schema), Some(rename_to)) = (&options.target_schema, &options.rename_schema_to) {
+        source_definition.with_renamed_schema(target_schema, rename_to)
+    } else {
+        source_definition.clone()
+    };
+    
     destination.begin_transaction().await?;
 
     match &mut destination {
         SequentialOrParallel::Sequential(ref mut d) => {
-            apply_pre_copy_structure(d, &definition).await?;
+            apply_pre_copy_structure(d, &target_definition).await?;
         }
         SequentialOrParallel::Parallel(ref mut d) => {
-            apply_pre_copy_structure(d, &definition).await?;
+            apply_pre_copy_structure(d, &target_definition).await?;
         }
     }
 
@@ -44,27 +64,43 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
     let mut parallel_runner = ParallelRunner::new(options.get_max_parallel_or_1());
 
 
-    for schema in &definition.schemas {
-        for table in &schema.tables {
-            if let TableTypeDetails::PartitionedParentTable { .. } = &table.table_type {
+    for target_schema in &target_definition.schemas {
+        let source_schema = source_definition.schemas.iter().find(|s| s.object_id.actual_eq(&target_schema.object_id));
+        let source_schema = match source_schema {
+            Some(s) => s,
+            None => {
                 continue;
             }
+        };
+        
+        for target_table in &target_schema.tables {
+            if let TableTypeDetails::PartitionedParentTable { .. } = &target_table.table_type {
+                continue;
+            }
+            
+            let source_table = source_schema.tables.iter().find(|t| t.object_id.actual_eq(&target_table.object_id));
+            let source_table = match source_table {
+                Some(s) => s,
+                None => {
+                    continue;
+                }
+            };
 
             match source {
                 SequentialOrParallel::Sequential(ref source) => {
                     match &mut destination {
                         SequentialOrParallel::Sequential(ref mut destination) => {
-                            do_copy(source, destination, schema, table, &data_format).await?
+                            do_copy(source, destination, target_schema, target_table, source_schema, source_table, &data_format).await?
                         }
                         SequentialOrParallel::Parallel(ref mut destination) => {
-                            do_copy(source, destination, schema, table, &data_format).await?
+                            do_copy(source, destination, target_schema, target_table,  source_schema, source_table, &data_format).await?
                         }
                     }
                 }
                 SequentialOrParallel::Parallel(ref source) => {
                     match &mut destination {
                         SequentialOrParallel::Sequential(ref mut destination) => {
-                            do_copy(source, destination, schema, table, &data_format).await?
+                            do_copy(source, destination, target_schema, target_table,  source_schema, source_table, &data_format).await?
                         }
                         SequentialOrParallel::Parallel(ref mut destination) => {
                             let source = source.clone();
@@ -73,7 +109,7 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
                             parallel_runner.enqueue(async move {
                                 let source = source;
                                 let mut destination = destination;
-                                do_copy(&source, &mut destination, schema, table, &df).await
+                                do_copy(&source, &mut destination, target_schema, target_table, source_schema, source_table, &df).await
                             }).await?;
                         }
                     }
@@ -86,10 +122,10 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
 
     match &mut destination {
         SequentialOrParallel::Sequential(ref mut destination) => {
-            apply_post_copy_structure_sequential(destination, &definition).await?;
+            apply_post_copy_structure_sequential(destination, &target_definition).await?;
         }
         SequentialOrParallel::Parallel(ref mut destination) => {
-            apply_post_copy_structure_parallel(destination, &definition, &options).await?;
+            apply_post_copy_structure_parallel(destination, &target_definition, &options).await?;
         }
     }
 
@@ -138,10 +174,10 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
     Ok(())
 }
 
-async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mut D, schema: &PostgresSchema, table: &PostgresTable, data_format: &DataFormat) -> Result<()> {
-    let data = source.get_data(schema, table, data_format).await?;
+async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mut D, target_schema: &PostgresSchema, target_table: &PostgresTable, source_schema: &PostgresSchema, source_table: &PostgresTable, data_format: &DataFormat) -> Result<()> {
+    let data = source.get_data(source_schema, source_table, data_format).await?;
 
-    destination.apply_data(schema, table, data).await
+    destination.apply_data(target_schema, target_table, data).await
 }
 
 

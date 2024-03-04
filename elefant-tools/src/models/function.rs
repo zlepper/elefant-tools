@@ -1,6 +1,7 @@
 use crate::ElefantToolsError;
 use crate::postgres_client_wrapper::FromPgChar;
 use ordered_float::NotNan;
+use crate::object_id::ObjectId;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 use crate::quoting::{IdentifierQuoter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
@@ -64,7 +65,7 @@ impl FromPgChar for Parallel {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresFunction {
     pub function_name: String,
     pub language: String,
@@ -83,6 +84,7 @@ pub struct PostgresFunction {
     pub arguments: String,
     pub result: Option<String>,
     pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl PostgresFunction {

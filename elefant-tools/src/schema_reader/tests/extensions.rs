@@ -26,6 +26,7 @@ async fn test_extensions(helper: &TestHelper) {
                 schema_name: "public".to_string(),
                 version: "1.3".to_string(),
                 relocatable: true,
+                ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),
             ..default()

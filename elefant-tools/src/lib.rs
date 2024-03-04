@@ -11,6 +11,7 @@ mod quoting;
 mod helpers;
 mod whitespace_ignorant_string;
 mod parallel_runner;
+mod object_id;
 
 pub use error::*;
 pub use storage::*;

@@ -1,12 +1,14 @@
 use itertools::Itertools;
+use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresEnum {
     pub name: String,
     pub values: Vec<String>,
     pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl PostgresEnum {

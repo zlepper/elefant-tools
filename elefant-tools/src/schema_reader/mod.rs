@@ -131,6 +131,7 @@ impl SchemaReader<'_> {
                 cycle: sequence.cycle,
                 last_value: sequence.last_value,
                 comment: sequence.comment,
+                object_id: ObjectId::next()
             };
 
             current_schema.sequences.push(sequence);
@@ -167,6 +168,7 @@ impl SchemaReader<'_> {
                 arguments: function.arguments.clone(),
                 result: function.result.clone(),
                 comment: function.comment.clone(),
+                object_id: ObjectId::next()
             };
 
             current_schema.functions.push(function);
@@ -178,6 +180,7 @@ impl SchemaReader<'_> {
                 schema_name: extension.extension_schema_name.clone(),
                 version: extension.extension_version.clone(),
                 relocatable: extension.extension_relocatable,
+                object_id: ObjectId::next()
             };
 
             db.enabled_extensions.push(extension);
@@ -206,6 +209,7 @@ impl SchemaReader<'_> {
                 comment: trigger.comment.clone(),
                 old_table_name: trigger.old_table_name.clone(),
                 new_table_name: trigger.new_table_name.clone(),
+                object_id: ObjectId::next()
             };
 
             current_schema.triggers.push(trigger);
@@ -218,6 +222,7 @@ impl SchemaReader<'_> {
                 name: enumeration.name.clone(),
                 values: enumeration.values.clone(),
                 comment: enumeration.comment.clone(),
+                object_id: ObjectId::next()
             };
 
             current_schema.enums.push(enumeration);
@@ -233,6 +238,7 @@ impl SchemaReader<'_> {
                 fixed_schedule: timescale_job.fixed_schedule,
                 config: timescale_job.config.clone().map(|c| c.into()),
                 scheduled: timescale_job.scheduled,
+                object_id: ObjectId::next()
             })
         }
 
@@ -308,6 +314,7 @@ impl SchemaReader<'_> {
             } else {
                 ViewOptions::None
             },
+            object_id: ObjectId::next(),
         }
     }
 
@@ -501,6 +508,7 @@ impl SchemaReader<'_> {
             comment: row.comment,
             storage_parameters: row.storage_parameters.unwrap_or_default(),
             table_type: table_details,
+            object_id: ObjectId::next()
         };
 
         Ok(table)
@@ -529,6 +537,7 @@ impl SchemaReader<'_> {
                     name: check_constraint.constraint_name.clone(),
                     check_clause: check_constraint.check_clause.clone().into(),
                     comment: check_constraint.comment.clone(),
+                    object_id: ObjectId::next()
                 }
                     .into()
             })
@@ -580,6 +589,7 @@ impl SchemaReader<'_> {
                         })
                         .collect(),
                     comment: fk.comment.clone(),
+                    object_id: ObjectId::next()
                 }
                     .into()
             })
@@ -594,6 +604,7 @@ impl SchemaReader<'_> {
                 name: c.constraint_name.clone(),
                 unique_index_name: c.index_name.clone(),
                 comment: c.comment.clone(),
+                object_id: ObjectId::next()
             })
             .map(|c| c.into())
             .collect_vec();
@@ -671,6 +682,7 @@ impl SchemaReader<'_> {
                 },
                 comment: index.comment.clone(),
                 storage_parameters: index.storage_parameters.clone().unwrap_or_else(Vec::new),
+                object_id: ObjectId::next()
             });
         }
 
@@ -695,6 +707,7 @@ use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDim
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 use crate::TableTypeDetails::TimescaleHypertable;
 pub(crate) use define_working_query;
+use crate::object_id::ObjectId;
 use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
 use crate::schema_reader::view::ViewResult;
 use crate::schema_reader::view_column::ViewColumnResult;

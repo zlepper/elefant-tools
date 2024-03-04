@@ -55,6 +55,7 @@ async fn enums(helper: &TestHelper) {
                         "happy".to_string(),
                     ],
                     comment: Some("This is a mood".to_string()),
+                    ..default()
                 }],
                 ..default()
             }],

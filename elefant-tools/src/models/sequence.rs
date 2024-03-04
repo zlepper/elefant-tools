@@ -1,9 +1,10 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema};
+use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PostgresSequence {
     pub name: String,
     pub data_type: String,
@@ -15,6 +16,7 @@ pub struct PostgresSequence {
     pub cycle: bool,
     pub last_value: Option<i64>,
     pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl Default for PostgresSequence {
@@ -30,6 +32,7 @@ impl Default for PostgresSequence {
             cycle: false,
             last_value: None,
             comment: None,
+            object_id: ObjectId::next(),
         }
     }
 }

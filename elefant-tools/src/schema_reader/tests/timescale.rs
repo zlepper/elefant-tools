@@ -714,6 +714,7 @@ SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}'
                     check_config_name: None,
                     check_config_schema: None,
                     fixed_schedule: true,
+                    ..default()
                 }]
             },
             ..default()

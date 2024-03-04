@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
+use crate::object_id::ObjectId;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresCheckConstraint {
     pub name: String,
     pub check_clause: WhitespaceIgnorantString,
-    pub comment: Option<String>
+    pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl PartialOrd for PostgresCheckConstraint {

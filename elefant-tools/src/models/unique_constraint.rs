@@ -1,13 +1,15 @@
 use std::cmp::Ordering;
 use crate::{PostgresSchema, PostgresTable};
+use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresUniqueConstraint {
     pub name: String,
     pub unique_index_name: String,
     pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl PartialOrd for PostgresUniqueConstraint {

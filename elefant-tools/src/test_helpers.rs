@@ -99,6 +99,11 @@ impl TestHelper {
     pub fn get_conn(&self) -> &PostgresClientWrapper {
         &self.main_connection
     }
+    
+    pub async fn get_schema_connection(&self, schema: &str) -> PostgresClientWrapper {
+        let connection_string = format!("host=localhost port={} user=postgres password=passw0rd dbname={} options=--search_path={},public", self.port, self.test_db_name, schema);
+        PostgresClientWrapper::new(&connection_string).await.expect("Connection to test database failed. Is postgres running?")
+    } 
 
     pub async fn stop(mut self) {
         cleanup(&self.test_db_name, self.port).await;

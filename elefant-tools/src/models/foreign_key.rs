@@ -2,11 +2,12 @@ use std::cmp::Ordering;
 use std::str::FromStr;
 use itertools::Itertools;
 use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
+use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PostgresForeignKey {
     pub name: String,
     pub columns: Vec<PostgresForeignKeyColumn>,
@@ -16,6 +17,7 @@ pub struct PostgresForeignKey {
     pub update_action: ReferenceAction,
     pub delete_action: ReferenceAction,
     pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl Default for PostgresForeignKey {
@@ -29,6 +31,7 @@ impl Default for PostgresForeignKey {
             update_action: ReferenceAction::NoAction,
             delete_action: ReferenceAction::NoAction,
             comment: None,
+            object_id: ObjectId::default(),
         }
     }
 }
@@ -126,7 +129,7 @@ impl PartialOrd for PostgresForeignKey {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PostgresForeignKeyColumn {
     pub name: String,
     pub ordinal_position: i32,
@@ -145,7 +148,7 @@ impl PartialOrd for PostgresForeignKeyColumn {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct PostgresForeignKeyReferencedColumn {
     pub name: String,
     pub ordinal_position: i32,

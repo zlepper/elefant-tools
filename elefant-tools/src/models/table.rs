@@ -7,12 +7,13 @@ use crate::helpers::StringExt;
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
+use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::storage::DataFormat;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresTable {
     pub name: String,
     pub columns: Vec<PostgresColumn>,
@@ -21,6 +22,7 @@ pub struct PostgresTable {
     pub comment: Option<String>,
     pub storage_parameters: Vec<String>,
     pub table_type: TableTypeDetails,
+    pub object_id: ObjectId,
 }
 
 impl PostgresTable {

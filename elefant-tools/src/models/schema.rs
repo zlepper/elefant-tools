@@ -3,10 +3,11 @@ use crate::models::table::PostgresTable;
 use crate::models::view::PostgresView;
 use crate::{PostgresFunction, PostgresTrigger};
 use crate::models::enumeration::PostgresEnum;
+use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default)]
+#[derive(Debug, Eq, PartialEq, Default, Clone)]
 pub struct PostgresSchema {
     pub tables: Vec<PostgresTable>,
     pub sequences: Vec<PostgresSequence>,
@@ -16,6 +17,7 @@ pub struct PostgresSchema {
     pub enums: Vec<PostgresEnum>,
     pub name: String,
     pub comment: Option<String>,
+    pub object_id: ObjectId,
 }
 
 impl PostgresSchema {

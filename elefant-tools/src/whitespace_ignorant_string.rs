@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 /// A string that ignores repeated whitespace when comparing equality.
 #[repr(transparent)]
-#[derive(Default, Eq)]
+#[derive(Default, Eq, Clone)]
 pub struct WhitespaceIgnorantString {
     inner: String,
 }

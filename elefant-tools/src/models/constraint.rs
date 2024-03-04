@@ -2,7 +2,7 @@ use crate::models::check_constraint::PostgresCheckConstraint;
 use crate::models::foreign_key::PostgresForeignKey;
 use crate::models::unique_constraint::PostgresUniqueConstraint;
 
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd, Clone)]
 pub enum PostgresConstraint {
     Check(PostgresCheckConstraint),
     ForeignKey(PostgresForeignKey),

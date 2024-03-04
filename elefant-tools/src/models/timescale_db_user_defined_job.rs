@@ -1,9 +1,10 @@
 use pg_interval::Interval;
+use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct TimescaleDbUserDefinedJob {
     pub function_name: String,
     pub function_schema: String,
@@ -13,6 +14,7 @@ pub struct TimescaleDbUserDefinedJob {
     pub check_config_name: Option<String>,
     pub check_config_schema: Option<String>,
     pub fixed_schedule: bool,
+    pub object_id: ObjectId,
 }
 
 impl Default for TimescaleDbUserDefinedJob {
@@ -26,6 +28,7 @@ impl Default for TimescaleDbUserDefinedJob {
             check_config_name: None,
             check_config_schema: None,
             fixed_schedule: false,
+            object_id: ObjectId::default(),
         }
     }
 }

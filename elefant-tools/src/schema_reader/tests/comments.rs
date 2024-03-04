@@ -74,11 +74,13 @@ async fn comments_on_stuff(helper: &TestHelper) {
                                 name: "my_table_value_check".to_string(),
                                 check_clause: "((value > 0))".into(),
                                 comment: Some("This is a constraint".to_string()),
+                                ..default()
                             }),
                             PostgresConstraint::Unique(PostgresUniqueConstraint {
                                 name: "my_table_another_value_key".to_string(),
                                 unique_index_name: "my_table_another_value_key".to_string(),
                                 comment: Some("This is a unique constraint".to_string()),
+                                ..default()
                             }),
                         ],
                         indices: vec![
@@ -122,6 +124,7 @@ async fn comments_on_stuff(helper: &TestHelper) {
                         arguments: "".to_string(),
                         result: Some("integer".to_string()),
                         comment: Some("This is a function".to_string()),
+                        ..default()
                     },
                     PostgresFunction {
                         function_name: "my_function_2".to_string(),
@@ -142,6 +145,7 @@ async fn comments_on_stuff(helper: &TestHelper) {
                         arguments: "a integer, b integer".to_string(),
                         result: Some("integer".to_string()),
                         comment: Some("This is another function".to_string()),
+                        ..default()
                     },
                 ],
                 views: vec![

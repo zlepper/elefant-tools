@@ -6,13 +6,14 @@ use bytes::Bytes;
 use futures::{pin_mut, Stream, StreamExt};
 use itertools::Itertools;
 use tokio::fs::File;
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
 use uuid::Uuid;
 use crate::models::SimplifiedDataType;
 use crate::models::PostgresSchema;
 use crate::models::PostgresTable;
 use crate::storage::{BaseCopyTarget, CopyDestination};
 use crate::{AsyncCleanup, CopyDestinationFactory, ParallelCopyDestinationNotAvailable, PostgresClientWrapper, Result, SequentialOrParallel};
+use crate::chunk_reader::{ChunkResult, StringChunkReader};
 use crate::quoting::IdentifierQuoter;
 use crate::storage::data_format::DataFormat;
 use crate::storage::table_data::TableData;
@@ -52,11 +53,12 @@ impl SqlFile<BufWriter<File>> {
     }
 }
 
-impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
-    pub async fn new(mut file: F, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
+static CHUNK_SEPARATOR_PREFIX: &str = "-- chunk-separator-";
 
-        let chunk_separator = format!("-- chunk-separator-{} --", options.chunk_separator).into_bytes();
-        // file.write_all(&chunk_separator).await?;
+impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
+    pub async fn new(file: F, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
+
+        let chunk_separator = format!("{}{} --", CHUNK_SEPARATOR_PREFIX, options.chunk_separator).into_bytes();
 
         Ok(SqlFile {
             file,
@@ -249,12 +251,44 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
     }
 }
 
-pub async fn apply_sql_file<F: AsyncRead + Unpin + Send + Sync>(content: &mut F, target_connection: &PostgresClientWrapper) -> Result<()> {
-    let mut file_content = String::new();
-    content.read_to_string(&mut file_content).await?;
+pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut F, target_connection: &PostgresClientWrapper) -> Result<()> {
 
-    target_connection.execute_non_query(&file_content).await?;
-
+    
+    let mut sql_chunk = String::with_capacity(10000);
+    
+    let read = content.read_line(&mut sql_chunk).await?;
+    
+    if read == 0 {
+        return Ok(());
+    }
+    
+    if sql_chunk.starts_with(CHUNK_SEPARATOR_PREFIX) {
+        
+        let separator = sql_chunk.clone();
+        
+        loop {
+            sql_chunk.clear();
+            
+            let read = content.read_lines_until_separator_line(&separator, &mut sql_chunk).await?;
+            match read {
+                ChunkResult::Chunk(_) => {
+                    target_connection.execute_non_query(&sql_chunk).await?;
+                },
+                ChunkResult::End(read) => {
+                    if read > 0 {
+                        target_connection.execute_non_query(&sql_chunk).await?;
+                    }
+                    break;
+                }
+            }
+        }
+        
+        
+    } else {
+        content.read_to_string(&mut sql_chunk).await?;
+        target_connection.execute_non_query(&sql_chunk).await?;
+    }
+    
     Ok(())
 }
 

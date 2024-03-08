@@ -12,6 +12,7 @@ mod helpers;
 mod whitespace_ignorant_string;
 mod parallel_runner;
 mod object_id;
+mod chunk_reader;
 
 pub use error::*;
 pub use storage::*;

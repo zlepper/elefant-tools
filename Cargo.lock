@@ -334,6 +334,7 @@ name = "elefant-sync"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "elefant-test-macros",
  "elefant-tools",
  "tokio",
 ]

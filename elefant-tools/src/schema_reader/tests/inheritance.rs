@@ -2,6 +2,7 @@ use elefant_test_macros::pg_test;
 use crate::{default, PostgresCheckConstraint, PostgresColumn, PostgresConstraint, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresSequence, PostgresTable, TableTypeDetails, TimescaleSupport};
 use crate::schema_reader::tests::test_introspection;
 use crate::test_helpers::TestHelper;
+use crate::test_helpers;
 
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]

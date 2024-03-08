@@ -5,12 +5,13 @@ use uuid::Uuid;
 use crate::ElefantToolsError;
 use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 
+#[allow(dead_code)]
 
 pub struct TestHelper {
-    test_db_name: String,
+    pub test_db_name: String,
     main_connection: PostgresClientWrapper,
     helper_name: String,
-    port: u16,
+    pub port: u16,
     cleaned_up_nicely: bool,
     is_timescale_db: bool,
 }
@@ -127,6 +128,7 @@ async fn cleanup(db_name: &str, port: u16) {
 }
 
 impl crate::models::TimescaleSupport {
+    #[allow(dead_code)]
     pub(crate) fn from_test_helper(helper: &TestHelper) -> Self {
         Self {
             is_enabled: helper.is_timescale_db,
@@ -158,6 +160,7 @@ mod tests {
     use super::*;
     use tokio::test;
     use elefant_test_macros::pg_test;
+    use crate::test_helpers;
 
 
     #[test]

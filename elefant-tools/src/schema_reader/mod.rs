@@ -92,6 +92,7 @@ impl SchemaReader<'_> {
             let schema = PostgresSchema {
                 name: row.name.clone(),
                 comment: row.comment.clone(),
+                object_id: ObjectId::next(),
                 ..Default::default()
             };
 

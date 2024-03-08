@@ -1,5 +1,5 @@
-#[cfg(test)]
-mod test_helpers;
+#[cfg(any(test, feature = "test_utilities"))]
+pub mod test_helpers;
 
 mod postgres_client_wrapper;
 mod schema_reader;

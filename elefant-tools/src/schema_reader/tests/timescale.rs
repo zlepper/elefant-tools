@@ -5,6 +5,7 @@ use crate::{default, FunctionKind, HypertableCompression, HypertableCompressionO
 use crate::schema_reader::tests::test_introspection;
 use crate::TableTypeDetails::TimescaleHypertable;
 use crate::test_helpers::TestHelper;
+use crate::test_helpers;
 
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]

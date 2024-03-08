@@ -16,6 +16,7 @@ use super::*;
 use crate::default;
 use crate::test_helpers::TestHelper;
 use elefant_test_macros::pg_test;
+use crate::test_helpers;
 
 pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
     let conn = test_helper.get_conn();

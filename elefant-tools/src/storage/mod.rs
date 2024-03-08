@@ -11,7 +11,7 @@ mod table_data;
 mod data_format;
 
 // pub use elefant_file::ElefantFileDestinationStorage;
-pub use sql_file::{SqlFile, SqlFileOptions};
+pub use sql_file::{SqlFile, SqlFileOptions, apply_sql_file, apply_sql_string};
 pub use postgres_instance::PostgresInstanceStorage;
 pub use data_format::*;
 pub use table_data::*;

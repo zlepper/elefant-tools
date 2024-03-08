@@ -7,3 +7,7 @@ edition = "2021"
 clap = { version = "4.4", features = ["derive"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"], default-features = false }
 elefant-tools = { path = "../elefant-tools" }
+
+[dev-dependencies]
+elefant-test-macros = { path = "../elefant-test-macros" }
+elefant-tools = { path = "../elefant-tools", features = ["test_utilities"] }

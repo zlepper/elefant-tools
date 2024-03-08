@@ -1,5 +1,7 @@
+use std::num::NonZeroUsize;
 use std::thread;
 use clap::{Args, Parser, Subcommand};
+use elefant_tools::test_helpers::TestHelper;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about)]
@@ -11,14 +13,14 @@ pub struct Cli {
     #[clap(subcommand)]
     pub command: Commands,
 
-    /// How many threads to use when exporting or importing. Defaults to the number of number of estimated cores
+    /// How many threads to use when exporting or importing. Defaults to the number of estimated cores
     /// on the machine. If the available parallelism cannot be determined, it defaults to 1.
     #[arg(long, default_value_t = get_default_max_parallelism())]
-    pub max_parallelism: usize,
+    pub max_parallelism: NonZeroUsize,
 }
 
-fn get_default_max_parallelism() -> usize {
-    thread::available_parallelism().map(|v| v.get()).unwrap_or(1)
+fn get_default_max_parallelism() -> NonZeroUsize {
+    thread::available_parallelism().unwrap_or(NonZeroUsize::new(1).unwrap())
 }
 
 
@@ -81,6 +83,18 @@ impl ExportDbArgs {
         }
         
         connection_string
+    }
+    
+    #[cfg(test)]
+    pub(crate) fn from_test_helper(helper: &TestHelper) -> Self {
+        Self {
+            source_db_host: "localhost".to_string(),
+            source_db_port: helper.port,
+            source_db_user: "postgres".to_string(),
+            source_db_password: "passw0rd".to_string(),
+            source_db_name: helper.test_db_name.clone(),
+            source_schema: None,
+        }
     }
 }
 
@@ -162,6 +176,19 @@ impl ImportDbArgs {
         }
 
         connection_string
+    }
+
+
+    #[cfg(test)]
+    pub(crate) fn from_test_helper(helper: &TestHelper) -> Self {
+        Self {
+            target_db_host: "localhost".to_string(),
+            target_db_port: helper.port,
+            target_db_user: "postgres".to_string(),
+            target_db_password: "passw0rd".to_string(),
+            target_db_name: helper.test_db_name.clone(),
+            target_schema: None,
+        }
     }
 }
 

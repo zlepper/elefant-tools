@@ -100,7 +100,7 @@ pub fn pg_test(args: TokenStream, item: TokenStream) -> TokenStream {
         let arg_name = arg_ident.to_string();
 
         test_helpers_create.push(quote! {
-            let mut #arg_ident = crate::test_helpers::get_test_helper_on_port(#arg_name, #port).await;
+            let mut #arg_ident = test_helpers::get_test_helper_on_port(#arg_name, #port).await;
         });
         test_helpers_stop.push(quote! {
             #arg_ident.stop().await;

@@ -183,10 +183,6 @@ impl<'a> ParallelSafePostgresInstanceCopySourceStorage<'a> {
             Ok(new_conn)
         }
     }
-
-    async fn release_connection(&self, connection: PostgresClientWrapper) {
-        self.connection_pool.release_connection(connection).await;
-    }
 }
 
 impl<'a> CopySource for ParallelSafePostgresInstanceCopySourceStorage<'a> {

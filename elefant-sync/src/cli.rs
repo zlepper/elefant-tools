@@ -1,7 +1,6 @@
 use std::num::NonZeroUsize;
 use std::thread;
 use clap::{Args, Parser, Subcommand};
-use std::fs::File;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about)]

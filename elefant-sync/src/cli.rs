@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::thread;
 use clap::{Args, Parser, Subcommand};
-use elefant_tools::test_helpers::TestHelper;
+use std::fs::File;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about)]
@@ -86,7 +86,7 @@ impl ExportDbArgs {
     }
     
     #[cfg(test)]
-    pub(crate) fn from_test_helper(helper: &TestHelper) -> Self {
+    pub(crate) fn from_test_helper(helper: &elefant_tools::test_helpers::TestHelper) -> Self {
         Self {
             source_db_host: "localhost".to_string(),
             source_db_port: helper.port,
@@ -180,7 +180,7 @@ impl ImportDbArgs {
 
 
     #[cfg(test)]
-    pub(crate) fn from_test_helper(helper: &TestHelper) -> Self {
+    pub(crate) fn from_test_helper(helper: &elefant_tools::test_helpers::TestHelper) -> Self {
         Self {
             target_db_host: "localhost".to_string(),
             target_db_port: helper.port,

@@ -6,13 +6,13 @@ use crate::*;
 
 mod elefant_file;
 mod sql_file;
-mod postgres_instance;
 mod table_data;
 mod data_format;
+mod postgres;
 
 // pub use elefant_file::ElefantFileDestinationStorage;
-pub use sql_file::{SqlFile, SqlFileOptions, apply_sql_file, apply_sql_string};
-pub use postgres_instance::PostgresInstanceStorage;
+pub use sql_file::{SqlFile, SqlFileOptions, apply_sql_file, apply_sql_string, SqlDataMode};
+pub use postgres::PostgresInstanceStorage;
 pub use data_format::*;
 pub use table_data::*;
 use crate::models::PostgresSchema;
@@ -29,6 +29,8 @@ pub trait CopySourceFactory: BaseCopyTarget {
     type ParallelSource: CopySource + Clone + Sync;
 
     fn create_source(&self) -> impl std::future::Future<Output = Result<SequentialOrParallel<Self::SequentialSource, Self::ParallelSource>>> + Send;
+    fn create_sequential_source(&self) -> impl std::future::Future<Output = Result<Self::SequentialSource>> + Send;
+    fn supported_parallelism(&self) -> SupportedParallelism;
 }
 
 pub trait CopySource: Send {
@@ -46,6 +48,8 @@ pub trait CopyDestinationFactory<'a>: BaseCopyTarget {
     type ParallelDestination: CopyDestination + Clone + Sync;
 
     fn create_destination(&'a mut self) -> impl std::future::Future<Output = Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>>> + Send;
+    fn create_sequential_destination(&'a mut self) -> impl std::future::Future<Output = Result<Self::SequentialDestination>> + Send;
+    fn supported_parallelism(&self) -> SupportedParallelism;
 }
 
 pub trait CopyDestination: Send {
@@ -69,6 +73,21 @@ pub trait CopyDestination: Send {
 pub enum SequentialOrParallel<S: Send, P: Send + Clone + Sync> {
     Sequential(S),
     Parallel(P),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SupportedParallelism {
+    Sequential,
+    Parallel,
+}
+
+impl SupportedParallelism {
+    pub fn negotiate_parallelism(&self, other: SupportedParallelism) -> SupportedParallelism {
+        match (self, other) {
+            (SupportedParallelism::Parallel, SupportedParallelism::Parallel) => SupportedParallelism::Parallel,
+            _ => SupportedParallelism::Sequential,
+        }
+    }
 }
 
 impl< S: CopySource, P: CopySource + Clone + Sync> SequentialOrParallel<S, P> 

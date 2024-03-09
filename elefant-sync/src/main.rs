@@ -52,9 +52,10 @@ async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism:
     };
 
     match destination {
-        Storage::SqlFile { path , max_rows_per_insert } => {
+        Storage::SqlFile { path , max_rows_per_insert, format } => {
             let mut sql_file_destination = elefant_tools::SqlFile::new_file(&path, source.get_identifier_quoter(), SqlFileOptions {
                 max_rows_per_insert,
+                data_mode: format,
                 ..SqlFileOptions::default()
             }).await?;
 
@@ -108,7 +109,7 @@ async fn do_copy(copy_args: CopyArgs) -> Result<()> {
 mod tests {
     use elefant_test_macros::pg_test;
     use elefant_tools::test_helpers::TestHelper;
-    use elefant_tools::test_helpers;
+    use elefant_tools::{SqlDataMode, test_helpers};
     use super::*;
 
     #[pg_test(arg(postgres = 16), arg(postgres = 16))]
@@ -118,13 +119,14 @@ mod tests {
         insert into test_table(id) values (1);
         "#).await;
 
-        let sql_file_path = format!("test_items/import_export_{}_{}.sql", source.port, destination.port);
+        let sql_file_path = format!("test_items/import_export_{}_{}_inserts.sql", source.port, destination.port);
         let export_parameters = cli::Cli {
             max_parallelism: NonZeroUsize::new(1).unwrap(),
             command: Commands::Export {
                 destination: Storage::SqlFile {
                     path: sql_file_path.clone(),
-                    max_rows_per_insert: 1000
+                    max_rows_per_insert: 1000,
+                    format: SqlDataMode::InsertStatements,
                 },
                 db_args: ExportDbArgs::from_test_helper(source)
             }
@@ -137,7 +139,48 @@ mod tests {
             command: Commands::Import {
                 source: Storage::SqlFile {
                     path: sql_file_path,
-                    max_rows_per_insert: 1000
+                    max_rows_per_insert: 1000,
+                    format: SqlDataMode::InsertStatements,
+                },
+                db_args: ImportDbArgs::from_test_helper(destination)
+            }
+        };
+
+        run(import_parameters).await.unwrap();
+
+        let rows = destination.get_single_results::<i32>("select id from test_table;").await;
+        assert_eq!(rows, vec![1]);
+    }
+
+    #[pg_test(arg(postgres = 16), arg(postgres = 16))]
+    async fn test_export_import_sql_file_copy(source: &TestHelper, destination: &TestHelper) {
+        source.execute_not_query(r#"
+        create table test_table(id int);
+        insert into test_table(id) values (1);
+        "#).await;
+
+        let sql_file_path = format!("test_items/import_export_{}_{}_copy.sql", source.port, destination.port);
+        let export_parameters = cli::Cli {
+            max_parallelism: NonZeroUsize::new(1).unwrap(),
+            command: Commands::Export {
+                destination: Storage::SqlFile {
+                    path: sql_file_path.clone(),
+                    max_rows_per_insert: 1000,
+                    format: SqlDataMode::CopyStatements,
+                },
+                db_args: ExportDbArgs::from_test_helper(source)
+            }
+        };
+
+        run(export_parameters).await.unwrap();
+
+        let import_parameters = cli::Cli {
+            max_parallelism: NonZeroUsize::new(1).unwrap(),
+            command: Commands::Import {
+                source: Storage::SqlFile {
+                    path: sql_file_path,
+                    max_rows_per_insert: 1000,
+                    format: SqlDataMode::CopyStatements,
                 },
                 db_args: ImportDbArgs::from_test_helper(destination)
             }

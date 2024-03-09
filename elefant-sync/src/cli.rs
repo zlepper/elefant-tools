@@ -1,6 +1,7 @@
 use std::num::NonZeroUsize;
 use std::thread;
 use clap::{Args, Parser, Subcommand};
+use elefant_tools::SqlDataMode;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about)]
@@ -109,6 +110,9 @@ pub enum Storage {
         
         #[arg(long, default_value_t = 1000, env)]
         max_rows_per_insert: usize,
+        
+        #[arg(long, default_value_t = SqlDataMode::CopyStatements, env)]
+        format: SqlDataMode,
     },
     // 
     // /// Export to a directory of SQL files. This directory can be run directly against postgres without needing the

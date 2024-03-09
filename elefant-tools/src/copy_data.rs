@@ -23,9 +23,14 @@ pub struct CopyDataOptions {
     pub rename_schema_to: Option<String>,
 }
 
+const NON_ZERO_USIZE1: NonZeroUsize = unsafe { 
+    // SAFETY: 1 is not zero
+    NonZeroUsize::new_unchecked(1)
+};
+
 impl CopyDataOptions {
     fn get_max_parallel_or_1(&self) -> NonZeroUsize {
-        self.max_parallel.unwrap_or(NonZeroUsize::new(1).unwrap())
+        self.max_parallel.unwrap_or(NON_ZERO_USIZE1)
     }
 }
 
@@ -33,9 +38,22 @@ impl CopyDataOptions {
 pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(source: &S, destination: &'d mut D, options: CopyDataOptions) -> Result<()> {
     let data_format = get_data_type(source, destination, &options).await?;
 
-    let source = source.create_source().await?;
-    let mut destination = destination.create_destination().await?;
-
+    
+    let expected_parallelism = if options.get_max_parallel_or_1() == NON_ZERO_USIZE1 {
+        SupportedParallelism::Sequential
+    } else {
+        source.supported_parallelism().negotiate_parallelism(destination.supported_parallelism())
+    };
+    
+    let (source, mut destination) = match expected_parallelism {
+        SupportedParallelism::Sequential => {
+            (SequentialOrParallel::Sequential(source.create_sequential_source().await?), SequentialOrParallel::Sequential(destination.create_sequential_destination().await?))
+        },
+        SupportedParallelism::Parallel => {
+            (source.create_source().await?, destination.create_destination().await?)
+        }
+    };
+    
     let definition = source.get_introspection().await?;
     
     let source_definition = if let Some(target_schema) = &options.target_schema {
@@ -180,8 +198,10 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
 #[instrument(skip_all)]
 async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mut D, target_schema: &PostgresSchema, target_table: &PostgresTable, source_schema: &PostgresSchema, source_table: &PostgresTable, data_format: &DataFormat) -> Result<()> {
     let data = source.get_data(source_schema, source_table, data_format).await?;
-
-    destination.apply_data(target_schema, target_table, data).await
+    
+    destination.apply_data(target_schema, target_table, data).await?;
+    
+    Ok(())
 }
 
 

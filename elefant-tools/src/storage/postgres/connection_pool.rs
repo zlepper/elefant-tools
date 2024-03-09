@@ -2,7 +2,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use crate::{AsyncCleanup, PostgresClientWrapper};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct ConnectionPool {
     connection_pool: Arc<Mutex<Vec<PostgresClientWrapper>>>,
 }

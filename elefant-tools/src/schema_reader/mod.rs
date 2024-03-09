@@ -11,6 +11,7 @@ use crate::schema_reader::table_column::TableColumnsResult;
 use crate::{ElefantToolsError, Result};
 use itertools::Itertools;
 use ordered_float::NotNan;
+use tracing::instrument;
 
 mod check_constraint;
 mod enumeration;
@@ -44,6 +45,7 @@ impl SchemaReader<'_> {
         SchemaReader { connection }
     }
 
+    #[instrument(skip_all)]
     pub async fn introspect_database(&self) -> Result<PostgresDatabase> {
         let mut extensions = self.get_extensions().await?;
         let schemas = self.get_schemas().await?;
@@ -246,6 +248,7 @@ impl SchemaReader<'_> {
         Ok(db)
     }
 
+    #[instrument(skip_all)]
     fn add_view(view: &ViewResult, view_columns: &[ViewColumnResult], continuous_aggregates: &[ContinuousAggregateResult]) -> PostgresView {
         let continuous_aggregate = continuous_aggregates.iter().find(|c| c.view_name == view.view_name && c.view_schema == view.schema_name);
         PostgresView {
@@ -343,6 +346,7 @@ impl SchemaReader<'_> {
         }
     }
 
+    #[instrument(skip_all)]
     #[allow(clippy::too_many_arguments)]
     fn add_table(
         row: TablesResult,
@@ -696,6 +700,7 @@ impl SchemaReader<'_> {
 macro_rules! define_working_query {
     ($fn_name:ident, $result:ident, $query:literal) => {
         impl $crate::schema_reader::SchemaReader<'_> {
+            #[tracing::instrument(skip_all)]
             pub(in crate::schema_reader) async fn $fn_name(&self) -> $crate::Result<Vec<$result>> {
                 self.connection.get_results($query).await
             }

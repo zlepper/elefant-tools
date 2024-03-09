@@ -1,4 +1,5 @@
 use tokio_postgres::Row;
+use tracing::instrument;
 use crate::{FunctionKind, Parallel, Volatility};
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::{SchemaReader};
@@ -50,6 +51,7 @@ impl FromRow for FunctionResult {
 }
 
 impl SchemaReader<'_> {
+    #[instrument(skip_all)]
     pub(in crate::schema_reader) async fn get_functions(&self) -> crate::Result<Vec<FunctionResult>> {
         //language=postgresql
         let query = if self.connection.version() >= 140 {

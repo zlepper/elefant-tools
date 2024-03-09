@@ -1,5 +1,3 @@
-use std::io::BufRead;
-use std::ops::Deref;
 use std::sync::Arc;
 use std::vec;
 use bytes::Bytes;
@@ -7,6 +5,7 @@ use futures::{pin_mut, Stream, StreamExt};
 use itertools::Itertools;
 use tokio::fs::File;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
+use tracing::{instrument};
 use uuid::Uuid;
 use crate::models::SimplifiedDataType;
 use crate::models::PostgresSchema;
@@ -44,10 +43,11 @@ pub struct SqlFile<F: AsyncWrite + Unpin + Send + Sync> {
 }
 
 impl SqlFile<BufWriter<File>> {
+    #[instrument(skip_all)]
     pub async fn new_file(path: &str, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
         let file = File::create(path).await?;
 
-        let file = BufWriter::new(file);
+        let file = BufWriter::with_capacity(1048576 * 20, file);
 
         SqlFile::new(file, identifier_quoter, options).await
     }
@@ -57,7 +57,6 @@ static CHUNK_SEPARATOR_PREFIX: &str = "-- chunk-separator-";
 
 impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     pub async fn new(file: F, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
-
         let chunk_separator = format!("{}{} --", CHUNK_SEPARATOR_PREFIX, options.chunk_separator).into_bytes();
 
         Ok(SqlFile {
@@ -88,8 +87,8 @@ impl<'a, F: AsyncWrite + Unpin + Send + Sync + 'a> CopyDestinationFactory<'a> fo
 }
 
 impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
+    #[instrument(skip_all)]
     async fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>) -> Result<()> {
-
         let file = &mut self.file;
         if self.current_command_count > 0 {
             file.write_all(b"\n").await?;
@@ -139,57 +138,8 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
                     }
                     count += 1;
 
-                    let bytes: &[u8] = bytes.deref();
-                    let bytes = &bytes[0..bytes.len() - 1];
-                    let cols = BufRead::split(bytes, b'\t').zip(column_types.iter());
-                    file.write_all(b"(").await?;
-                    for (index, (bytes, col_data_type)) in cols.enumerate() {
-                        if index != 0 {
-                            file.write_all(b", ").await?;
-                        }
 
-                        match bytes {
-                            Ok(bytes) => {
-                                if bytes == [b'\\', b'N'] {
-                                    file.write_all(b"null").await?;
-                                    continue;
-                                }
-
-
-                                match col_data_type {
-                                    SimplifiedDataType::Number => {
-                                        match bytes[..] {
-                                            [b'N', b'a', b'N'] | [b'I', b'n', b'f', b'i', b'n', b'i', b't', b'y'] | [b'-', b'I', b'n', b'f', b'i', b'n', b'i', b't', b'y'] => {
-                                                file.write_all(b"'").await?;
-                                                file.write_all(&bytes).await?;
-                                                file.write_all(b"'").await?;
-                                            }
-                                            _ => {
-                                                file.write_all(&bytes).await?;
-                                            }
-                                        }
-                                    }
-                                    SimplifiedDataType::Text => {
-                                        file.write_all(b"E'").await?;
-                                        if bytes.contains(&b'\'') {
-                                            let s = std::str::from_utf8(&bytes).unwrap();
-                                            let s = s.replace('\'', "''");
-                                            file.write_all(s.as_bytes()).await?;
-                                        } else {
-                                            file.write_all(&bytes).await?;
-                                        }
-                                        file.write_all(b"'").await?;
-                                    }
-                                    SimplifiedDataType::Bool => {
-                                        let value = bytes[0] == b't';
-                                        file.write_all(format!("{}", value).as_bytes()).await?;
-                                    }
-                                }
-                            }
-                            Err(e) => panic!("wtf: {:?}", e)
-                        }
-                    }
-                    file.write_all(b")").await?;
+                    write_row(file, &column_types, bytes).await?;
                 }
                 Err(e) => {
                     return Err(e);
@@ -206,8 +156,8 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
-
         if self.current_command_count % self.options.max_commands_per_chunk == 0 {
             if !self.is_empty {
                 self.file.write_all(b"\n\n").await?;
@@ -234,6 +184,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
         Ok(())
     }
 
+    #[instrument(skip_all)]
     async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
         self.apply_transactional_statement(statement).await
     }
@@ -251,29 +202,100 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
     }
 }
 
-pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut F, target_connection: &PostgresClientWrapper) -> Result<()> {
+async fn write_row<F: AsyncWrite + Unpin + Send + Sync>(file: &mut F, column_types: &[SimplifiedDataType], bytes: Bytes) -> Result<()> {
+    let without_line_break = bytes.slice(0..bytes.len() - 1);
+    let column_bytes = without_line_break.split(|b| *b == b'\t');
+    
+    let mut content: Vec<u8> = Vec::with_capacity(bytes.len() * 2);
+    
+    let cols = column_bytes.zip(column_types.iter());
+    content.push(b'(');
+    for (index, (bytes, col_data_type)) in cols.enumerate() {
+        if index != 0 {
+            content.extend_from_slice(b", ");
+        }
 
+        write_column(&mut content, bytes, col_data_type);
+    }
+    content.push(b')');
     
+    file.write_all(&content).await?;
+    
+    Ok(())
+}
+
+fn write_column(content: &mut Vec<u8>, bytes: &[u8], col_data_type: &SimplifiedDataType) {
+    if bytes == [b'\\', b'N'] {
+        content.extend_from_slice(b"null");
+        return;
+    }
+
+
+    match col_data_type {
+        SimplifiedDataType::Number => {
+            write_number_column(content, bytes);
+        }
+        SimplifiedDataType::Text => {
+            write_text_column(content, bytes);
+        }
+        SimplifiedDataType::Bool => {
+            write_bool_column(content, bytes);
+        }
+    }
+}
+
+fn write_bool_column(content: &mut Vec<u8>, bytes: &[u8]) {
+    let value = bytes[0] == b't';
+    content.extend_from_slice(format!("{}", value).as_bytes());
+}
+
+fn write_text_column(content: &mut Vec<u8>, bytes: &[u8]) {
+    content.extend_from_slice(b"E'");
+
+    if bytes.contains(&b'\'') {
+        let s = std::str::from_utf8(bytes).unwrap();
+        let s = s.replace('\'', "''");
+        content.extend_from_slice(s.as_bytes());
+    } else {
+        content.extend_from_slice(bytes);
+    }
+    content.push(b'\'');
+}
+
+fn write_number_column(content: &mut Vec<u8>, bytes: &[u8]) {
+    match bytes[..] {
+        [b'N', b'a', b'N'] | [b'I', b'n', b'f', b'i', b'n', b'i', b't', b'y'] | [b'-', b'I', b'n', b'f', b'i', b'n', b'i', b't', b'y'] => {
+            content.push(b'\'');
+            content.extend_from_slice(bytes);
+            content.push(b'\'');
+        }
+        _ => {
+            content.extend_from_slice(bytes);
+        }
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut F, target_connection: &PostgresClientWrapper) -> Result<()> {
     let mut sql_chunk = String::with_capacity(10000);
-    
+
     let read = content.read_line(&mut sql_chunk).await?;
-    
+
     if read == 0 {
         return Ok(());
     }
-    
+
     if sql_chunk.starts_with(CHUNK_SEPARATOR_PREFIX) {
-        
         let separator = sql_chunk.clone();
-        
+
         loop {
             sql_chunk.clear();
-            
+
             let read = content.read_lines_until_separator_line(&separator, &mut sql_chunk).await?;
             match read {
                 ChunkResult::Chunk(_) => {
                     target_connection.execute_non_query(&sql_chunk).await?;
-                },
+                }
                 ChunkResult::End(read) => {
                     if read > 0 {
                         target_connection.execute_non_query(&sql_chunk).await?;
@@ -282,18 +304,15 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut
                 }
             }
         }
-        
-        
     } else {
         content.read_to_string(&mut sql_chunk).await?;
         target_connection.execute_non_query(&sql_chunk).await?;
     }
-    
+
     Ok(())
 }
 
 pub async fn apply_sql_string(file_content: &str, target_connection: &PostgresClientWrapper) -> Result<()> {
-
     let mut bytes = file_content.as_bytes();
     apply_sql_file(&mut bytes, target_connection).await
 }
@@ -821,7 +840,7 @@ mod tests {
         apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
 
 
-        let items = destination.get_results::<(Vec<i32>,)>("select values from array_values;").await;
+        let items = destination.get_results::<(Vec<i32>, )>("select values from array_values;").await;
 
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].0, vec![1, 2, 3]);

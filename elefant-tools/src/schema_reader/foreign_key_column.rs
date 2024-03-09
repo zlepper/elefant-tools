@@ -1,4 +1,5 @@
 use tokio_postgres::Row;
+use tracing::instrument;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::{SchemaReader};
 
@@ -28,6 +29,7 @@ impl FromRow for ForeignKeyColumnResult {
 
 
 impl SchemaReader<'_> {
+    #[instrument(skip_all)]
     pub(in crate::schema_reader) async fn get_foreign_key_columns(&self) -> crate::Result<Vec<ForeignKeyColumnResult>> {
 
         //language=postgresql

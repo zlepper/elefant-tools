@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 use clap::Parser;
+use tracing::{instrument};
 use crate::cli::{Commands, CopyArgs, ExportDbArgs, ImportDbArgs, Storage};
 
 mod cli;
@@ -12,11 +13,12 @@ use elefant_tools::PostgresClientWrapper;
 async fn main() -> Result<()> {
     let cli = cli::Cli::parse();
 
-    println!("cli: {:?}", cli);
+    run(cli).await?;
 
-    run(cli).await
+    Ok(())
 }
 
+#[instrument(skip_all)]
 async fn run(cli: cli::Cli) -> Result<()> {
 
     match cli.command {
@@ -36,6 +38,7 @@ async fn run(cli: cli::Cli) -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism: NonZeroUsize) -> Result<()> {
     
     let connection_string = db_args.get_connection_string();
@@ -65,6 +68,7 @@ async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism:
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn do_import(db_args: ImportDbArgs, source: Storage) -> Result<()> {
 
 
@@ -82,6 +86,7 @@ async fn do_import(db_args: ImportDbArgs, source: Storage) -> Result<()> {
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn do_copy(copy_args: CopyArgs) -> Result<()> {
     let source_connection = PostgresClientWrapper::new(&copy_args.source.get_connection_string()).await?;
     let source = PostgresInstanceStorage::new(&source_connection).await?;

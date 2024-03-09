@@ -16,6 +16,7 @@ uuid = { version = "1.7", features = ["v4"] }
 tar = "0.4"
 ordered-float = "4.2"
 pg_interval = "0.4"
+tracing = { version = "0.1" , features = ["attributes"]}
 
 [dev-dependencies]
 indoc = "2"

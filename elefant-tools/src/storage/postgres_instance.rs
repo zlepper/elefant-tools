@@ -15,6 +15,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::{CopyOutStream, Row};
+use tracing::instrument;
 
 pub struct PostgresInstanceStorage<'a> {
     connection: &'a PostgresClientWrapper,
@@ -23,6 +24,7 @@ pub struct PostgresInstanceStorage<'a> {
 }
 
 impl<'a> PostgresInstanceStorage<'a> {
+    #[instrument(skip_all)]
     pub async fn new(connection: &'a PostgresClientWrapper) -> Result<Self> {
         let postgres_version = connection.get_single_result("select version()").await?;
 
@@ -154,6 +156,7 @@ pub struct ParallelSafePostgresInstanceCopySourceStorage<'a> {
 }
 
 impl<'a> ParallelSafePostgresInstanceCopySourceStorage<'a> {
+    #[instrument(skip_all)]
     async fn new(storage: &PostgresInstanceStorage<'a>) -> Result<Self> {
         let main_connection = storage.connection;
 
@@ -194,6 +197,7 @@ impl<'a> CopySource for ParallelSafePostgresInstanceCopySourceStorage<'a> {
         reader.introspect_database().await
     }
 
+    #[instrument(skip_all)]
     async fn get_data(
         &self,
         schema: &PostgresSchema,

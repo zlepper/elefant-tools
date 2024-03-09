@@ -14,7 +14,7 @@ pub struct Cli {
 
     /// How many threads to use when exporting or importing. Defaults to the number of estimated cores
     /// on the machine. If the available parallelism cannot be determined, it defaults to 1.
-    #[arg(long, default_value_t = get_default_max_parallelism())]
+    #[arg(long, default_value_t = get_default_max_parallelism(), env)]
     pub max_parallelism: NonZeroUsize,
 }
 
@@ -49,27 +49,27 @@ pub enum Commands {
 pub struct ExportDbArgs {
 
     /// The host of the source database to export from
-    #[arg(long)]
+    #[arg(long, env)]
     pub source_db_host: String,
 
     /// The port of the source database to export from
-    #[arg(long, default_value_t = 5432)]
+    #[arg(long, default_value_t = 5432, env)]
     pub source_db_port: u16,
 
     /// The username to use when connecting to the source database
-    #[arg(long)]
+    #[arg(long, env)]
     pub source_db_user: String,
 
     /// The password to use when connecting to the source database
-    #[arg(long)]
+    #[arg(long, env)]
     pub source_db_password: String,
 
     /// The name of the source database to export from
-    #[arg(long)]
+    #[arg(long, env)]
     pub source_db_name: String,
 
     /// The schema to export. If not specified, all schemas will be exported
-    #[arg(long)]
+    #[arg(long, env)]
     pub source_schema: Option<String>,
 }
 
@@ -107,7 +107,7 @@ pub enum Storage {
         #[arg(long)]
         path: String,
         
-        #[arg(long, default_value_t = 1000)]
+        #[arg(long, default_value_t = 1000, env)]
         max_rows_per_insert: usize,
     },
     // 
@@ -140,28 +140,28 @@ pub enum Storage {
 #[derive(Args, Debug, Clone)]
 pub struct ImportDbArgs {
     /// The host of the target database to import to
-    #[arg(long)]
+    #[arg(long, env)]
     pub target_db_host: String,
     
     /// The port of the target database to import to
-    #[arg(long, default_value_t = 5432)]
+    #[arg(long, default_value_t = 5432, env)]
     pub target_db_port: u16,
     
     /// The username to use when connecting to the target database
-    #[arg(long)]
+    #[arg(long, env)]
     pub target_db_user: String,
     
     /// The password to use when connecting to the target database
-    #[arg(long)]
+    #[arg(long, env)]
     pub target_db_password: String,
     
     /// The name of the target database to import to
-    #[arg(long)]
+    #[arg(long, env)]
     pub target_db_name: String,
     
     /// The schema to import to. If not specified, the schema will be imported to 
     /// the same schema as it was exported from.
-    #[arg(long)]
+    #[arg(long, env)]
     pub target_schema: Option<String>,
 }
 

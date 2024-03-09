@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 use itertools::Itertools;
+use tracing::instrument;
 use crate::*;
 use crate::parallel_runner::ParallelRunner;
 use crate::quoting::IdentifierQuoter;
@@ -28,6 +29,7 @@ impl CopyDataOptions {
     }
 }
 
+#[instrument(skip_all)]
 pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(source: &S, destination: &'d mut D, options: CopyDataOptions) -> Result<()> {
     let data_format = get_data_type(source, destination, &options).await?;
 
@@ -132,6 +134,7 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, definition: &PostgresDatabase) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
 
@@ -174,6 +177,7 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mut D, target_schema: &PostgresSchema, target_table: &PostgresTable, source_schema: &PostgresSchema, source_table: &PostgresTable, data_format: &DataFormat) -> Result<()> {
     let data = source.get_data(source_schema, source_table, data_format).await?;
 
@@ -181,6 +185,7 @@ async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mu
 }
 
 
+#[instrument(skip_all)]
 fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quoter: &IdentifierQuoter) -> Vec<Vec<String>> {
     let mut statements = Vec::new();
 
@@ -265,6 +270,7 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
 }
 
 
+#[instrument(skip_all)]
 async fn apply_post_copy_structure_sequential<D: CopyDestination>(destination: &mut D, definition: &PostgresDatabase) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
 
@@ -279,6 +285,7 @@ async fn apply_post_copy_structure_sequential<D: CopyDestination>(destination: &
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(destination: &mut D, definition: &PostgresDatabase, options: &CopyDataOptions) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
 
@@ -309,6 +316,7 @@ async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(d
     Ok(())
 }
 
+#[instrument(skip_all)]
 async fn get_data_type(source: &impl CopySourceFactory, destination: &impl CopyDestinationFactory<'_>, options: &CopyDataOptions) -> Result<DataFormat> {
     let source_formats = source.supported_data_format().await?;
     let destination_formats = destination.supported_data_format().await?;

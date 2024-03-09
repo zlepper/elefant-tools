@@ -6,6 +6,7 @@ use tokio_postgres::types::{FromSqlOwned};
 use crate::{Result};
 use bytes::Buf;
 use tokio_postgres::row::RowIndex;
+use tracing::instrument;
 
 pub struct PostgresClientWrapper {
     client: PostgresClient,
@@ -14,6 +15,7 @@ pub struct PostgresClientWrapper {
 }
 
 impl PostgresClientWrapper {
+    #[instrument(skip_all)]
     pub async fn new(connection_string: &str) -> Result<Self> {
         let client = PostgresClient::new(connection_string).await?;
 

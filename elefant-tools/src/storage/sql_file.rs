@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::vec;
 use bytes::Bytes;
-use futures::{pin_mut, Stream, StreamExt};
+use futures::{pin_mut, SinkExt, Stream, StreamExt};
 use itertools::Itertools;
 use tokio::fs::File;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
@@ -21,6 +21,13 @@ pub struct SqlFileOptions {
     pub max_rows_per_insert: usize,
     pub chunk_separator: String,
     pub max_commands_per_chunk: usize,
+    pub data_mode: SqlDataMode,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum SqlDataMode{
+    InsertStatements,
+    CopyStatements
 }
 
 impl Default for SqlFileOptions {
@@ -29,6 +36,7 @@ impl Default for SqlFileOptions {
             max_rows_per_insert: 1000,
             chunk_separator: Uuid::new_v4().to_string(),
             max_commands_per_chunk: 10,
+            data_mode: SqlDataMode::InsertStatements,
         }
     }
 }
@@ -95,11 +103,71 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
             self.current_command_count = 0;
         }
 
-        let column_types = table.columns.iter().map(|c| c.get_simplified_data_type()).collect_vec();
-
         let stream = data.data;
 
         pin_mut!(stream);
+
+        if self.options.data_mode == SqlDataMode::InsertStatements {
+            self.write_data_stream_to_insert_statements(&mut stream, schema, table).await?;
+        } else {
+            self.write_data_stream_to_copy_statements(&mut stream, schema, table).await?;
+        }
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
+        if self.current_command_count % self.options.max_commands_per_chunk == 0 {
+            if !self.is_empty {
+                self.file.write_all(b"\n\n").await?;
+            }
+
+            self.file.write_all(&self.chunk_separator).await?;
+            self.file.write_all(b"\n").await?;
+            // if !self.is_empty {
+            //     self.file.write_all(b"\n").await?;
+            // }
+            self.is_empty = true;
+        }
+
+        if self.is_empty {
+            self.file.write_all(statement.as_bytes()).await?;
+            self.is_empty = false;
+        } else {
+            self.file.write_all(b"\n\n").await?;
+            self.file.write_all(statement.as_bytes()).await?;
+        }
+
+        self.current_command_count += 1;
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
+        self.apply_transactional_statement(statement).await
+    }
+
+    async fn begin_transaction(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    async fn commit_transaction(&mut self) -> Result<()> {
+        Ok(())
+    }
+
+    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
+        self.quoter.clone()
+    }
+}
+
+impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
+    async fn write_data_stream_to_insert_statements<S: Stream<Item=Result<Bytes>> + Send + Unpin>(&mut self, stream: &mut S, schema: &PostgresSchema, table: &PostgresTable) -> Result<()> {
+
+        let file = &mut self.file;
+
+        let column_types = table.columns.iter().map(|c| c.get_simplified_data_type()).collect_vec();
 
         let mut count = 0;
         while let Some(bytes) = stream.next().await {
@@ -155,50 +223,43 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
 
         Ok(())
     }
+    
+    async fn write_data_stream_to_copy_statements<S: Stream<Item=Result<Bytes>> + Send + Unpin>(&mut self, stream: &mut S, schema: &PostgresSchema, table: &PostgresTable) -> Result<()> {
 
-    #[instrument(skip_all)]
-    async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
-        if self.current_command_count % self.options.max_commands_per_chunk == 0 {
-            if !self.is_empty {
-                self.file.write_all(b"\n\n").await?;
+        let file = &mut self.file;
+
+        let mut count = 0;
+        while let Some(bytes) = stream.next().await {
+            if count == 0 {
+                file.write_all(b"\n").await?;
+                file.write_all(&self.chunk_separator).await?;
+                file.write_all(b"\n").await?;
+                
+                let copy_command = table.get_copy_in_command(schema, &DataFormat::Text, &self.quoter);
+                file.write_all(copy_command.as_bytes()).await?;
+                
+                file.write_all(b"\n").await?;
+                file.write_all(&self.chunk_separator).await?;
+                file.write_all(b"\n").await?;
             }
-
-            self.file.write_all(&self.chunk_separator).await?;
-            self.file.write_all(b"\n").await?;
-            // if !self.is_empty {
-            //     self.file.write_all(b"\n").await?;
-            // }
-            self.is_empty = true;
+            match bytes {
+                Ok(bytes) => {
+                    file.write_all(&bytes).await?;
+                    count += 1;
+                }
+                Err(e) => {
+                    return Err(e);
+                }
+            }
         }
 
-        if self.is_empty {
-            self.file.write_all(statement.as_bytes()).await?;
-            self.is_empty = false;
-        } else {
-            self.file.write_all(b"\n\n").await?;
-            self.file.write_all(statement.as_bytes()).await?;
+        if count > 0 {
+            file.write_all(b"\\.\n").await?;
+            file.flush().await?;
         }
 
-        self.current_command_count += 1;
 
         Ok(())
-    }
-
-    #[instrument(skip_all)]
-    async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
-        self.apply_transactional_statement(statement).await
-    }
-
-    async fn begin_transaction(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn commit_transaction(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
-        self.quoter.clone()
     }
 }
 
@@ -294,7 +355,38 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut
             let read = content.read_lines_until_separator_line(&separator, &mut sql_chunk).await?;
             match read {
                 ChunkResult::Chunk(_) => {
-                    target_connection.execute_non_query(&sql_chunk).await?;
+                    
+                    if sql_chunk.starts_with("copy ") && sql_chunk.ends_with(" from stdin with (format text, header false);\n") {
+                        
+                        let copy_in_stream = target_connection.copy_in::<Bytes>(&sql_chunk).await?;
+
+
+                        pin_mut!(copy_in_stream);
+                        
+                        // sql_chunk.clear();
+                        // content.read_line(&mut sql_chunk).await?;
+                        // 
+                        // assert_eq!(sql_chunk, separator);
+                        
+                        loop {
+                            sql_chunk.clear();
+                            let read = content.read_line(&mut sql_chunk).await?;
+                            if read == 0 {
+                                break;
+                            }
+                            if sql_chunk.starts_with("\\.") {
+                                break;
+                            }
+                            let byt = Bytes::from(sql_chunk.clone());
+                            
+                            copy_in_stream.send(byt).await?;
+                        }
+                        
+                        copy_in_stream.close().await?;
+                        
+                    } else {
+                        target_connection.execute_non_query(&sql_chunk).await?;
+                    }
                 }
                 ChunkResult::End(read) => {
                     if read > 0 {
@@ -329,7 +421,7 @@ mod tests {
     use crate::storage::postgres_instance::PostgresInstanceStorage;
     use crate::storage::tests::validate_copy_state;
 
-    async fn export_to_string(source: &TestHelper) -> String {
+    async fn export_to_string(source: &TestHelper, sql_file_options: SqlFileOptions) -> String {
         let mut result_file = Vec::<u8>::new();
 
 
@@ -339,7 +431,7 @@ mod tests {
             let mut sql_file = SqlFile::new(&mut result_file, Arc::new(quoter), SqlFileOptions {
                 chunk_separator: "test_chunk_separator".to_string(),
                 max_commands_per_chunk: 5,
-                ..default()
+                ..sql_file_options
             }).await.unwrap();
 
             let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
@@ -363,7 +455,7 @@ mod tests {
         source.execute_not_query(storage::tests::get_copy_source_database_create_script(source.get_conn().version())).await;
 
 
-        let result_file = export_to_string(&source).await;
+        let result_file = export_to_string(&source, default()).await;
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
@@ -560,7 +652,7 @@ mod tests {
         source.execute_not_query(storage::tests::get_copy_source_database_create_script(source.get_conn().version())).await;
 
 
-        let result_file = export_to_string(&source).await;
+        let result_file = export_to_string(&source, default()).await;
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
@@ -767,7 +859,7 @@ mod tests {
                (null, null);
         "#).await;
 
-        let result_file = export_to_string(&source).await;
+        let result_file = export_to_string(&source, default()).await;
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
@@ -820,7 +912,7 @@ mod tests {
                (array[4, 5, 6]);
         "#).await;
 
-        let result_file = export_to_string(&source).await;
+        let result_file = export_to_string(&source, default()).await;
 
         similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
@@ -845,5 +937,85 @@ mod tests {
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].0, vec![1, 2, 3]);
         assert_eq!(items[1].0, vec![4, 5, 6]);
+    }
+
+    #[test]
+    async fn export_as_copy_statements() {
+        let source = get_test_helper("source").await;
+
+        //language=postgresql
+        source.execute_not_query(r#"
+        create table test_table(
+            value int4 not null
+        );
+
+        create index test_table_value_idx on test_table using btree (value);
+
+        insert into test_table(value)
+        values (1),
+               (2),
+               (3);
+
+        create table test_table_2(
+            value int4 not null
+        );
+
+        create index test_table_2_value_idx on test_table_2 using btree (value);
+        
+        insert into test_table_2(value)
+        values (4),
+               (5),
+               (6);
+        "#).await;
+
+        let result_file = export_to_string(&source, SqlFileOptions {
+            data_mode: SqlDataMode::CopyStatements,
+            ..default()
+        }).await;
+
+        similar_asserts::assert_eq!(result_file, indoc! {r#"
+            -- chunk-separator-test_chunk_separator --
+            create schema if not exists public;
+
+            create table public.test_table (
+                value int4 not null
+            );
+            
+            create table public.test_table_2 (
+                value int4 not null
+            );
+
+            -- chunk-separator-test_chunk_separator --
+            copy public.test_table (value) from stdin with (format text, header false);
+            -- chunk-separator-test_chunk_separator --
+            1
+            2
+            3
+            \.
+            
+            -- chunk-separator-test_chunk_separator --
+            copy public.test_table_2 (value) from stdin with (format text, header false);
+            -- chunk-separator-test_chunk_separator --
+            4
+            5
+            6
+            \.
+            
+            
+            -- chunk-separator-test_chunk_separator --
+            create index test_table_value_idx on public.test_table using btree (value asc nulls last);
+            
+            create index test_table_2_value_idx on public.test_table_2 using btree (value asc nulls last);"#});
+
+        let destination = get_test_helper("destination").await;
+        apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+
+
+        let items = destination.get_single_results::<i32>("select value from test_table;").await;
+
+        assert_eq!(items, vec![1,2,3]);
+        let items = destination.get_single_results::<i32>("select value from test_table_2;").await;
+
+        assert_eq!(items, vec![4,5,6]);
     }
 }

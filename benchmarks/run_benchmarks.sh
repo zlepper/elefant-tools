@@ -80,10 +80,11 @@ echo "Restoring dvdrental database"
 echo "dvdrental database restored"
 
 
-PG_DUMP_COMMAND="\"$PG_DUMP_PATH\" --dbname dvdrental -f benchmarks/results/pg_dump_result.sql --inserts"
-ELEFANT_SYNC_COMMAND="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result.sql"
+PG_DUMP_COMMAND_TO_SQL_INSERTS="\"$PG_DUMP_PATH\" --dbname dvdrental -f benchmarks/results/pg_dump_result.sql --inserts"
+PG_DUMP_COMMAND_TO_COPY="\"$PG_DUMP_PATH\" --dbname dvdrental -f benchmarks/results/pg_dump_result-copy.sql"
+ELEFANT_SYNC_COMMAND_PG_DUMP_COMMAND_TO_SQL_INSERTS="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result.sql"
 
-hyperfine --command-name "pg_dump to-sql" "$PG_DUMP_COMMAND" --command-name "elefant-sync to-sql" "$ELEFANT_SYNC_COMMAND" --show-output --export-markdown "benchmarks/results/export-as-sql-inserts.md"
+hyperfine --command-name "pg_dump to-sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS" --command-name "pg_dump to-sql-copy" "$PG_DUMP_COMMAND_TO_COPY" --command-name "elefant-sync to-sql" "$ELEFANT_SYNC_COMMAND_PG_DUMP_COMMAND_TO_SQL_INSERTS" --show-output --export-markdown "benchmarks/results/export-as-sql-inserts.md"
 
 echo "Finished benchmark"
 

@@ -168,7 +168,7 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
 
     for schema in &definition.schemas {
         for function in &schema.functions {
-            destination.apply_transactional_statement(&function.get_create_statement(&identifier_quoter)).await?;
+            destination.apply_transactional_statement(&function.get_create_statement(schema, &identifier_quoter)).await?;
         }
     }
 
@@ -229,6 +229,9 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
             }
         }
 
+        for agg_function in &schema.aggregate_functions {
+            group_1.push(agg_function.get_create_statement(schema, identifier_quoter));
+        }
 
         for table in &schema.tables {
             for column in &table.columns {

@@ -2,6 +2,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt};
 use crate::{AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapper, PostgresSchema, PostgresTable, TableData};
+use crate::helpers::IMPORT_PREFIX;
 use crate::storage::postgres::connection_pool::ConnectionPool;
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 
@@ -16,6 +17,8 @@ impl<'a> ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
     pub async fn new(storage: &PostgresInstanceStorage<'a>) -> crate::Result<Self> {
         let main_connection = storage.connection;
 
+        main_connection.execute_non_query(IMPORT_PREFIX).await?;
+        
         Ok(ParallelSafePostgresInstanceCopyDestinationStorage {
             connection_pool: ConnectionPool::new(),
             main_connection,
@@ -28,7 +31,9 @@ impl<'a> ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
             Ok(existing)
         } else {
             let new_conn = self.main_connection.create_another_connection().await?;
-
+            
+            new_conn.execute_non_query(IMPORT_PREFIX).await?;
+            
             Ok(new_conn)
         }
     }

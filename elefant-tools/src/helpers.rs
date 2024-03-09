@@ -12,3 +12,12 @@ impl StringExt for String {
         }
     }
 }
+
+pub(crate) static IMPORT_PREFIX: &str = r#"
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET check_function_bodies = false;
+SET xmloption = content;
+SET row_security = off;
+"#;

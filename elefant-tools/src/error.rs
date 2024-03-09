@@ -34,6 +34,9 @@ pub enum ElefantToolsError {
     #[error("Unknown parallel '{0}'")]
     UnknownParallel(String),
 
+    #[error("Unknown aggregate function final modify '{0}'")]
+    UnknownAggregateFinalFunctionModify(String),
+
     #[error("Unknown trigger level '{0}'")]
     UnknownTriggerLevel(String),
 
@@ -93,7 +96,13 @@ pub enum ElefantToolsError {
     },
 
     #[error("join error: `{0}`")]
-    JoinError(#[from] tokio::task::JoinError)
+    JoinError(#[from] tokio::task::JoinError),
+    
+    #[error("Aggregate function '{0}' is missing transition type")]
+    AggregateFunctionMissingTransitionType(String),
+    
+    #[error("Aggregate function '{0}' is missing transition function")]
+    AggregateFunctionMissingTransitionFunction(String),
 }
 
 pub type Result<T = ()> = std::result::Result<T, ElefantToolsError>;

@@ -1,7 +1,7 @@
 use crate::models::sequence::PostgresSequence;
 use crate::models::table::PostgresTable;
 use crate::models::view::PostgresView;
-use crate::{PostgresFunction, PostgresTrigger};
+use crate::{PostgresAggregateFunction, PostgresFunction, PostgresTrigger};
 use crate::models::enumeration::PostgresEnum;
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
@@ -13,6 +13,7 @@ pub struct PostgresSchema {
     pub sequences: Vec<PostgresSequence>,
     pub views: Vec<PostgresView>,
     pub functions: Vec<PostgresFunction>,
+    pub aggregate_functions: Vec<PostgresAggregateFunction>,
     pub triggers: Vec<PostgresTrigger>,
     pub enums: Vec<PostgresEnum>,
     pub name: String,

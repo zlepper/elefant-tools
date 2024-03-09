@@ -151,30 +151,64 @@ impl SchemaReader<'_> {
         for function in &functions {
             let current_schema = db.get_or_create_schema_mut(&function.schema_name);
 
-            let function = PostgresFunction {
-                function_name: function.function_name.clone(),
-                language: function.language_name.clone(),
-                estimated_cost: NotNan::new(function.estimated_cost)
-                    .unwrap_or(NotNan::new(100.0).unwrap()),
-                estimated_rows: NotNan::new(function.estimated_rows)
-                    .unwrap_or(NotNan::new(1000.0).unwrap()),
-                support_function: function.support_function_name.clone(),
-                kind: function.function_kind,
-                security_definer: function.security_definer,
-                leak_proof: function.leak_proof,
-                strict: function.strict,
-                returns_set: function.returns_set,
-                volatility: function.volatility,
-                parallel: function.parallel,
-                sql_body: function.sql_body.trim().into(),
-                configuration: function.configuration.clone(),
-                arguments: function.arguments.clone(),
-                result: function.result.clone(),
-                comment: function.comment.clone(),
-                object_id: ObjectId::next()
-            };
+            
+            if function.function_kind == FunctionKind::Aggregate {
+                
+                let function = PostgresAggregateFunction {
+                    function_name: function.function_name.clone(),
+                    arguments: function.arguments.clone(),
+                    state_transition_function: function.aggregate_state_transition_function.clone().ok_or_else(|| ElefantToolsError::AggregateFunctionMissingTransitionFunction(function.function_name.clone()))?,
+                    final_function: function.aggregate_final_function.clone().and_then(none_if_irrelevant),
+                    combine_function: function.aggregate_combine_function.clone().and_then(none_if_irrelevant),
+                    serial_function: function.aggregate_serial_function.clone().and_then(none_if_irrelevant),
+                    deserial_function: function.aggregate_deserial_function.clone().and_then(none_if_irrelevant),
+                    moving_state_transition_function: function.aggregate_moving_state_transition_function.clone().and_then(none_if_irrelevant),
+                    inverse_moving_state_transition_function: function.aggregate_inverse_moving_state_transition_function.clone().and_then(none_if_irrelevant),
+                    moving_final_function: function.aggregate_moving_final_function.clone().and_then(none_if_irrelevant),
+                    final_extra_data: function.aggregate_final_extra_data.unwrap_or_default(),
+                    moving_final_extra_data: function.aggregate_moving_final_extra_data.unwrap_or_default(),
+                    final_modify: function.aggregate_final_modify.unwrap_or_default(),
+                    moving_final_modify: function.aggregate_moving_final_modify.unwrap_or_default(),
+                    sort_operator: function.aggregate_sort_operator.clone().and_then(none_if_irrelevant),
+                    transition_type: function.aggregate_transition_type.clone().ok_or_else(|| ElefantToolsError::AggregateFunctionMissingTransitionType(function.function_name.clone()))?,
+                    transition_space: function.aggregate_transition_space.and_then(none_if_zero),
+                    moving_transition_type: function.aggregate_moving_transition_type.clone().and_then(none_if_irrelevant),
+                    moving_transition_space: function.aggregate_moving_transition_space.and_then(none_if_zero),
+                    initial_value: function.aggregate_initial_value.clone(),
+                    moving_initial_value: function.aggregate_moving_initial_value.clone(),
+                    parallel: function.parallel,
+                    object_id: ObjectId::next(),
+                };
 
-            current_schema.functions.push(function);
+                current_schema.aggregate_functions.push(function);
+                
+            } else {
+                let function = PostgresFunction {
+                    function_name: function.function_name.clone(),
+                    language: function.language_name.clone(),
+                    estimated_cost: NotNan::new(function.estimated_cost)
+                        .unwrap_or(NotNan::new(100.0).unwrap()),
+                    estimated_rows: NotNan::new(function.estimated_rows)
+                        .unwrap_or(NotNan::new(1000.0).unwrap()),
+                    support_function: function.support_function_name.clone(),
+                    kind: function.function_kind,
+                    security_definer: function.security_definer,
+                    leak_proof: function.leak_proof,
+                    strict: function.strict,
+                    returns_set: function.returns_set,
+                    volatility: function.volatility,
+                    parallel: function.parallel,
+                    sql_body: function.sql_body.trim().into(),
+                    configuration: function.configuration.clone(),
+                    arguments: function.arguments.clone(),
+                    result: function.result.clone(),
+                    comment: function.comment.clone(),
+                    object_id: ObjectId::next()
+                };
+                
+                current_schema.functions.push(function);
+            }
+
         }
 
         for extension in &extensions {
@@ -717,3 +751,19 @@ use crate::object_id::ObjectId;
 use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
 use crate::schema_reader::view::ViewResult;
 use crate::schema_reader::view_column::ViewColumnResult;
+
+fn none_if_irrelevant(s: String) -> Option<String> {
+    if s == "-" || s == "0" {
+        None
+    } else {
+        Some(s)
+    }
+}
+
+fn none_if_zero(i: i32) -> Option<i32> {
+    if i == 0 {
+        None
+    } else {
+        Some(i)
+    }
+}

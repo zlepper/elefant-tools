@@ -1,6 +1,6 @@
 use tokio_postgres::Row;
 use tracing::instrument;
-use crate::{FunctionKind, Parallel, Volatility};
+use crate::{FinalModify, FunctionKind, Parallel, Volatility};
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::{SchemaReader};
 
@@ -23,6 +23,25 @@ pub struct FunctionResult {
     pub arguments: String,
     pub result: Option<String>,
     pub comment: Option<String>,
+    pub aggregate_state_transition_function: Option<String>,
+    pub aggregate_final_function: Option<String>,
+    pub aggregate_combine_function: Option<String>,
+    pub aggregate_serial_function: Option<String>,
+    pub aggregate_deserial_function: Option<String>,
+    pub aggregate_moving_state_transition_function: Option<String>,
+    pub aggregate_inverse_moving_state_transition_function: Option<String>,
+    pub aggregate_moving_final_function: Option<String>,
+    pub aggregate_final_extra_data: Option<bool>,
+    pub aggregate_moving_final_extra_data: Option<bool>,
+    pub aggregate_final_modify: Option<FinalModify>,
+    pub aggregate_moving_final_modify: Option<FinalModify>,
+    pub aggregate_sort_operator: Option<String>,
+    pub aggregate_transition_type: Option<String>,
+    pub aggregate_transition_space: Option<i32>,
+    pub aggregate_moving_transition_type: Option<String>,
+    pub aggregate_moving_transition_space: Option<i32>,
+    pub aggregate_initial_value: Option<String>,
+    pub aggregate_moving_initial_value: Option<String>,
 }
 
 impl FromRow for FunctionResult {
@@ -46,6 +65,25 @@ impl FromRow for FunctionResult {
             arguments: row.try_get(15)?,
             result: row.try_get(16)?,
             comment: row.try_get(17)?,
+            aggregate_state_transition_function: row.try_get(18)?,
+            aggregate_final_function: row.try_get(19)?,
+            aggregate_combine_function: row.try_get(20)?,
+            aggregate_serial_function: row.try_get(21)?,
+            aggregate_deserial_function: row.try_get(22)?,
+            aggregate_moving_state_transition_function: row.try_get(23)?,
+            aggregate_inverse_moving_state_transition_function: row.try_get(24)?,
+            aggregate_moving_final_function: row.try_get(25)?,
+            aggregate_final_extra_data: row.try_get(26)?,
+            aggregate_moving_final_extra_data: row.try_get(27)?,
+            aggregate_final_modify: row.try_get_opt_enum_value(28)?,
+            aggregate_moving_final_modify: row.try_get_opt_enum_value(29)?,
+            aggregate_sort_operator: row.try_get(30)?,
+            aggregate_transition_type: row.try_get(31)?,
+            aggregate_transition_space: row.try_get(32)?,
+            aggregate_moving_transition_type: row.try_get(33)?,
+            aggregate_moving_transition_space: row.try_get(34)?,
+            aggregate_initial_value: row.try_get(35)?,
+            aggregate_moving_initial_value: row.try_get(36)?,
         })
     }
 }
@@ -73,7 +111,26 @@ select ns.nspname as schema_name,
        proc.proconfig as configuration,
        pg_get_function_arguments(proc.oid) as arguments,
        pg_get_function_result(proc.oid) as result,
-       des.description
+       des.description,
+       agg.aggtransfn::text,
+       agg.aggfinalfn::text,
+       agg.aggcombinefn::text,
+       agg.aggserialfn::text,
+       agg.aggdeserialfn::text,
+       agg.aggmtransfn::text,
+       agg.aggminvtransfn::text,
+       agg.aggmfinalfn::text,
+       agg.aggfinalextra,
+       agg.aggmfinalextra,
+       agg.aggfinalmodify,
+       agg.aggmfinalmodify,
+       agg.aggsortop::regoper::text,
+       aggtranstype::regtype::text,
+       agg.aggtransspace,
+       aggmtranstype::regtype::text,
+       agg.aggmtransspace,
+       agg.agginitval,
+       agg.aggminitval
 from pg_proc proc
          join pg_namespace ns on proc.pronamespace = ns.oid
          join pg_language pl on proc.prolang = pl.oid
@@ -83,6 +140,7 @@ from pg_proc proc
          left join pg_depend dep on proc.oid = dep.objid and dep.deptype = 'e'
          left join pg_extension ext on dep.refobjid = ext.oid
          left join pg_description des on proc.oid = des.objoid
+         left join pg_aggregate agg on proc.oid = agg.aggfnoid
 where ns.nspname = 'public' and ext.extname is null
 order by ns.nspname, proc.proname;
 "#
@@ -105,7 +163,26 @@ select ns.nspname as schema_name,
        proc.proconfig as configuration,
        pg_get_function_arguments(proc.oid) as arguments,
        pg_get_function_result(proc.oid) as result,
-       des.description
+       des.description,
+       agg.aggtransfn::text,
+       agg.aggfinalfn::text,
+       agg.aggcombinefn::text,
+       agg.aggserialfn::text,
+       agg.aggdeserialfn::text,
+       agg.aggmtransfn::text,
+       agg.aggminvtransfn::text,
+       agg.aggmfinalfn::text,
+       agg.aggfinalextra,
+       agg.aggmfinalextra,
+       agg.aggfinalmodify,
+       agg.aggmfinalmodify,
+       agg.aggsortop::regoper::text,
+       aggtranstype::regtype::text,
+       agg.aggtransspace,
+       aggmtranstype::regtype::text,
+       agg.aggmtransspace,
+       agg.agginitval,
+       agg.aggminitval
 from pg_proc proc
          join pg_namespace ns on proc.pronamespace = ns.oid
          join pg_language pl on proc.prolang = pl.oid
@@ -115,6 +192,9 @@ from pg_proc proc
          left join pg_depend dep on proc.oid = dep.objid and dep.deptype = 'e'
          left join pg_extension ext on dep.refobjid = ext.oid
          left join pg_description des on proc.oid = des.objoid
+         left join pg_aggregate agg on proc.oid = agg.aggfnoid
+         left join pg_type agg_type on agg.aggtranstype = agg_type.oid
+         left join pg_type m_agg_type on agg.aggmtranstype = m_agg_type.oid
 where ns.nspname = 'public' and ext.extname is null
 order by ns.nspname, proc.proname;
 "#

@@ -45,6 +45,13 @@ async fn exports_to_fake_file_15() {
 
     similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
+            -- chunk-separator-test_chunk_separator --
             create schema if not exists public;
 
             create extension if not exists btree_gin;
@@ -241,6 +248,13 @@ async fn exports_to_fake_file_14() {
     let result_file = export_to_string(&source, default()).await;
 
     similar_asserts::assert_eq!(result_file, indoc! {r#"
+            -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
             -- chunk-separator-test_chunk_separator --
             create schema if not exists public;
 
@@ -449,6 +463,13 @@ async fn edge_case_values_floats() {
 
     similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
+            -- chunk-separator-test_chunk_separator --
             create schema if not exists public;
 
             create table public.edge_case_values (
@@ -501,6 +522,13 @@ async fn copy_array_values() {
     let result_file = export_to_string(&source, default()).await;
 
     similar_asserts::assert_eq!(result_file, indoc! {r#"
+            -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
             -- chunk-separator-test_chunk_separator --
             create schema if not exists public;
 
@@ -567,6 +595,13 @@ async fn export_as_copy_statements() {
 
     similar_asserts::assert_eq!(result_file, indoc! {r#"
             -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
+            -- chunk-separator-test_chunk_separator --
             create schema if not exists public;
 
             create table public.test_table (
@@ -613,4 +648,31 @@ async fn export_as_copy_statements() {
     let items = destination.get_single_results::<i32>("select value from test_table_2;").await;
 
     assert_eq!(items, vec![4, 5, 6]);
+}
+
+#[test]
+async fn round_trip_functions_referencing_tables() {
+    let source = get_test_helper("source").await;
+
+    //language=postgresql
+    source.execute_not_query(r#"
+create table my_table(
+    value int not null
+);
+
+create function my_function() returns bigint as $$
+    select sum(value) from my_table
+$$ language sql;
+
+"#).await;
+
+    let result_file = export_to_string(&source, SqlFileOptions {
+        data_mode: SqlDataMode::InsertStatements,
+        ..default()
+    }).await;
+
+    // assert_eq!(result_file, "foo");
+
+    let destination = get_test_helper("destination").await;
+    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
 }

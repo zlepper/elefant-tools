@@ -325,6 +325,17 @@ test_round_trip!(
     "#
     );
 
+
+test_round_trip!(functions_reading_from_tables_in_pure_sql, r#"
+create table my_table(
+    value int not null
+);
+
+create function my_function() returns bigint as $$
+    select sum(value) from my_table
+$$ language sql;
+"#);
+
 test_round_trip!(
         comments_on_stuff,
         r#"
@@ -517,6 +528,26 @@ create table human(
 create table animorph() inherits (animal, human);
 "#
     );
+
+
+test_round_trip!(functions_returning_custom_table, r#"
+create function my_function() returns table(id int, name text) as $$
+begin
+    return query select 1, 'foo';
+end;
+$$ language plpgsql;
+"#);
+
+test_round_trip!(functions_returning_table_type, r#"
+
+create table my_table(id int, name text);
+
+create function my_function() returns setof my_table as $$
+begin
+    return query select 1, 'foo';
+end;
+$$ language plpgsql;
+"#);
 
 #[pg_test(arg(postgres = 13), arg(postgres = 13))]
 #[pg_test(arg(postgres = 14), arg(postgres = 14))]

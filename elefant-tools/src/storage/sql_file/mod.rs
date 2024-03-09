@@ -14,6 +14,7 @@ use crate::models::PostgresTable;
 use crate::storage::{BaseCopyTarget, CopyDestination};
 use crate::{AsyncCleanup, CopyDestinationFactory, ParallelCopyDestinationNotAvailable, PostgresClientWrapper, Result, SequentialOrParallel, SupportedParallelism};
 use crate::chunk_reader::{ChunkResult, StringChunkReader};
+use crate::helpers::IMPORT_PREFIX;
 use crate::quoting::IdentifierQuoter;
 use crate::storage::data_format::DataFormat;
 use crate::storage::table_data::TableData;
@@ -87,8 +88,11 @@ impl SqlFile<BufWriter<File>> {
 static CHUNK_SEPARATOR_PREFIX: &str = "-- chunk-separator-";
 
 impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
-    pub async fn new(file: F, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
+    pub async fn new(mut file: F, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
         let chunk_separator = format!("{}{} --", CHUNK_SEPARATOR_PREFIX, options.chunk_separator).into_bytes();
+
+        file.write_all(&chunk_separator).await?;
+        file.write_all(IMPORT_PREFIX.as_bytes()).await?;
 
         Ok(SqlFile {
             file,

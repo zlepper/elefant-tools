@@ -32,7 +32,7 @@ impl Default for PostgresSequence {
             cycle: false,
             last_value: None,
             comment: None,
-            object_id: ObjectId::next(),
+            object_id: ObjectId::default(),
         }
     }
 }

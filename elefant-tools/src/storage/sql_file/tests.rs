@@ -676,3 +676,46 @@ $$ language sql;
     let destination = get_test_helper("destination").await;
     apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
 }
+
+#[test]
+async fn materialized_views_with_dependencies() {
+
+    let source = get_test_helper("source").await;
+
+    source.execute_not_query(r#"
+        create materialized view b_view as select 1 as value;
+
+        create materialized view a_view as select * from b_view;
+    "#).await;
+
+
+    let result_file = export_to_string(&source, SqlFileOptions {
+        data_mode: SqlDataMode::InsertStatements,
+        ..default()
+    }).await;
+
+
+    similar_asserts::assert_eq!(result_file, indoc! {r#"
+            -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
+            -- chunk-separator-test_chunk_separator --
+            create schema if not exists public;
+
+            create materialized view public.b_view (value) as  SELECT 1 AS value with no data;
+
+            create materialized view public.a_view (value) as  SELECT b_view.value
+               FROM b_view with no data;
+
+            refresh materialized view public.b_view;
+
+            refresh materialized view public.a_view;"#});
+
+    let destination = get_test_helper("destination").await;
+    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+
+}

@@ -1,7 +1,7 @@
 use pg_interval::Interval;
 use crate::{HypertableCompression, PostgresSchema};
 use crate::models::hypertable_retention::HypertableRetention;
-use crate::object_id::ObjectId;
+use crate::object_id::{HaveDependencies, ObjectId};
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
@@ -15,6 +15,17 @@ pub struct PostgresView {
     pub is_materialized: bool,
     pub view_options: ViewOptions,
     pub object_id: ObjectId,
+    pub depends_on: Vec<ObjectId>,
+}
+
+impl HaveDependencies for &PostgresView {
+    fn depends_on(&self) -> &Vec<ObjectId> {
+        &self.depends_on
+    }
+
+    fn object_id(&self) -> ObjectId {
+        self.object_id
+    }
 }
 
 impl PostgresView {

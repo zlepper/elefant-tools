@@ -86,6 +86,7 @@ pub struct PostgresFunction {
     pub result: Option<String>,
     pub comment: Option<String>,
     pub object_id: ObjectId,
+    pub depends_on: Vec<ObjectId>,
 }
 
 impl PostgresFunction {
@@ -237,6 +238,7 @@ pub struct PostgresAggregateFunction {
     pub moving_initial_value: Option<String>,
     pub parallel: Parallel,
     pub object_id: ObjectId,
+    pub depends_on: Vec<ObjectId>,
 }
 
 impl PostgresAggregateFunction {

@@ -1,5 +1,4 @@
 use tokio_postgres::Row;
-use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromRow;
 use crate::PostgresColumn;
 use crate::schema_reader::define_working_query;
@@ -52,7 +51,6 @@ impl TableColumnsResult {
             generated: self.generated.clone(),
             comment: self.comment.clone(),
             array_dimensions: self.array_dimensions,
-            object_id: ObjectId::next(),
         }
     }
 }

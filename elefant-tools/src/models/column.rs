@@ -1,6 +1,5 @@
 use AttemptedKeywordUsage::{Other};
 use crate::{PostgresSchema, PostgresTable};
-use crate::object_id::ObjectId;
 use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -13,7 +12,6 @@ pub struct PostgresColumn {
     pub generated: Option<String>,
     pub comment: Option<String>,
     pub array_dimensions: i32,
-    pub object_id: ObjectId,
 }
 
 impl PostgresColumn {
@@ -46,7 +44,6 @@ impl Default for PostgresColumn {
             generated: None,
             comment: None,
             array_dimensions: 0,
-            object_id: ObjectId::default(),
         }
     }
 }

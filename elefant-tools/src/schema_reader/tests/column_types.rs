@@ -22,6 +22,7 @@ async fn array_columns(helper: &TestHelper) {
         PostgresDatabase {
             schemas: vec![PostgresSchema {
                 name: "public".to_string(),
+                object_id: 1.into(),
                 tables: vec![PostgresTable {
                     name: "my_table".to_string(),
                     columns: vec![PostgresColumn {
@@ -32,6 +33,7 @@ async fn array_columns(helper: &TestHelper) {
                         array_dimensions: 1,
                         ..default()
                     }],
+                    object_id: 2.into(),
                     ..default()
                 }],
                 ..default()

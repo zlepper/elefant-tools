@@ -51,5 +51,6 @@ from pg_catalog.pg_constraint con
          left join pg_description d on d.objoid = con.oid
          left join pg_depend dep on dep.objid = con_ns.oid
 where con.contype = 'f'
-  and (dep.objid is null or dep.deptype <> 'e' );
+  and (dep.objid is null or dep.deptype <> 'e' )
+order by constraint_schema_name, source_table_name, constraint_name;
 "#);

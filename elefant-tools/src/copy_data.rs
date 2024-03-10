@@ -2,6 +2,7 @@ use std::num::NonZeroUsize;
 use itertools::Itertools;
 use tracing::instrument;
 use crate::*;
+use crate::object_id::DependencySortable;
 use crate::parallel_runner::ParallelRunner;
 use crate::quoting::IdentifierQuoter;
 use crate::storage::{CopyDestination, CopySource};
@@ -85,7 +86,7 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
 
 
     for target_schema in &target_definition.schemas {
-        let source_schema = source_definition.schemas.iter().find(|s| s.object_id.actual_eq(&target_schema.object_id));
+        let source_schema = source_definition.schemas.iter().find(|s| s.object_id == target_schema.object_id);
         let source_schema = match source_schema {
             Some(s) => s,
             None => {
@@ -98,7 +99,7 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
                 continue;
             }
             
-            let source_table = source_schema.tables.iter().find(|t| t.object_id.actual_eq(&target_table.object_id));
+            let source_table = source_schema.tables.iter().find(|t| t.object_id == target_table.object_id);
             let source_table = match source_table {
                 Some(s) => s,
                 None => {
@@ -160,6 +161,10 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
         destination.apply_transactional_statement(&schema.get_create_statement(&identifier_quoter)).await?;
     }
 
+    for ext in &definition.enabled_extensions {
+        destination.apply_transactional_statement(&ext.get_create_statement(&identifier_quoter)).await?;
+    }
+
     for schema in &definition.schemas {
         for enumeration in &schema.enums {
             destination.apply_transactional_statement(&enumeration.get_create_statement(&identifier_quoter)).await?;
@@ -170,10 +175,6 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
         for function in &schema.functions {
             destination.apply_transactional_statement(&function.get_create_statement(schema, &identifier_quoter)).await?;
         }
-    }
-
-    for ext in &definition.enabled_extensions {
-        destination.apply_transactional_statement(&ext.get_create_statement(&identifier_quoter)).await?;
     }
 
     for schema in &definition.schemas {
@@ -245,7 +246,7 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
         statements.push(group_2);
 
 
-        for view in &schema.views {
+        for view in schema.views.iter().sort_by_dependencies() {
             statements.push(vec![view.get_create_view_sql(schema, identifier_quoter)]);
         }
     }
@@ -276,7 +277,7 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
     }
 
     for schema in &definition.schemas {
-        for view in &schema.views {
+        for view in schema.views.iter().sort_by_dependencies() {
             if let Some(sql) = view.get_refresh_sql(schema, identifier_quoter) {
                 group_4.push(sql);
             }

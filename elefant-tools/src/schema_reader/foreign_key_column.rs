@@ -54,6 +54,7 @@ from pg_constraint con
          left join pg_depend dep on dep.objid = con_ns.oid
 where con.contype = 'f'
 and (dep.objid is null or dep.deptype <> 'e' )
+order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
 "#
         } else {
             r#"
@@ -74,6 +75,7 @@ from pg_constraint con
          left join pg_attribute target_table_attr
                    on target_table_attr.attrelid = con.confrelid and target_table_attr.attnum = cols.confkey
 where con.contype = 'f'
+order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
 "#
         };
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::postgres_client_wrapper::PostgresClientWrapper;
@@ -8,7 +9,16 @@ use crate::schema_reader::index::IndexResult;
 use crate::schema_reader::index_column::IndexColumnResult;
 use crate::schema_reader::table::TablesResult;
 use crate::schema_reader::table_column::TableColumnsResult;
-use crate::{ElefantToolsError, Result};
+use crate::{ElefantToolsError, ObjectId, Result};
+use crate::schema_reader::timescale_hypertable::HypertableResult;
+use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDimensionResult;
+use crate::schema_reader::unique_constraint::UniqueConstraintResult;
+use crate::TableTypeDetails::TimescaleHypertable;
+use crate::object_id::{ObjectIdGenerator};
+use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
+use crate::schema_reader::view::ViewResult;
+use crate::schema_reader::view_column::ViewColumnResult;
+
 use itertools::Itertools;
 use ordered_float::NotNan;
 use tracing::instrument;
@@ -47,6 +57,9 @@ impl SchemaReader<'_> {
 
     #[instrument(skip_all)]
     pub async fn introspect_database(&self) -> Result<PostgresDatabase> {
+        let mut object_id_generator = ObjectIdGenerator::new();
+        let mut object_id_mapping = PgOidToObjectIdMapping::default();
+
         let mut extensions = self.get_extensions().await?;
         let schemas = self.get_schemas().await?;
         let tables = self.get_tables().await?;
@@ -94,18 +107,21 @@ impl SchemaReader<'_> {
             let schema = PostgresSchema {
                 name: row.name.clone(),
                 comment: row.comment.clone(),
-                object_id: ObjectId::next(),
+                object_id: object_id_generator.next(),
                 ..Default::default()
             };
 
             db.schemas.push(schema);
         }
 
-        for row in tables {
-            let current_schema = db.get_or_create_schema_mut(&row.schema_name);
+        for table in &tables {
+            let current_schema = db.get_or_create_schema_mut(&table.schema_name);
+
+            let oid = table.oid;
+            let type_oid = table.type_oid;
 
             let table = Self::add_table(
-                row,
+                table,
                 &columns,
                 &check_constraints,
                 &unique_constraints,
@@ -115,7 +131,11 @@ impl SchemaReader<'_> {
                 &foreign_key_columns,
                 &hypertables,
                 &hypertable_dimensions,
+                &mut object_id_generator,
             )?;
+
+            object_id_mapping.insert(oid, table.object_id);
+            object_id_mapping.insert(type_oid, table.object_id);
 
             current_schema.tables.push(table);
         }
@@ -134,7 +154,7 @@ impl SchemaReader<'_> {
                 cycle: sequence.cycle,
                 last_value: sequence.last_value,
                 comment: sequence.comment,
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             };
 
             current_schema.sequences.push(sequence);
@@ -143,7 +163,18 @@ impl SchemaReader<'_> {
         for view in &views {
             let current_schema = db.get_or_create_schema_mut(&view.schema_name);
 
-            let view = Self::add_view(view, &view_columns, &continuous_aggregates);
+            let oid = view.oid;
+            let type_oid = view.type_oid;
+
+            let view = Self::add_view(
+                view,
+                &view_columns,
+                &continuous_aggregates,
+                &mut object_id_generator,
+            );
+
+            object_id_mapping.insert(oid, view.object_id);
+            object_id_mapping.insert(type_oid, view.object_id);
 
             current_schema.views.push(view);
         }
@@ -151,9 +182,9 @@ impl SchemaReader<'_> {
         for function in &functions {
             let current_schema = db.get_or_create_schema_mut(&function.schema_name);
 
-            
+            let oid = function.oid;
+
             if function.function_kind == FunctionKind::Aggregate {
-                
                 let function = PostgresAggregateFunction {
                     function_name: function.function_name.clone(),
                     arguments: function.arguments.clone(),
@@ -177,11 +208,14 @@ impl SchemaReader<'_> {
                     initial_value: function.aggregate_initial_value.clone(),
                     moving_initial_value: function.aggregate_moving_initial_value.clone(),
                     parallel: function.parallel,
-                    object_id: ObjectId::next(),
+                    object_id: object_id_generator.next(),
+                    depends_on: vec![],
                 };
 
+
+                object_id_mapping.insert(oid, function.object_id);
+
                 current_schema.aggregate_functions.push(function);
-                
             } else {
                 let function = PostgresFunction {
                     function_name: function.function_name.clone(),
@@ -203,9 +237,12 @@ impl SchemaReader<'_> {
                     arguments: function.arguments.clone(),
                     result: function.result.clone(),
                     comment: function.comment.clone(),
-                    object_id: ObjectId::next()
+                    object_id: object_id_generator.next(),
+                    depends_on: vec![],
                 };
-                
+
+                object_id_mapping.insert(oid, function.object_id);
+
                 current_schema.functions.push(function);
             }
 
@@ -217,7 +254,7 @@ impl SchemaReader<'_> {
                 schema_name: extension.extension_schema_name.clone(),
                 version: extension.extension_version.clone(),
                 relocatable: extension.extension_relocatable,
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             };
 
             db.enabled_extensions.push(extension);
@@ -225,8 +262,8 @@ impl SchemaReader<'_> {
 
         for trigger in triggers {
             if db.timescale_support.is_enabled && hypertables.iter().any(|h| {
-                    h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
-                }) {
+                h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
+            }) {
                 // Skip the trigger if it's a TimescaleDB internal trigger
                 if trigger.name == "ts_insert_blocker" || trigger.name == "ts_cagg_invalidation_trigger" {
                     continue;
@@ -246,7 +283,7 @@ impl SchemaReader<'_> {
                 comment: trigger.comment.clone(),
                 old_table_name: trigger.old_table_name.clone(),
                 new_table_name: trigger.new_table_name.clone(),
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             };
 
             current_schema.triggers.push(trigger);
@@ -259,7 +296,7 @@ impl SchemaReader<'_> {
                 name: enumeration.name.clone(),
                 values: enumeration.values.clone(),
                 comment: enumeration.comment.clone(),
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             };
 
             current_schema.enums.push(enumeration);
@@ -275,15 +312,81 @@ impl SchemaReader<'_> {
                 fixed_schedule: timescale_job.fixed_schedule,
                 config: timescale_job.config.clone().map(|c| c.into()),
                 scheduled: timescale_job.scheduled,
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             })
         }
+
+
+        for view in &views {
+            if let Some(depends_on) = &view.depends_on {
+                let current_schema = db.get_or_create_schema_mut(&view.schema_name);
+
+                let own_object_id = object_id_mapping.get(view.oid).unwrap(); // SAFE: We have just inserted the oid above
+
+                let this = current_schema.views.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+
+                for oid in depends_on {
+                    if let Some(depends_on) = object_id_mapping.get(*oid) {
+                        this.depends_on.push(depends_on);
+                    }
+                }
+            }
+        }
+
+        for table in &tables {
+            if let Some(depends_on) = &table.depends_on {
+                let current_schema = db.get_or_create_schema_mut(&table.schema_name);
+
+                let own_object_id = object_id_mapping.get(table.oid).unwrap(); // SAFE: We have just inserted the oid above
+
+                let this = current_schema.tables.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+
+                for oid in depends_on {
+                    if let Some(depends_on) = object_id_mapping.get(*oid) {
+                        this.depends_on.push(depends_on);
+                    }
+                }
+            }
+        }
+
+        for function in &functions {
+            if let Some(depends_on) = &function.depends_on {
+                let current_schema = db.get_or_create_schema_mut(&function.schema_name);
+
+                let own_object_id = object_id_mapping.get(function.oid).unwrap(); // SAFE: We have just inserted the oid above
+
+                if function.function_kind == FunctionKind::Aggregate {
+                    let this = current_schema.aggregate_functions.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+
+                    for oid in depends_on {
+                        if let Some(depends_on) = object_id_mapping.get(*oid) {
+                            this.depends_on.push(depends_on);
+                        }
+                    }
+                } else {
+                    
+                    let this = current_schema.functions.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+    
+                    for oid in depends_on {
+                        if let Some(depends_on) = object_id_mapping.get(*oid) {
+                            this.depends_on.push(depends_on);
+                        }
+                    }
+                }
+            }
+        }
+
 
         Ok(db)
     }
 
     #[instrument(skip_all)]
-    fn add_view(view: &ViewResult, view_columns: &[ViewColumnResult], continuous_aggregates: &[ContinuousAggregateResult]) -> PostgresView {
+    fn add_view(
+        view: &ViewResult,
+        view_columns: &[ViewColumnResult],
+        continuous_aggregates: &[ContinuousAggregateResult],
+        object_id_generator: &mut ObjectIdGenerator,
+    ) -> PostgresView {
         let continuous_aggregate = continuous_aggregates.iter().find(|c| c.view_name == view.view_name && c.view_schema == view.schema_name);
         PostgresView {
             name: view.view_name.clone(),
@@ -352,7 +455,8 @@ impl SchemaReader<'_> {
             } else {
                 ViewOptions::None
             },
-            object_id: ObjectId::next(),
+            object_id: object_id_generator.next(),
+            depends_on: vec![],
         }
     }
 
@@ -383,7 +487,7 @@ impl SchemaReader<'_> {
     #[instrument(skip_all)]
     #[allow(clippy::too_many_arguments)]
     fn add_table(
-        row: TablesResult,
+        row: &TablesResult,
         columns: &[TableColumnsResult],
         check_constraints: &[CheckConstraintResult],
         unique_constraints: &[UniqueConstraintResult],
@@ -393,6 +497,7 @@ impl SchemaReader<'_> {
         foreign_key_columns: &[ForeignKeyColumnResult],
         hypertables: &[HypertableResult],
         hypertable_dimensions: &[TimescaleHypertableDimensionResult],
+        object_id_generator: &mut ObjectIdGenerator,
     ) -> Result<PostgresTable> {
         let table_columns = Self::add_columns(columns, &row);
 
@@ -402,8 +507,9 @@ impl SchemaReader<'_> {
             foreign_key_columns,
             unique_constraints,
             &row,
+            object_id_generator,
         );
-        let indices = Self::add_indices(indices, index_columns, &row);
+        let indices = Self::add_indices(indices, index_columns, &row, object_id_generator);
 
         let hypertable = hypertables
             .iter()
@@ -460,14 +566,12 @@ impl SchemaReader<'_> {
                 })
             };
 
-            let retention = if let (Some(schedule_interval), Some(drop_after)) = (hypertable.retention_schedule_interval, hypertable.retention_drop_after) {
-                Some(HypertableRetention {
+            let retention = hypertable.retention_schedule_interval
+                .zip(hypertable.retention_drop_after)
+                .map(|(schedule_interval, drop_after)| HypertableRetention {
                     schedule_interval,
                     drop_after,
-                })
-            } else {
-                None
-            };
+                });
 
             TimescaleHypertable {
                 dimensions,
@@ -488,7 +592,7 @@ impl SchemaReader<'_> {
 
             TableTypeDetails::PartitionedChildTable {
                 parent_table: parent_tables[0].clone(),
-                partition_expression: row.partition_expression.ok_or_else(|| {
+                partition_expression: row.partition_expression.clone().ok_or_else(|| {
                     ElefantToolsError::PartitionedTableWithoutExpression(row.table_name.clone())
                 })?,
             }
@@ -497,8 +601,8 @@ impl SchemaReader<'_> {
                 partition_strategy: *partition_stat,
                 default_partition_name: row.default_partition_name.clone(),
                 partition_columns: match (
-                    row.partition_column_indices,
-                    row.partition_expression_columns,
+                    &row.partition_column_indices,
+                    &row.partition_expression_columns,
                 ) {
                     (None, None) => {
                         return Err(ElefantToolsError::PartitionedTableWithoutPartitionColumns(
@@ -544,10 +648,11 @@ impl SchemaReader<'_> {
             columns: table_columns,
             constraints,
             indices,
-            comment: row.comment,
-            storage_parameters: row.storage_parameters.unwrap_or_default(),
+            comment: row.comment.clone(),
+            storage_parameters: row.storage_parameters.clone().unwrap_or_default(),
             table_type: table_details,
-            object_id: ObjectId::next()
+            object_id: object_id_generator.next(),
+            depends_on: vec![],
         };
 
         Ok(table)
@@ -567,6 +672,7 @@ impl SchemaReader<'_> {
         foreign_key_columns: &[ForeignKeyColumnResult],
         unique_constraints: &[UniqueConstraintResult],
         row: &TablesResult,
+        object_id_generator: &mut ObjectIdGenerator,
     ) -> Vec<PostgresConstraint> {
         let mut constraints: Vec<PostgresConstraint> = check_constraints
             .iter()
@@ -576,7 +682,7 @@ impl SchemaReader<'_> {
                     name: check_constraint.constraint_name.clone(),
                     check_clause: check_constraint.check_clause.clone().into(),
                     comment: check_constraint.comment.clone(),
-                    object_id: ObjectId::next()
+                    object_id: object_id_generator.next(),
                 }
                     .into()
             })
@@ -628,7 +734,7 @@ impl SchemaReader<'_> {
                         })
                         .collect(),
                     comment: fk.comment.clone(),
-                    object_id: ObjectId::next()
+                    object_id: object_id_generator.next(),
                 }
                     .into()
             })
@@ -643,7 +749,7 @@ impl SchemaReader<'_> {
                 name: c.constraint_name.clone(),
                 unique_index_name: c.index_name.clone(),
                 comment: c.comment.clone(),
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             })
             .map(|c| c.into())
             .collect_vec();
@@ -659,6 +765,7 @@ impl SchemaReader<'_> {
         indices: &[IndexResult],
         index_columns: &[IndexColumnResult],
         row: &TablesResult,
+        object_id_generator: &mut ObjectIdGenerator,
     ) -> Vec<PostgresIndex> {
         let mut result = vec![];
 
@@ -721,7 +828,7 @@ impl SchemaReader<'_> {
                 },
                 comment: index.comment.clone(),
                 storage_parameters: index.storage_parameters.clone().unwrap_or_else(Vec::new),
-                object_id: ObjectId::next()
+                object_id: object_id_generator.next(),
             });
         }
 
@@ -742,15 +849,7 @@ macro_rules! define_working_query {
     };
 }
 
-use crate::schema_reader::timescale_hypertable::HypertableResult;
-use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDimensionResult;
-use crate::schema_reader::unique_constraint::UniqueConstraintResult;
-use crate::TableTypeDetails::TimescaleHypertable;
 pub(crate) use define_working_query;
-use crate::object_id::ObjectId;
-use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
-use crate::schema_reader::view::ViewResult;
-use crate::schema_reader::view_column::ViewColumnResult;
 
 fn none_if_irrelevant(s: String) -> Option<String> {
     if s == "-" || s == "0" {
@@ -765,5 +864,20 @@ fn none_if_zero(i: i32) -> Option<i32> {
         None
     } else {
         Some(i)
+    }
+}
+
+#[derive(Debug, Default)]
+struct PgOidToObjectIdMapping {
+    mapping: HashMap<i64, ObjectId>
+}
+
+impl PgOidToObjectIdMapping {
+    fn insert(&mut self, oid: i64, object_id: ObjectId) {
+        self.mapping.insert(oid, object_id);
+    }
+
+    fn get(&self, oid: i64) -> Option<ObjectId> {
+        self.mapping.get(&oid).copied()
     }
 }

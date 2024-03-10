@@ -65,6 +65,7 @@ from pg_index i
 where table_class.oid > 16384
 and table_class.relkind = 'r'
 and (dep.objid is null or dep.deptype <> 'e' )
+order by table_schema, table_name, index_name;
 "#
         } else {
             //language=postgresql
@@ -91,6 +92,7 @@ from pg_index i
 where table_class.oid > 16384
 and table_class.relkind = 'r'
 and (dep.objid is null or dep.deptype <> 'e' )
+order by table_schema, table_name, index_name;
 "#
         };
 

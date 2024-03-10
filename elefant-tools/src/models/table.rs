@@ -23,6 +23,7 @@ pub struct PostgresTable {
     pub storage_parameters: Vec<String>,
     pub table_type: TableTypeDetails,
     pub object_id: ObjectId,
+    pub depends_on: Vec<ObjectId>,
 }
 
 impl PostgresTable {

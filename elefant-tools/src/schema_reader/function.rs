@@ -42,6 +42,8 @@ pub struct FunctionResult {
     pub aggregate_moving_transition_space: Option<i32>,
     pub aggregate_initial_value: Option<String>,
     pub aggregate_moving_initial_value: Option<String>,
+    pub oid: i64,
+    pub depends_on: Option<Vec<i64>>,
 }
 
 impl FromRow for FunctionResult {
@@ -84,6 +86,8 @@ impl FromRow for FunctionResult {
             aggregate_moving_transition_space: row.try_get(34)?,
             aggregate_initial_value: row.try_get(35)?,
             aggregate_moving_initial_value: row.try_get(36)?,
+            oid: row.try_get(37)?,
+            depends_on: row.try_get(38)?,
         })
     }
 }
@@ -130,7 +134,9 @@ select ns.nspname as schema_name,
        aggmtranstype::regtype::text,
        agg.aggmtransspace,
        agg.agginitval,
-       agg.aggminitval
+       agg.aggminitval,
+       proc.oid::int8,
+       (select array_agg(refobjid::int8) from pg_depend dep where proc.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384) as depends_on
 from pg_proc proc
          join pg_namespace ns on proc.pronamespace = ns.oid
          join pg_language pl on proc.prolang = pl.oid
@@ -182,7 +188,9 @@ select ns.nspname as schema_name,
        aggmtranstype::regtype::text,
        agg.aggmtransspace,
        agg.agginitval,
-       agg.aggminitval
+       agg.aggminitval,
+       proc.oid::int8,
+       (select array_agg(refobjid::int8) from pg_depend dep where proc.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384) as depends_on
 from pg_proc proc
          join pg_namespace ns on proc.pronamespace = ns.oid
          join pg_language pl on proc.prolang = pl.oid

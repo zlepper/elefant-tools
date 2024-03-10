@@ -16,6 +16,7 @@ mod enumeration;
 mod hypertable_compression;
 mod hypertable_retention;
 mod timescale_db_user_defined_job;
+mod postgres_thing_with_dependencies;
 
 pub use constraint::*;
 pub use check_constraint::*;
@@ -35,3 +36,4 @@ pub use enumeration::*;
 pub use hypertable_compression::*;
 pub use hypertable_retention::*;
 pub use timescale_db_user_defined_job::*;
+pub(crate) use postgres_thing_with_dependencies::*;

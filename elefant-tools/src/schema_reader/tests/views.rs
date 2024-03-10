@@ -137,3 +137,201 @@ async fn materialized_view(helper: &TestHelper) {
     )
         .await;
 }
+
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(timescale_db = 15))]
+async fn view_depends_15_below(helper: &TestHelper) {
+    tests::test_introspection(
+        helper,
+        r#"
+        create materialized view a_view as select 1 as value;
+
+        create materialized view b_view as select * from a_view;
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                object_id: 1.into(),
+                views: vec![
+                    PostgresView {
+                        name: "a_view".to_string(),
+                        object_id: 2.into(),
+                        definition: "SELECT 1 AS value;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        ..default()
+                    },
+                    PostgresView {
+                        name: "b_view".to_string(),
+                        object_id: 3.into(),
+                        definition: "SELECT a_view.value FROM a_view;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        depends_on: vec![2.into()],
+                        ..default()
+                    }
+                ],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+        .await;
+}
+
+#[pg_test(arg(postgres = 16))]
+#[pg_test(arg(timescale_db = 16))]
+async fn view_depends_16(helper: &TestHelper) {
+    tests::test_introspection(
+        helper,
+        r#"
+        create materialized view a_view as select 1 as value;
+
+        create materialized view b_view as select * from a_view;
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                object_id: 1.into(),
+                views: vec![
+                    PostgresView {
+                        name: "a_view".to_string(),
+                        object_id: 2.into(),
+                        definition: "SELECT 1 AS value;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        ..default()
+                    },
+                    PostgresView {
+                        name: "b_view".to_string(),
+                        object_id: 3.into(),
+                        definition: "SELECT value FROM a_view;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        depends_on: vec![2.into()],
+                        ..default()
+                    }
+                ],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+        .await;
+}
+
+#[pg_test(arg(postgres = 12))]
+#[pg_test(arg(postgres = 13))]
+#[pg_test(arg(postgres = 14))]
+#[pg_test(arg(postgres = 15))]
+#[pg_test(arg(timescale_db = 15))]
+async fn view_depends_15_below_opposite(helper: &TestHelper) {
+    tests::test_introspection(
+        helper,
+        r#"
+        create materialized view b_view as select 1 as value;
+
+        create materialized view a_view as select * from b_view;
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                object_id: 1.into(),
+                views: vec![
+                    PostgresView {
+                        name: "a_view".to_string(),
+                        object_id: 2.into(),
+                        definition: "SELECT b_view.value FROM b_view;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        depends_on: vec![3.into()],
+                        ..default()
+                    },
+                    PostgresView {
+                        name: "b_view".to_string(),
+                        object_id: 3.into(),
+                        definition: "SELECT 1 AS value;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        ..default()
+                    },
+                ],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+        .await;
+}
+
+#[pg_test(arg(postgres = 16))]
+#[pg_test(arg(timescale_db = 16))]
+async fn view_depends_16_opposite(helper: &TestHelper) {
+    tests::test_introspection(
+        helper,
+        r#"
+        create materialized view b_view as select 1 as value;
+
+        create materialized view a_view as select * from b_view;
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                object_id: 1.into(),
+                views: vec![
+                    PostgresView {
+                        name: "a_view".to_string(),
+                        object_id: 2.into(),
+                        definition: "SELECT value FROM b_view;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        depends_on: vec![3.into()],
+                        ..default()
+                    },
+                    PostgresView {
+                        name: "b_view".to_string(),
+                        object_id: 3.into(),
+                        definition: "SELECT 1 AS value;".into(),
+                        columns: vec![PostgresViewColumn {
+                            name: "value".to_string(),
+                            ordinal_position: 1,
+                        }],
+                        is_materialized: true,
+                        ..default()
+                    },
+                ],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+        .await;
+}

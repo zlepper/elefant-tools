@@ -17,6 +17,9 @@ pub struct TablesResult {
     pub parent_tables: Option<Vec<String>>,
     pub is_partition: bool,
     pub storage_parameters: Option<Vec<String>>,
+    pub oid: i64,
+    pub depends_on: Option<Vec<i64>>,
+    pub type_oid: i64,
 }
 
 
@@ -52,6 +55,9 @@ impl FromRow for TablesResult {
             parent_tables: row.try_get(9)?,
             is_partition: row.try_get(10)?,
             storage_parameters: row.try_get(11)?,
+            oid: row.try_get(12)?,
+            depends_on: row.try_get(13)?,
+            type_oid: row.try_get(14)?,
         })
     }
 }
@@ -74,7 +80,10 @@ select
           where i.inhrelid = cl.oid
           order by i.inhseqno) parent) as parent_table,
     cl.relispartition,
-    cl.reloptions
+    cl.reloptions,
+   cl.oid::int8,
+   (select array_agg(refobjid::int8) from pg_depend dep where cl.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384) as depends_on,
+   cl.reltype::int8
 from pg_class cl
          join pg_catalog.pg_namespace ns on ns.oid = cl.relnamespace
          left join pg_description des on des.objoid = cl.oid and des.objsubid = 0

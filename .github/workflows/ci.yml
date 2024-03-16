@@ -71,7 +71,7 @@ jobs:
     - name: Upload executable
       uses: actions/upload-artifact@v4
       with:
-        name: elefant-sync-windows-amd64.exe
+        name: elefant-sync-windows-amd64
         path: target/release/elefant-sync.exe
 
 
@@ -87,7 +87,7 @@ jobs:
         name: Cache dependencies
 
       - name: Run benchmarks
-        run: sh ./benchmarks/run_benchmarks.sh
+        run: ./benchmarks/run_benchmarks.sh
 
       - name: Upload benchmark results
         run: cat ./benchmarks/results/*.md >> $GITHUB_STEP_SUMMARY

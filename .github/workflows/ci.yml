@@ -103,4 +103,6 @@ jobs:
 #          ELEFANT_SYNC_PATH: target/release/elefant-sync
 
       - name: Upload benchmark results
-        run: cat ./benchmarks/results/*.md >> $GITHUB_STEP_SUMMARY
+        run: |
+          cat ./benchmarks/results/export-as-sql.md.md >> $GITHUB_STEP_SUMMARY
+          cat ./benchmarks/results/import-from-sql.md >> $GITHUB_STEP_SUMMARY

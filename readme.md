@@ -46,7 +46,7 @@
 ✅ Quoted identifier names
 ✅ Array columns
 ❌ Exclusion constraints
-❌ Domains
+✅ Domains
 ```
 
 ## Timescale DB support

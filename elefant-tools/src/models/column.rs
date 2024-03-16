@@ -12,6 +12,7 @@ pub struct PostgresColumn {
     pub generated: Option<String>,
     pub comment: Option<String>,
     pub array_dimensions: i32,
+    pub data_type_length: Option<i32>,
 }
 
 impl PostgresColumn {
@@ -44,6 +45,7 @@ impl Default for PostgresColumn {
             generated: None,
             comment: None,
             array_dimensions: 0,
+            data_type_length: None,
         }
     }
 }

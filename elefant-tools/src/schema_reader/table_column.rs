@@ -15,6 +15,7 @@ pub struct TableColumnsResult {
     pub generated: Option<String>,
     pub comment: Option<String>,
     pub array_dimensions: i32,
+    pub data_type_length: Option<i32>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -35,6 +36,7 @@ impl FromRow for TableColumnsResult {
                     row.try_get::<_, i16>(9)? as i32
                 }
             },
+            data_type_length: row.try_get(10)?
         })
     }
 }
@@ -51,6 +53,7 @@ impl TableColumnsResult {
             generated: self.generated.clone(),
             comment: self.comment.clone(),
             array_dimensions: self.array_dimensions,
+            data_type_length: self.data_type_length,
         }
     }
 }
@@ -73,8 +76,8 @@ select ns.nspname,
            ELSE NULL::text
            END::text                           AS generation_expression,
          des.description,
-         attr.attndims as array_dimensions
-
+         attr.attndims as array_dimensions,
+       information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length
 from pg_attribute attr
          join pg_class cl on attr.attrelid = cl.oid
          join pg_type t on attr.atttypid = t.oid

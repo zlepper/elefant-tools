@@ -111,6 +111,9 @@ pub enum Storage {
         #[arg(long, default_value_t = 1000, env)]
         max_rows_per_insert: usize,
         
+        #[arg(long, default_value_t = 10, env)]
+        max_commands_per_chunk: usize,
+        
         #[arg(long, default_value_t = SqlDataMode::CopyStatements, env)]
         format: SqlDataMode,
     },

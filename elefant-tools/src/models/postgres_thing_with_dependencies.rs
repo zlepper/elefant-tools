@@ -1,11 +1,12 @@
-use crate::{ObjectId, PostgresAggregateFunction, PostgresFunction, PostgresSchema, PostgresTable, PostgresView};
+use crate::{ObjectId, PostgresAggregateFunction, PostgresDomain, PostgresFunction, PostgresSchema, PostgresTable, PostgresView};
 use crate::object_id::HaveDependencies;
 
 pub(crate) enum PostgresThingWithDependencies<'a> {
     Table(&'a PostgresTable, &'a PostgresSchema),
     View(&'a PostgresView, &'a PostgresSchema),
     Function(&'a PostgresFunction, &'a PostgresSchema),
-    AggregateFunction(&'a PostgresAggregateFunction, &'a PostgresSchema)
+    AggregateFunction(&'a PostgresAggregateFunction, &'a PostgresSchema),
+    Domain(&'a PostgresDomain, &'a PostgresSchema),
 }
 
 
@@ -16,6 +17,7 @@ impl<'a> HaveDependencies for &PostgresThingWithDependencies<'a> {
             PostgresThingWithDependencies::View(view, _) => &view.depends_on,
             PostgresThingWithDependencies::Function(function, _) => &function.depends_on,
             PostgresThingWithDependencies::AggregateFunction(aggregate_function, _) => &aggregate_function.depends_on,
+            PostgresThingWithDependencies::Domain(domain, _) => &domain.depends_on,
         }
     }
 
@@ -25,6 +27,7 @@ impl<'a> HaveDependencies for &PostgresThingWithDependencies<'a> {
             PostgresThingWithDependencies::View(view, _) => view.object_id,
             PostgresThingWithDependencies::Function(function, _) => function.object_id,
             PostgresThingWithDependencies::AggregateFunction(aggregate_function, _) => aggregate_function.object_id,
+            PostgresThingWithDependencies::Domain(domain, _) => domain.object_id,
         }
     }
 }
@@ -36,6 +39,7 @@ impl<'a> PostgresThingWithDependencies<'a> {
             PostgresThingWithDependencies::View(view, schema) => view.get_create_view_sql(schema, identifier_quoter),
             PostgresThingWithDependencies::Function(function, schema) => function.get_create_statement(schema, identifier_quoter),
             PostgresThingWithDependencies::AggregateFunction(aggregate_function, schema) => aggregate_function.get_create_statement(schema, identifier_quoter),
+            PostgresThingWithDependencies::Domain(domain, schema) => domain.get_create_sql(schema, identifier_quoter),
         }
     }
 }

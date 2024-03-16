@@ -45,6 +45,7 @@ mod view;
 mod view_column;
 mod timescale_continuous_aggregate;
 mod timescale_job;
+mod domain;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -76,6 +77,7 @@ impl SchemaReader<'_> {
         let functions = self.get_functions().await?;
         let triggers = self.get_triggers().await?;
         let enums = self.get_enums().await?;
+        let domains = self.get_domains().await?;
 
         let mut db = PostgresDatabase::default();
 
@@ -315,6 +317,35 @@ impl SchemaReader<'_> {
                 object_id: object_id_generator.next(),
             })
         }
+        
+        for domain in &domains {
+            let current_schema = db.get_or_create_schema_mut(&domain.schema_name);
+            
+            let oid = domain.domain_oid;
+            
+            let domain = PostgresDomain {
+                name: domain.domain_name.clone(),
+                base_type_name: domain.base_type_name.clone(),
+                default_value: domain.default_value.clone(),
+                not_null: domain.not_null,
+                constraint: if let (Some(name), Some(definition)) = (&domain.constraint_name, &domain.constraint_definition) {
+                    Some(PostgresDomainConstraint {
+                        name: name.clone(),
+                        definition: definition.clone(),
+                    })
+                } else {
+                    None
+                },
+                description: domain.description.clone(),
+                object_id: object_id_generator.next(),
+                depends_on: vec![],
+                data_type_length: domain.data_type_length,
+            };
+            
+            object_id_mapping.insert(oid, domain.object_id);
+            
+            current_schema.domains.push(domain);
+        }
 
 
         for view in &views {
@@ -371,6 +402,22 @@ impl SchemaReader<'_> {
                         if let Some(depends_on) = object_id_mapping.get(*oid) {
                             this.depends_on.push(depends_on);
                         }
+                    }
+                }
+            }
+        }
+        
+        for domain in &domains {
+            if let Some(depends_on) = &domain.depends_on {
+                let current_schema = db.get_or_create_schema_mut(&domain.schema_name);
+                
+                let own_object_id = object_id_mapping.get(domain.domain_oid).unwrap(); // SAFE: We have just inserted the oid above
+                
+                let this = current_schema.domains.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+                
+                for oid in depends_on {
+                    if let Some(depends_on) = object_id_mapping.get(*oid) {
+                        this.depends_on.push(depends_on);
                     }
                 }
             }
@@ -499,17 +546,17 @@ impl SchemaReader<'_> {
         hypertable_dimensions: &[TimescaleHypertableDimensionResult],
         object_id_generator: &mut ObjectIdGenerator,
     ) -> Result<PostgresTable> {
-        let table_columns = Self::add_columns(columns, &row);
+        let table_columns = Self::add_columns(columns, row);
 
         let constraints = Self::add_constraints(
             check_constraints,
             foreign_keys,
             foreign_key_columns,
             unique_constraints,
-            &row,
+            row,
             object_id_generator,
         );
-        let indices = Self::add_indices(indices, index_columns, &row, object_id_generator);
+        let indices = Self::add_indices(indices, index_columns, row, object_id_generator);
 
         let hypertable = hypertables
             .iter()

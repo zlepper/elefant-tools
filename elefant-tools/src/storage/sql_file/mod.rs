@@ -408,7 +408,7 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut
                             }
                             let byt = Bytes::from(sql_chunk.clone());
 
-                            copy_in_stream.send(byt).await?;
+                            copy_in_stream.feed(byt).await?;
                         }
 
                         copy_in_stream.close().await?;

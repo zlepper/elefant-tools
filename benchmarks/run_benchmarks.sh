@@ -84,29 +84,31 @@ echo "Restoring dvdrental database"
 echo "dvdrental database restored"
 
 
-PG_DUMP_COMMAND_TO_SQL_INSERTS="\"$PG_DUMP_PATH\" --dbname dvdrental -f benchmarks/results/pg_dump_result-insert.sql --inserts"
+PG_DUMP_COMMAND_TO_SQL_INSERTS="\"$PG_DUMP_PATH\" --dbname dvdrental -f benchmarks/results/pg_dump_result-insert.sql --rows-per-insert=1000"
 PG_DUMP_COMMAND_TO_COPY="\"$PG_DUMP_PATH\" --dbname dvdrental -f benchmarks/results/pg_dump_result-copy.sql"
-ELEFANT_SYNC_COMMAND_TO_SQL_INSERTS="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result-insert.sql --format InsertStatements"
-ELEFANT_SYNC_COMMAND_TO_COPY="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result-copy.sql --format CopyStatements"
+ELEFANT_SYNC_COMMAND_TO_SQL_INSERTS="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result-insert.sql --format InsertStatements --max-rows-per-insert 1000"
+ELEFANT_SYNC_COMMAND_TO_COPY="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result-copy.sql --format CopyStatements --max-commands-per-chunk 500"
 
 hyperfine --command-name "pg_dump sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS" \
           --command-name "pg_dump sql-copy" "$PG_DUMP_COMMAND_TO_COPY" \
           --command-name "elefant-sync sql-insert" "$ELEFANT_SYNC_COMMAND_TO_SQL_INSERTS" \
           --command-name "elefant-sync sql-copy" "$ELEFANT_SYNC_COMMAND_TO_COPY" \
-          --show-output --export-markdown "benchmarks/results/export-as-sql.md"
+          --export-markdown "benchmarks/results/export-as-sql.md"  --warmup 1
 
-
-PG_RESTORE_IMPORT_SQL_INSERTS="\"$PG_RESTORE_PATH\" --dbname dvdrental_import --exit-on-error benchmarks/results/pg_dump_result-insert.sql"
-PG_RESTORE_IMPORT_SQL_COPY="\"$PG_RESTORE_PATH\" --dbname dvdrental_import --exit-on-error benchmarks/results/pg_dump_result-copy.sql"
+PG_RESTORE_IMPORT_SQL_INSERTS="\"$PSQL_PATH\" --dbname dvdrental_import --file benchmarks/results/pg_dump_result-insert.sql --echo-hidden --quiet -v ON_ERROR_STOP=1"
+PG_RESTORE_IMPORT_SQL_COPY="\"$PSQL_PATH\" --dbname dvdrental_import --file benchmarks/results/pg_dump_result-copy.sql --echo-hidden --quiet -v ON_ERROR_STOP=1"
 ELEFANT_SYNC_COMMAND_FROM_SQL_INSERTS="\"$ELEFANT_SYNC_PATH\" import --target-db-name dvdrental_import sql-file --path benchmarks/results/elefant_sync_result-insert.sql"
 ELEFANT_SYNC_COMMAND_FROM_SQL_COPY="\"$ELEFANT_SYNC_PATH\" import --target-db-name dvdrental_import sql-file --path benchmarks/results/elefant_sync_result-copy.sql"
 
-hyperfine --prepare "sh benchmarks/import_prepare.sh" \
+echo "$PSQL_PATH"
+echo "$PG_DUMP_PATH"
+
+hyperfine --prepare "sh benchmarks/import_prepare.sh" --warmup 1 \
+          --export-markdown "benchmarks/results/import-from-sql.md" \
+          --command-name "psql sql-copy" "$PG_RESTORE_IMPORT_SQL_COPY" \
+          --command-name "psql sql-insert" "$PG_RESTORE_IMPORT_SQL_INSERTS" \
           --command-name "elefant-sync sql-copy" "$ELEFANT_SYNC_COMMAND_FROM_SQL_COPY" \
-          --show-output --export-markdown "benchmarks/results/import-from-sql.md"
-#          --command-name "pg_restore sql-insert" "$PG_RESTORE_IMPORT_SQL_INSERTS" \
-#          --command-name "pg_restore sql-copy" "$PG_RESTORE_IMPORT_SQL_COPY" \
-#          --command-name "elefant-sync sql-insert" "$ELEFANT_SYNC_COMMAND_FROM_SQL_INSERTS" \
+          --command-name "elefant-sync sql-insert" "$ELEFANT_SYNC_COMMAND_FROM_SQL_INSERTS"
 
 echo "Finished benchmark"
 

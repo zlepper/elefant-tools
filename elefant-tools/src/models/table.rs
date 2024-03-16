@@ -58,6 +58,10 @@ impl PostgresTable {
                 sql.push_str(&column.name.quote(identifier_quoter, ColumnName));
                 sql.push(' ');
                 sql.push_str(&column.data_type.quote(identifier_quoter, ColumnName));
+                
+                if let Some(length) = column.data_type_length {
+                    sql.push_str(&format!("({})", length));
+                }
 
                 for _ in 0..column.array_dimensions {
                     sql.push_str("[]");

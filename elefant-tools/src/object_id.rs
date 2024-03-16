@@ -65,7 +65,7 @@ impl<I> DependencySortable for I
 
         let mut sorted: Vec<Self::Item> = self.collect();
 
-        if sorted.len() == 0 {
+        if sorted.is_empty() {
             return sorted;
         }
 

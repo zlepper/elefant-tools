@@ -2,7 +2,7 @@ mod timescale;
 mod inheritance;
 mod storage_parameters;
 mod partitioning;
-mod enums;
+mod custom_types;
 mod triggers;
 mod views;
 mod comments;

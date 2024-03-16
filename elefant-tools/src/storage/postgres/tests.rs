@@ -933,3 +933,31 @@ create table users(
 );
 "#);
 
+test_round_trip!(domains, r#"
+create domain public.year as integer
+    constraint year_check check (((value >= 1901) and (value <= 2155)));
+
+create domain public.twenties as year
+    constraint twenties_check check (value >= 1920 and value <= 1929);
+
+comment on domain public.year is 'year between 1901 and 2155';
+
+create domain unix_year as integer default 1970;
+
+create domain non_null_year as year not null;
+
+create domain smol_text as varchar(10);
+
+create table movie
+(
+    name text not null,
+    year year not null
+);
+"#);
+
+test_round_trip!(limited_length_columns, r#"
+create table my_table(
+    name varchar(200) not null,
+    var_char_array varchar(666)[] not null
+);
+"#);

@@ -52,10 +52,11 @@ async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism:
     };
 
     match destination {
-        Storage::SqlFile { path , max_rows_per_insert, format } => {
+        Storage::SqlFile { path , max_rows_per_insert, format, max_commands_per_chunk } => {
             let mut sql_file_destination = elefant_tools::SqlFile::new_file(&path, source.get_identifier_quoter(), SqlFileOptions {
                 max_rows_per_insert,
                 data_mode: format,
+                max_commands_per_chunk,
                 ..SqlFileOptions::default()
             }).await?;
 
@@ -127,6 +128,7 @@ mod tests {
                     path: sql_file_path.clone(),
                     max_rows_per_insert: 1000,
                     format: SqlDataMode::InsertStatements,
+                    max_commands_per_chunk: 5,
                 },
                 db_args: ExportDbArgs::from_test_helper(source)
             }
@@ -141,6 +143,7 @@ mod tests {
                     path: sql_file_path,
                     max_rows_per_insert: 1000,
                     format: SqlDataMode::InsertStatements,
+                    max_commands_per_chunk: 5,
                 },
                 db_args: ImportDbArgs::from_test_helper(destination)
             }
@@ -167,6 +170,7 @@ mod tests {
                     path: sql_file_path.clone(),
                     max_rows_per_insert: 1000,
                     format: SqlDataMode::CopyStatements,
+                    max_commands_per_chunk: 5,
                 },
                 db_args: ExportDbArgs::from_test_helper(source)
             }
@@ -181,6 +185,7 @@ mod tests {
                     path: sql_file_path,
                     max_rows_per_insert: 1000,
                     format: SqlDataMode::CopyStatements,
+                    max_commands_per_chunk: 5,
                 },
                 db_args: ImportDbArgs::from_test_helper(destination)
             }

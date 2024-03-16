@@ -178,6 +178,7 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
         for function in &schema.functions {
             tables_and_functions.push(PostgresThingWithDependencies::Function(function, schema));
         }
+        
         for aggregate_function in &schema.aggregate_functions {
             tables_and_functions.push(PostgresThingWithDependencies::AggregateFunction(aggregate_function, schema));
         }
@@ -188,6 +189,10 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
 
         for view in &schema.views {
             tables_and_functions.push(PostgresThingWithDependencies::View(view, schema));
+        }
+        
+        for domain in &schema.domains {
+            tables_and_functions.push(PostgresThingWithDependencies::Domain(domain, schema));
         }
     }
 

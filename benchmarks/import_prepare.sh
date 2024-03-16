@@ -11,5 +11,5 @@ if [[ -z "$PSQL_PATH" ]]; then
 fi
 
 
-"$PSQL_PATH" --command 'drop database if exists dvdrental_import'
-"$PSQL_PATH" --command 'create database dvdrental_import;'
+"$PSQL_PATH" --command 'drop database if exists dvdrental_import' --echo-hidden --quiet
+"$PSQL_PATH" --command 'create database dvdrental_import;' --echo-hidden --quiet

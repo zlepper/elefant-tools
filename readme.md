@@ -33,7 +33,7 @@
 ✅ Materialized views
 ➕ Functions/Stored procedures
     ❌ Transforms
-    ❌ Aggregate functions
+    ✅ Aggregate functions
 ✅ Extensions
 ➕ Comments (Best effort to support comments on objects. If I have forgotten to support comments on any object, please open an issue.)
 ✅ Partitions

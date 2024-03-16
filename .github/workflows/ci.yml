@@ -104,5 +104,5 @@ jobs:
 
       - name: Upload benchmark results
         run: |
-          cat ./benchmarks/results/export-as-sql.md.md >> $GITHUB_STEP_SUMMARY
+          cat ./benchmarks/results/export-as-sql.md >> $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/import-from-sql.md >> $GITHUB_STEP_SUMMARY

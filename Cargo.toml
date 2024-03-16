@@ -17,5 +17,5 @@ opt-level = 1
 [profile.release]
 debug = "full"
 split-debuginfo = "off"
-lto = "fat"
+#lto = "fat"
 

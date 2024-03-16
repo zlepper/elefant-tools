@@ -68,6 +68,11 @@ pub trait CopyDestination: Send {
     fn commit_transaction(&mut self) -> impl std::future::Future<Output = Result<()>> + Send;
     
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter>;
+    fn finish(&mut self) -> impl std::future::Future<Output = Result<()>> + Send {
+        async move {
+            Ok(())
+        }
+    }
 }
 
 pub enum SequentialOrParallel<S: Send, P: Send + Clone + Sync> {
@@ -114,6 +119,13 @@ impl< S: CopyDestination, P: CopyDestination + Clone + Sync> SequentialOrParalle
         match self {
             SequentialOrParallel::Sequential(s) => s.commit_transaction().await,
             SequentialOrParallel::Parallel(p) => p.commit_transaction().await,
+        }
+    }
+    
+    pub async fn finish(&mut self) -> Result<()> {
+        match self {
+            SequentialOrParallel::Sequential(s) => s.finish().await,
+            SequentialOrParallel::Parallel(p) => p.finish().await,
         }
     }
     

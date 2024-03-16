@@ -149,6 +149,8 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
             apply_post_copy_structure_parallel(destination, &target_definition, &options).await?;
         }
     }
+    
+    destination.finish().await?;
 
     Ok(())
 }

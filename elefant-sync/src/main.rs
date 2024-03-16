@@ -28,10 +28,10 @@ async fn run(cli: cli::Cli) -> Result<()> {
             do_export(db_args, destination, cli.max_parallelism).await?;
         }
         Commands::Import { db_args, source } => {
-            do_import(db_args, source).await?;
+            do_import(db_args, source, cli.max_parallelism).await?;
         }
         Commands::Copy(copy_args) => {
-            do_copy(copy_args).await?;
+            do_copy(copy_args, cli.max_parallelism).await?;
         }
     }
 
@@ -71,7 +71,7 @@ async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism:
 }
 
 #[instrument(skip_all)]
-async fn do_import(db_args: ImportDbArgs, source: Storage) -> Result<()> {
+async fn do_import(db_args: ImportDbArgs, source: Storage, _usize: NonZeroUsize) -> Result<()> {
 
 
     let connection_string = db_args.get_connection_string();
@@ -89,7 +89,7 @@ async fn do_import(db_args: ImportDbArgs, source: Storage) -> Result<()> {
 }
 
 #[instrument(skip_all)]
-async fn do_copy(copy_args: CopyArgs) -> Result<()> {
+async fn do_copy(copy_args: CopyArgs, max_parallel: NonZeroUsize) -> Result<()> {
     let source_connection = PostgresClientWrapper::new(&copy_args.source.get_connection_string()).await?;
     let source = PostgresInstanceStorage::new(&source_connection).await?;
 
@@ -98,7 +98,7 @@ async fn do_copy(copy_args: CopyArgs) -> Result<()> {
 
     copy_data(&source, &mut target, CopyDataOptions {
         data_format: None,
-        max_parallel: None,
+        max_parallel: Some(max_parallel),
         rename_schema_to: None,
         target_schema: None
     }).await?;

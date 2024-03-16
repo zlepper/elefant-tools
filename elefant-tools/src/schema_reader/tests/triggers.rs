@@ -5,6 +5,26 @@ use crate::schema_reader::tests;
 use crate::test_helpers::TestHelper;
 use crate::test_helpers;
 
+/*
+create function pg_catalog.tsvector_update_trigger() returns trigger
+    parallel safe
+    cost 1
+    language internal
+as
+$$
+begin
+-- missing source code
+end;
+$$;
+
+comment on function pg_catalog.tsvector_update_trigger() is 'trigger for automatic update of tsvector column';
+
+alter function pg_catalog.tsvector_update_trigger() owner to postgres;
+
+
+
+ */
+
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]
 #[pg_test(arg(postgres = 14))]
@@ -22,6 +42,10 @@ async fn triggers(helper: &TestHelper) {
         begin return new; end;
         $$ language plpgsql;
 
+        create function my_parametised_trigger_function() returns trigger as $$
+        begin return new; end;
+        $$ language plpgsql;
+
         create trigger my_trigger after insert on my_table for each row execute function my_trigger_function();
 
         comment on trigger my_trigger on my_table is 'This is a trigger';
@@ -29,6 +53,8 @@ async fn triggers(helper: &TestHelper) {
         create trigger scoped_trigger before update on my_table for each row when (OLD.value is distinct from NEW.value) execute procedure my_trigger_function();
 
         create trigger truncate_trigger after truncate on my_table for each statement execute procedure my_trigger_function();
+
+        create trigger updt_insert_trigger before update or insert on my_table for each row execute procedure my_parametised_trigger_function(42, 'foo');
 
     "#, PostgresDatabase {
         schemas: vec![
@@ -50,6 +76,25 @@ async fn triggers(helper: &TestHelper) {
                     }
                 ],
                 functions: vec![
+                    PostgresFunction {
+                        function_name: "my_parametised_trigger_function".to_string(),
+                        language: "plpgsql".to_string(),
+                        estimated_cost: NotNan::new(100.0).unwrap(),
+                        estimated_rows: NotNan::new(0.0).unwrap(),
+                        support_function: None,
+                        kind: FunctionKind::Function,
+                        security_definer: false,
+                        leak_proof: false,
+                        strict: false,
+                        returns_set: false,
+                        volatility: Volatility::Volatile,
+                        parallel: Parallel::Unsafe,
+                        sql_body: "begin return new; end;".into(),
+                        configuration: None,
+                        arguments: "".to_string(),
+                        result: Some("trigger".to_string()),
+                        ..default()
+                    },
                     PostgresFunction {
                         function_name: "my_trigger_function".to_string(),
                         language: "plpgsql".to_string(),
@@ -74,7 +119,7 @@ async fn triggers(helper: &TestHelper) {
                     PostgresTrigger {
                         name: "my_trigger".to_string(),
                         table_name: "my_table".to_string(),
-                        event: PostgresTriggerEvent::Insert,
+                        events: vec![PostgresTriggerEvent::Insert],
                         timing: PostgresTriggerTiming::After,
                         level: PostgresTriggerLevel::Row,
                         function_name: "my_trigger_function".to_string(),
@@ -84,7 +129,7 @@ async fn triggers(helper: &TestHelper) {
                     PostgresTrigger {
                         name: "scoped_trigger".to_string(),
                         table_name: "my_table".to_string(),
-                        event: PostgresTriggerEvent::Update,
+                        events: vec![PostgresTriggerEvent::Update],
                         timing: PostgresTriggerTiming::Before,
                         level: PostgresTriggerLevel::Row,
                         function_name: "my_trigger_function".to_string(),
@@ -94,10 +139,20 @@ async fn triggers(helper: &TestHelper) {
                     PostgresTrigger {
                         name: "truncate_trigger".to_string(),
                         table_name: "my_table".to_string(),
-                        event: PostgresTriggerEvent::Truncate,
+                        events: vec![PostgresTriggerEvent::Truncate],
                         timing: PostgresTriggerTiming::After,
                         level: PostgresTriggerLevel::Statement,
                         function_name: "my_trigger_function".to_string(),
+                        ..default()
+                    },
+                    PostgresTrigger {
+                        name: "updt_insert_trigger".to_string(),
+                        table_name: "my_table".to_string(),
+                        events: vec![PostgresTriggerEvent::Insert, PostgresTriggerEvent::Update],
+                        timing: PostgresTriggerTiming::Before,
+                        level: PostgresTriggerLevel::Row,
+                        function_name: "my_parametised_trigger_function".to_string(),
+                        arguments: Some("'42', 'foo'".to_string()),
                         ..default()
                     },
                 ],

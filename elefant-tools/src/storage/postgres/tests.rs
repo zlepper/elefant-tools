@@ -407,6 +407,10 @@ test_round_trip!(
         create function my_trigger_function() returns trigger as $$
         begin return new; end;
         $$ language plpgsql;
+        
+        create function my_parametised_trigger_function() returns trigger as $$
+        begin return new; end;
+        $$ language plpgsql;
 
         create trigger my_trigger after insert on my_table for each row execute function my_trigger_function();
 
@@ -416,6 +420,7 @@ test_round_trip!(
 
         create trigger truncate_trigger after truncate on my_table for each statement execute procedure my_trigger_function();
 
+        create trigger updt_insert_trigger before update or insert on my_table for each row execute procedure my_parametised_trigger_function(42, 'foo');
     "#
     );
 

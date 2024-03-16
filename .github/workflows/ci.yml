@@ -109,5 +109,7 @@ jobs:
         run: |
           printf "# Exporting as sql\n" >> $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/export-as-sql.md >> $GITHUB_STEP_SUMMARY
-          printf "\n\n# Importing from sql\n"  >> $GITHUB_STEP_SUMMARY
+          printf "\n\n# Importing from sql\n" >> $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/import-from-sql.md >> $GITHUB_STEP_SUMMARY
+          printf "\n\n# Copying between databases\n" >> $GITHUB_STEP_SUMMARY
+          cat ./benchmarks/results/sync-between-databases.md >> $GITHUB_STEP_SUMMARY

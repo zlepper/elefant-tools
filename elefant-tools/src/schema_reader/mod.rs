@@ -277,7 +277,7 @@ impl SchemaReader<'_> {
             let trigger = PostgresTrigger {
                 name: trigger.name.clone(),
                 table_name: trigger.table_name.clone(),
-                event: trigger.event,
+                events: trigger.events.clone(),
                 timing: trigger.timing,
                 level: trigger.level,
                 function_name: trigger.function_name.clone(),
@@ -286,6 +286,7 @@ impl SchemaReader<'_> {
                 old_table_name: trigger.old_table_name.clone(),
                 new_table_name: trigger.new_table_name.clone(),
                 object_id: object_id_generator.next(),
+                arguments: trigger.arguments.clone(),
             };
 
             current_schema.triggers.push(trigger);

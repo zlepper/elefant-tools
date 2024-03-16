@@ -192,6 +192,11 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
         self.quoter.clone()
     }
+    
+    async fn finish(&mut self) -> Result<()> {
+        self.file.flush().await?;
+        Ok(())
+    }
 }
 
 impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {

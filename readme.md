@@ -24,8 +24,8 @@ them in your own commands, or provide them through environment variables. If you
 fail and tell you which arguments are missing.
 
 
-Dump to sql file using Postgres insert statements. This file can be passed to either `psql` or `elefant-sync`
-to import the data again:
+### Dump to sql file using Postgres insert statements.
+This file can be passed to either `psql` or `elefant-sync` to import the data again:
 ```bash
 # Dump to file
 elefant-sync export sql-file --path my_dump.sql --format InsertStatements
@@ -36,8 +36,8 @@ elefant-sync import sql-file --path my_dump.sql
 psql --dbname my_target_db -f my_dump.sql
 ```
 
-Dump to sql file using Postgres copy statements. This requires using elefant-sync to import the data again, but 
-is faster:
+### Dump to sql file using Postgres copy statements.
+This requires using elefant-sync to import the data again, but is faster:
 ```bash
 # Dump to file
 elefant-sync export sql-file --path my_dump.sql --format CopyStatements

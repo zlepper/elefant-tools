@@ -82,9 +82,13 @@ jobs:
 #      - test
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - uses: Swatinem/rust-cache@v2
         name: Cache dependencies
+        with:
+          cache-all-crates: true
 
       - name: Install dependencies
         run: |

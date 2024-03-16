@@ -1,4 +1,89 @@
+# Elefant Tools
+Elefant Tools is a library + binary for interfacing with the PostgreSQL database in the same
+way as `pg_dump` and `pg_restore`. In addition Elefant Tools can do direct copies between two databases
+without the need to write to disk. This is useful for example when you want to copy a database from one
+server to another, or when you want to copy a database from a server to a local development environment.
+
+The main difference is that Elefant Tools is written in Rust, Is designed to be more 
+flexible than `pg_dump` and `pg_restore`, and provides a library for doing full 
+customization and transformation of the structure of the database.
+
+## Usage
+
+For most of the commands here you will need to provide credentials and database host information. This general comes in 
+the shape of these arguments. These arguments can also be provided through environment variables, where they are named 
+the same, except in uppercase. For example `--source-db-host` can be provided through the environment 
+variable `SOURCE_DB_HOST`. 
+```bash
+--source-db-host localhost --source-db-user postgres --source-db-password TopSecretPassword --source-db-name my_db
+--target-db-host localhost --target-db-user postgres --target-db-password TopSecretPassword --target-db-name my_target_db
+```
+
+To keep the examples here simple, I will not include these arguments in the examples. You should always include 
+them in your own commands, or provide them through environment variables. If you don't provide them, the commands will
+fail and tell you which arguments are missing.
+
+
+Dump to sql file using Postgres insert statements. This file can be passed to either `psql` or `elefant-sync`
+to import the data again:
+```bash
+# Dump to file
+elefant-sync export sql-file --path my_dump.sql --format InsertStatements
+
+# Import from file
+elefant-sync import sql-file --path my_dump.sql
+# or
+psql --dbname my_target_db -f my_dump.sql
+```
+
+Dump to sql file using Postgres copy statements. This requires using elefant-sync to import the data again, but 
+is faster:
+```bash
+# Dump to file
+elefant-sync export sql-file --path my_dump.sql --format CopyStatements
+
+# Import from file
+elefant-sync import sql-file --path my_dump.sql
+```
+
+
+I would very much recommend checking out the `--help` command for each of the commands to see all the options available,
+for example:
+```bash
+elefant-sync.exe --help
+```
+```txt
+A replacement for db_dump and db_restore that supports advanced processing such as moving between schemas.
+
+This tool is currently experimental and any use in production is purely on the user. Backups are recommended.
+
+Usage: elefant-sync.exe [OPTIONS] <COMMAND>
+
+Commands:
+  export  Export a database schema to a file or directory to be imported later on
+  import  Import a database schema from a file or directory that was made using the export command
+  copy    Copy a database schema from one database to another
+  help    Print this message or the help of the given subcommand(s)
+
+Options:
+      --max-parallelism <MAX_PARALLELISM>
+          How many threads to use when exporting or importing. Defaults to the number of estimated cores on the machine. If the available parallelism cannot be determined, it defaults to 1
+
+          [env: MAX_PARALLELISM=]
+          [default: 32]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
+```
+
 # Supported features:
+
+Not all Postgres features are currently supported. The following is a list of features that are supported,
+partially supported, and not supported. If you find a feature that is not supported, please open an issue.
+If you can, providing the actual code to support the feature would be very helpful.
 
 ```
 ✅ Supported

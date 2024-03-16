@@ -27,3 +27,6 @@ or by writing out a full test by hand.
 A macro is provided to easily test multiple Postgres versions. This macro injects `TestHelper` that 
 provides a blank database in the requested Postgres version. Multiple `TestHelper`s can be injected in
 the same test, even across different Postgres versions.
+
+Tests can easily be run by starting the Postgres docker containers using `docker compose up -d` and 
+then running `cargo test`.

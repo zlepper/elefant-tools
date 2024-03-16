@@ -58,7 +58,7 @@ echo "elefant-sync path: $ELEFANT_SYNC_PATH"
 
 
 docker rm elefant_sync_bench --force || true
-DOCKER_PID=$(docker run --rm -p "5432:5432" -e "POSTGRES_PASSWORD=passw0rd" --detach --name=elefant_sync_bench --health-cmd "pg_isready -U postgres" postgres:15)
+DOCKER_PID=$(docker run --rm -p "5432:5432" -e "POSTGRES_PASSWORD=passw0rd" --detach --quiet --name=elefant_sync_bench --health-cmd "pg_isready -U postgres" postgres:15)
 
 # Ensure elefant-sync is built in release mode
 cargo build --release

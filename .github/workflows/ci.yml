@@ -104,6 +104,8 @@ jobs:
 
       - name: Upload benchmark results
         run: |
+          printf "# Benchmark results\n\n" > $GITHUB_STEP_SUMMARY
+          printf "## Exporting as sql\n" > $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/export-as-sql.md >> $GITHUB_STEP_SUMMARY
-          printf "\n\n"  >> $GITHUB_STEP_SUMMARY
+          printf "\n\n##Importing from sql\n"  >> $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/import-from-sql.md >> $GITHUB_STEP_SUMMARY

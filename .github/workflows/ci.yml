@@ -93,14 +93,14 @@ jobs:
       - name: Install dependencies
         run: |
           cargo install hyperfine
-          cargo build --release
-#
-#      - name: Run benchmarks
-#        run: |
-#          chmod +x ./benchmarks/*.sh
-#          ./benchmarks/run_benchmarks.sh
-#        env:
-#          ELEFANT_SYNC_PATH: target/release/elefant-sync
+#          cargo build --release
+
+      - name: Run benchmarks
+        run: |
+          chmod +x ./benchmarks/*.sh
+          ./benchmarks/run_benchmarks.sh
+        env:
+          ELEFANT_SYNC_PATH: target/release/elefant-sync
 
       - name: Upload benchmark results
         run: |

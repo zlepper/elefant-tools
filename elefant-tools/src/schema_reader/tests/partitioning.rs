@@ -38,6 +38,7 @@ CREATE TABLE sales_march PARTITION OF sales
                 tables: vec![
                     PostgresTable {
                         name: "sales".to_string(),
+                        object_id: 2.into(),
                         columns: vec![
                             PostgresColumn {
                                 name: "sale_id".to_string(),
@@ -91,6 +92,7 @@ CREATE TABLE sales_march PARTITION OF sales
                             "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
+                        depends_on: vec![2.into()],
                         columns: vec![
                             PostgresColumn {
                                 name: "sale_id".to_string(),
@@ -137,6 +139,7 @@ CREATE TABLE sales_march PARTITION OF sales
                             "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
+                        depends_on: vec![2.into()],
                         columns: vec![
                             PostgresColumn {
                                 name: "sale_id".to_string(),
@@ -183,6 +186,7 @@ CREATE TABLE sales_march PARTITION OF sales
                             "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
+                        depends_on: vec![2.into()],
                         columns: vec![
                             PostgresColumn {
                                 name: "sale_id".to_string(),
@@ -299,6 +303,7 @@ CREATE TABLE furniture PARTITION OF products
                                 ..default()
                             },
                         ],
+                        depends_on: vec![5.into()],
                         ..default()
                     },
                     PostgresTable {
@@ -337,6 +342,7 @@ CREATE TABLE furniture PARTITION OF products
                                 ..default()
                             },
                         ],
+                        depends_on: vec![5.into()],
                         ..default()
                     },
                     PostgresTable {
@@ -375,10 +381,12 @@ CREATE TABLE furniture PARTITION OF products
                                 ..default()
                             },
                         ],
+                        depends_on: vec![5.into()],
                         ..default()
                     },
                     PostgresTable {
                         name: "products".to_string(),
+                        object_id: 5.into(),
                         columns: vec![
                             PostgresColumn {
                                 name: "product_id".to_string(),
@@ -491,6 +499,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 ..default()
                             },
                         ],
+                        object_id: 2.into(),
                         table_type: TableTypeDetails::PartitionedParentTable {
                             partition_strategy: TablePartitionStrategy::Hash,
                             default_partition_name: None,
@@ -507,6 +516,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 .to_string(),
                             parent_table: "orders".to_string(),
                         },
+                        depends_on: vec![2.into()],
                         columns: vec![
                             PostgresColumn {
                                 name: "order_id".to_string(),
@@ -546,6 +556,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 .to_string(),
                             parent_table: "orders".to_string(),
                         },
+                        depends_on: vec![2.into()],
                         columns: vec![
                             PostgresColumn {
                                 name: "order_id".to_string(),
@@ -585,6 +596,7 @@ CREATE TABLE orders_3 PARTITION OF orders
                                 .to_string(),
                             parent_table: "orders".to_string(),
                         },
+                        depends_on: vec![2.into()],
                         columns: vec![
                             PostgresColumn {
                                 name: "order_id".to_string(),

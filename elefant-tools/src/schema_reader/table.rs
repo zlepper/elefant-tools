@@ -82,7 +82,7 @@ select
     cl.relispartition,
     cl.reloptions,
    cl.oid::int8,
-   (select array_agg(refobjid::int8) from pg_depend dep where cl.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384) as depends_on,
+   (select array_agg(refobjid::int8) from pg_depend dep where cl.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384 and dep.objid <> dep.refobjid) as depends_on,
    cl.reltype::int8
 from pg_class cl
          join pg_catalog.pg_namespace ns on ns.oid = cl.relnamespace

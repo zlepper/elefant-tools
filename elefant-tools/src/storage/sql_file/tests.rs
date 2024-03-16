@@ -59,7 +59,23 @@ async fn exports_to_fake_file_15() {
             create table public.array_test (
                 name text[] not null
             );
+            
+            create table public.tree_node (
+                id int4 not null,
+                field_id int4 not null,
+                name text not null,
+                parent_id int4,
+                constraint tree_node_pkey primary key (id)
+            );
+            
+            create table public.pets (
+                id int4 not null,
+                name text not null,
+                constraint pets_pkey primary key (id),
+                constraint pets_name_check check ((length(name) > 1))
+            );
 
+            -- chunk-separator-test_chunk_separator --
             create table public.ext_test_table (
                 id int4 not null,
                 name text not null,
@@ -72,7 +88,10 @@ async fn exports_to_fake_file_15() {
                 constraint field_pkey primary key (id)
             );
 
-            -- chunk-separator-test_chunk_separator --
+            create table public.my_partitioned_table (
+                value int4 not null
+            ) partition by range (value);
+            
             create table public.people (
                 id int4 not null,
                 name text not null,
@@ -82,36 +101,10 @@ async fn exports_to_fake_file_15() {
                 constraint people_age_check check ((age > 0))
             );
 
-            create table public.pets (
-                id int4 not null,
-                name text not null,
-                constraint pets_pkey primary key (id),
-                constraint pets_name_check check ((length(name) > 1))
-            );
-
-            create table public.tree_node (
-                id int4 not null,
-                field_id int4 not null,
-                name text not null,
-                parent_id int4,
-                constraint tree_node_pkey primary key (id)
-            );
-
-            create table public.my_partitioned_table (
-                value int4 not null
-            ) partition by range (value);
-
-            create table public.my_partitioned_table_1 partition of my_partitioned_table FOR VALUES FROM (1) TO (10);
-
-            -- chunk-separator-test_chunk_separator --
             create table public.my_partitioned_table_2 partition of my_partitioned_table FOR VALUES FROM (10) TO (20);
-
-            create table public.cats (
-                id int4 not null,
-                name text not null,
-                color text not null,
-                constraint pets_name_check check ((length(name) > 1))
-            ) inherits (pets);
+            
+            -- chunk-separator-test_chunk_separator --
+            create table public.my_partitioned_table_1 partition of my_partitioned_table FOR VALUES FROM (1) TO (10);
 
             create table public.dogs (
                 id int4 not null,
@@ -120,6 +113,19 @@ async fn exports_to_fake_file_15() {
                 constraint dogs_breed_check check ((length(breed) > 1)),
                 constraint pets_name_check check ((length(name) > 1))
             ) inherits (pets);
+
+            create table public.cats (
+                id int4 not null,
+                name text not null,
+                color text not null,
+                constraint pets_name_check check ((length(name) > 1))
+            ) inherits (pets);
+
+            create view public.people_who_cant_drink (id, name, age) as  SELECT people.id,
+                people.name,
+                people.age
+               FROM people
+              WHERE people.age < 18;
 
             -- chunk-separator-test_chunk_separator --
             insert into public.array_test (name) values
@@ -206,22 +212,16 @@ async fn exports_to_fake_file_15() {
             -- chunk-separator-test_chunk_separator --
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
 
-            create view public.people_who_cant_drink (id, name, age) as  SELECT people.id,
-                people.name,
-                people.age
-               FROM people
-              WHERE people.age < 18;
-
             alter table public.people add constraint people_name_key unique using index people_name_key;
 
-            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
-
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);
-
-            -- chunk-separator-test_chunk_separator --
             alter table public.tree_node add constraint field_id_id_unique unique using index field_id_id_unique;
-
-            alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;"#});
+            
+            alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;
+            
+            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
+            
+            -- chunk-separator-test_chunk_separator --
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#});
 
     let destination = get_test_helper_on_port("destination", 5415).await;
     apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
@@ -263,7 +263,23 @@ async fn exports_to_fake_file_14() {
             create table public.array_test (
                 name text[] not null
             );
+            
+            create table public.tree_node (
+                id int4 not null,
+                field_id int4 not null,
+                name text not null,
+                parent_id int4,
+                constraint tree_node_pkey primary key (id)
+            );
 
+            create table public.pets (
+                id int4 not null,
+                name text not null,
+                constraint pets_pkey primary key (id),
+                constraint pets_name_check check ((length(name) > 1))
+            );
+
+            -- chunk-separator-test_chunk_separator --
             create table public.ext_test_table (
                 id int4 not null,
                 name text not null,
@@ -276,7 +292,10 @@ async fn exports_to_fake_file_14() {
                 constraint field_pkey primary key (id)
             );
 
-            -- chunk-separator-test_chunk_separator --
+            create table public.my_partitioned_table (
+                value int4 not null
+            ) partition by range (value);
+            
             create table public.people (
                 id int4 not null,
                 name text not null,
@@ -286,36 +305,10 @@ async fn exports_to_fake_file_14() {
                 constraint people_age_check check ((age > 0))
             );
 
-            create table public.pets (
-                id int4 not null,
-                name text not null,
-                constraint pets_pkey primary key (id),
-                constraint pets_name_check check ((length(name) > 1))
-            );
-
-            create table public.tree_node (
-                id int4 not null,
-                field_id int4 not null,
-                name text not null,
-                parent_id int4,
-                constraint tree_node_pkey primary key (id)
-            );
-
-            create table public.my_partitioned_table (
-                value int4 not null
-            ) partition by range (value);
-
-            create table public.my_partitioned_table_1 partition of my_partitioned_table FOR VALUES FROM (1) TO (10);
-
-            -- chunk-separator-test_chunk_separator --
             create table public.my_partitioned_table_2 partition of my_partitioned_table FOR VALUES FROM (10) TO (20);
 
-            create table public.cats (
-                id int4 not null,
-                name text not null,
-                color text not null,
-                constraint pets_name_check check ((length(name) > 1))
-            ) inherits (pets);
+            -- chunk-separator-test_chunk_separator --
+            create table public.my_partitioned_table_1 partition of my_partitioned_table FOR VALUES FROM (1) TO (10);
 
             create table public.dogs (
                 id int4 not null,
@@ -324,6 +317,19 @@ async fn exports_to_fake_file_14() {
                 constraint dogs_breed_check check ((length(breed) > 1)),
                 constraint pets_name_check check ((length(name) > 1))
             ) inherits (pets);
+
+            create table public.cats (
+                id int4 not null,
+                name text not null,
+                color text not null,
+                constraint pets_name_check check ((length(name) > 1))
+            ) inherits (pets);
+
+            create view public.people_who_cant_drink (id, name, age) as  SELECT people.id,
+                people.name,
+                people.age
+               FROM people
+              WHERE people.age < 18;
 
             -- chunk-separator-test_chunk_separator --
             insert into public.array_test (name) values
@@ -410,22 +416,16 @@ async fn exports_to_fake_file_14() {
             -- chunk-separator-test_chunk_separator --
             alter table public.tree_node alter column id set default nextval('tree_node_id_seq'::regclass);
 
-            create view public.people_who_cant_drink (id, name, age) as  SELECT people.id,
-                people.name,
-                people.age
-               FROM people
-              WHERE people.age < 18;
-
             alter table public.people add constraint people_name_key unique using index people_name_key;
 
-            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
-
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);
-
-            -- chunk-separator-test_chunk_separator --
             alter table public.tree_node add constraint field_id_id_unique unique using index field_id_id_unique;
-
-            alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;"#});
+            
+            alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;
+            
+            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
+            
+            -- chunk-separator-test_chunk_separator --
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#});
 
     let destination = get_test_helper_on_port("destination", 5414).await;
     apply_sql_string(&result_file, destination.get_conn()).await.unwrap();

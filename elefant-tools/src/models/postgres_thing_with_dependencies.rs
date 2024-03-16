@@ -1,65 +1,42 @@
 use crate::{ObjectId, PostgresAggregateFunction, PostgresFunction, PostgresSchema, PostgresTable, PostgresView};
 use crate::object_id::HaveDependencies;
 
-pub(crate) enum PostgresThingWithDependencies {
-    Table(PostgresTable),
-    View(PostgresView),
-    Function(PostgresFunction),
-    AggregateFunction(PostgresAggregateFunction)
+pub(crate) enum PostgresThingWithDependencies<'a> {
+    Table(&'a PostgresTable, &'a PostgresSchema),
+    View(&'a PostgresView, &'a PostgresSchema),
+    Function(&'a PostgresFunction, &'a PostgresSchema),
+    AggregateFunction(&'a PostgresAggregateFunction, &'a PostgresSchema)
 }
 
 
-impl HaveDependencies for &PostgresThingWithDependencies {
+impl<'a> HaveDependencies for &PostgresThingWithDependencies<'a> {
     fn depends_on(&self) -> &Vec<ObjectId> {
         match self {
-            PostgresThingWithDependencies::Table(table) => &table.depends_on,
-            PostgresThingWithDependencies::View(view) => &view.depends_on,
-            PostgresThingWithDependencies::Function(function) => &function.depends_on,
-            PostgresThingWithDependencies::AggregateFunction(aggregate_function) => &aggregate_function.depends_on,
+            PostgresThingWithDependencies::Table(table, _) => &table.depends_on,
+            PostgresThingWithDependencies::View(view, _) => &view.depends_on,
+            PostgresThingWithDependencies::Function(function, _) => &function.depends_on,
+            PostgresThingWithDependencies::AggregateFunction(aggregate_function, _) => &aggregate_function.depends_on,
         }
     }
 
     fn object_id(&self) -> ObjectId {
         match self {
-            PostgresThingWithDependencies::Table(table) => table.object_id,
-            PostgresThingWithDependencies::View(view) => view.object_id,
-            PostgresThingWithDependencies::Function(function) => function.object_id,
-            PostgresThingWithDependencies::AggregateFunction(aggregate_function) => aggregate_function.object_id,
+            PostgresThingWithDependencies::Table(table, _) => table.object_id,
+            PostgresThingWithDependencies::View(view, _) => view.object_id,
+            PostgresThingWithDependencies::Function(function, _) => function.object_id,
+            PostgresThingWithDependencies::AggregateFunction(aggregate_function, _) => aggregate_function.object_id,
         }
     }
 }
 
-impl PostgresThingWithDependencies {
-    pub fn get_create_sql(&self, schema: &PostgresSchema, identifier_quoter: &crate::IdentifierQuoter) -> String {
+impl<'a> PostgresThingWithDependencies<'a> {
+    pub fn get_create_sql(&self, identifier_quoter: &crate::IdentifierQuoter) -> String {
         match self {
-            PostgresThingWithDependencies::Table(table) => table.get_create_statement(schema, identifier_quoter),
-            PostgresThingWithDependencies::View(view) => view.get_create_view_sql(schema, identifier_quoter),
-            PostgresThingWithDependencies::Function(function) => function.get_create_statement(schema, identifier_quoter),
-            PostgresThingWithDependencies::AggregateFunction(aggregate_function) => aggregate_function.get_create_statement(schema, identifier_quoter),
+            PostgresThingWithDependencies::Table(table, schema) => table.get_create_statement(schema, identifier_quoter),
+            PostgresThingWithDependencies::View(view, schema) => view.get_create_view_sql(schema, identifier_quoter),
+            PostgresThingWithDependencies::Function(function, schema) => function.get_create_statement(schema, identifier_quoter),
+            PostgresThingWithDependencies::AggregateFunction(aggregate_function, schema) => aggregate_function.get_create_statement(schema, identifier_quoter),
         }
     }
 }
 
-impl From<PostgresTable> for PostgresThingWithDependencies {
-    fn from(value: PostgresTable) -> Self {
-        PostgresThingWithDependencies::Table(value)
-    }
-}
-
-impl From<PostgresView> for PostgresThingWithDependencies {
-    fn from(value: PostgresView) -> Self {
-        PostgresThingWithDependencies::View(value)
-    }
-}
-
-impl From<PostgresFunction> for PostgresThingWithDependencies {
-    fn from(value: PostgresFunction) -> Self {
-        PostgresThingWithDependencies::Function(value)
-    }
-}
-
-impl From<PostgresAggregateFunction> for PostgresThingWithDependencies {
-    fn from(value: PostgresAggregateFunction) -> Self {
-        PostgresThingWithDependencies::AggregateFunction(value)
-    }
-}

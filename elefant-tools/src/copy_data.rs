@@ -171,26 +171,31 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
         }
     }
 
+
+    let mut tables_and_functions: Vec<PostgresThingWithDependencies> = Vec::new();
+
     for schema in &definition.schemas {
         for function in &schema.functions {
-            destination.apply_transactional_statement(&function.get_create_statement(schema, &identifier_quoter)).await?;
+            tables_and_functions.push(PostgresThingWithDependencies::Function(function, schema));
+        }
+        for aggregate_function in &schema.aggregate_functions {
+            tables_and_functions.push(PostgresThingWithDependencies::AggregateFunction(aggregate_function, schema));
+        }
+
+        for table in &schema.tables {
+            tables_and_functions.push(PostgresThingWithDependencies::Table(table, schema));
+        }
+
+        for view in &schema.views {
+            tables_and_functions.push(PostgresThingWithDependencies::View(view, schema));
         }
     }
 
-    for schema in &definition.schemas {
-        let tables = schema.tables.iter().sorted_by_key(|t|
-            match t.table_type {
-                TableTypeDetails::Table => 0,
-                TableTypeDetails::TimescaleHypertable { .. } => 1,
-                TableTypeDetails::PartitionedParentTable { .. } => 2,
-                TableTypeDetails::PartitionedChildTable { .. } => 3,
-                TableTypeDetails::InheritedTable { .. } => 4,
-            }
-        );
+    let sorted = tables_and_functions.iter().sort_by_dependencies();
 
-        for table in tables {
-            destination.apply_transactional_statement(&table.get_create_statement(schema, &identifier_quoter)).await?;
-        }
+    for thing in sorted {
+        let sql = thing.get_create_sql(&identifier_quoter);
+        destination.apply_transactional_statement(&sql).await?;
     }
 
     Ok(())
@@ -230,10 +235,6 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
             }
         }
 
-        for agg_function in &schema.aggregate_functions {
-            group_1.push(agg_function.get_create_statement(schema, identifier_quoter));
-        }
-
         for table in &schema.tables {
             for column in &table.columns {
                 if let Some(sql) = column.get_alter_table_set_default_statement(table, schema, identifier_quoter) {
@@ -244,21 +245,12 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
 
         statements.push(group_1);
         statements.push(group_2);
-
-
-        for view in schema.views.iter().sort_by_dependencies() {
-            statements.push(vec![view.get_create_view_sql(schema, identifier_quoter)]);
-        }
     }
 
     for schema in &definition.schemas {
         let mut group_3 = Vec::new();
         for table in &schema.tables {
             for constraint in &table.constraints {
-                if let PostgresConstraint::ForeignKey(fk) = constraint {
-                    let sql = fk.get_create_statement(table, schema, identifier_quoter);
-                    group_3.push(sql);
-                }
                 if let PostgresConstraint::Unique(uk) = constraint {
                     let sql = uk.get_create_statement(table, schema, identifier_quoter);
                     group_3.push(sql);
@@ -268,6 +260,17 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
         statements.push(group_3);
     }
 
+    for schema in &definition.schemas {
+        for table in &schema.tables {
+            for constraint in &table.constraints {
+                if let PostgresConstraint::ForeignKey(fk) = constraint {
+                    let sql = fk.get_create_statement(table, schema, identifier_quoter);
+                    statements.push(vec![sql]);
+                }
+            }
+        }
+    }
+
     let mut group_4 = Vec::new();
     for schema in &definition.schemas {
         for trigger in &schema.triggers {
@@ -275,19 +278,21 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
             group_4.push(sql);
         }
     }
+    statements.push(group_4);
 
     for schema in &definition.schemas {
         for view in schema.views.iter().sort_by_dependencies() {
             if let Some(sql) = view.get_refresh_sql(schema, identifier_quoter) {
-                group_4.push(sql);
+                statements.push(vec![sql]);
             }
         }
     }
 
+    let mut group_5 = Vec::new();
     for job in &definition.timescale_support.user_defined_jobs {
-        group_4.push(job.get_create_sql(identifier_quoter));
+        group_5.push(job.get_create_sql(identifier_quoter));
     }
-    statements.push(group_4);
+    statements.push(group_5);
 
 
     statements

@@ -3,7 +3,8 @@ resolver = "2"
 members = [
     "elefant-tools",
     "elefant-sync",
-    "elefant-test-macros"
+    "elefant-test-macros",
+    "drop-all-test-databases"
 ]
 
 

@@ -65,6 +65,7 @@ create table cats(
                         table_type: TableTypeDetails::InheritedTable {
                             parent_tables: vec!["pets".to_string()],
                         },
+                        depends_on: vec![9.into()],
                         ..default()
                     },
                     PostgresTable {
@@ -108,10 +109,12 @@ create table cats(
                         table_type: TableTypeDetails::InheritedTable {
                             parent_tables: vec!["pets".to_string()],
                         },
+                        depends_on: vec![9.into()],
                         ..default()
                     },
                     PostgresTable {
                         name: "pets".to_string(),
+                        object_id: 9.into(),
                         columns: vec![
                             PostgresColumn {
                                 name: "id".to_string(),
@@ -197,6 +200,7 @@ create table animorph() inherits (animal, human);
                             data_type: "text".to_string(),
                             ..default()
                         }],
+                        object_id: 2.into(),
                         ..default()
                     },
                     PostgresTable {
@@ -220,10 +224,12 @@ create table animorph() inherits (animal, human);
                         table_type: TableTypeDetails::InheritedTable {
                             parent_tables: vec!["animal".to_string(), "human".to_string()],
                         },
+                        depends_on: vec![2.into(), 4.into()],
                         ..default()
                     },
                     PostgresTable {
                         name: "human".to_string(),
+                        object_id: 4.into(),
                         columns: vec![PostgresColumn {
                             name: "name".to_string(),
                             ordinal_position: 1,

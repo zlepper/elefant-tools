@@ -190,7 +190,7 @@ select ns.nspname as schema_name,
        agg.agginitval,
        agg.aggminitval,
        proc.oid::int8,
-       (select array_agg(refobjid::int8) from pg_depend dep where proc.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384) as depends_on
+       (select array_agg(refobjid::int8) from pg_depend dep where proc.oid = dep.objid and dep.deptype <> 'e' and dep.refobjid > 16384 and dep.objid <> dep.refobjid) as depends_on
 from pg_proc proc
          join pg_namespace ns on proc.pronamespace = ns.oid
          join pg_language pl on proc.prolang = pl.oid

@@ -909,3 +909,27 @@ from generate_series(1, 1000) s(i);
     let items = destination.get_results::<(i32, String)>("select id, name from my_table;").await.unwrap();
     assert_eq!(items.len(), 1000);
 }
+
+test_round_trip!(two_way_references, r#"
+create table assets(
+    asset_id serial primary key,
+    asset_digiupload_id int
+);
+
+create table asset_digiuploads(
+    asset_digiupload_id serial primary key,
+    asset_id int references assets(asset_id)
+);
+
+alter table assets add constraint fk_asset_digiupload_id foreign key (asset_digiupload_id) references asset_digiuploads(asset_digiupload_id);
+"#);
+
+
+test_round_trip!(multiple_unique_constraints_on_same_table, r#"
+create table users(
+    id serial primary key,
+    username text not null unique,
+    email text not null unique
+);
+"#);
+

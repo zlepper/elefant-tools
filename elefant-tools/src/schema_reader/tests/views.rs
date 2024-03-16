@@ -31,6 +31,7 @@ async fn test_views(helper: &TestHelper) {
                         data_type: "text".to_string(),
                         ..default()
                     }],
+                    object_id: 2.into(),
                     ..default()
                 }],
                 views: vec![PostgresView {
@@ -43,6 +44,7 @@ async fn test_views(helper: &TestHelper) {
                         name: "product_name".to_string(),
                         ordinal_position: 1,
                     }],
+                    depends_on: vec![2.into()],
                     is_materialized: false,
                     ..default()
                 }],
@@ -79,6 +81,7 @@ async fn test_views_pg_16(helper: &TestHelper) {
                         data_type: "text".to_string(),
                         ..default()
                     }],
+                    object_id: 2.into(),
                     ..default()
                 }],
                 views: vec![PostgresView {
@@ -91,6 +94,7 @@ async fn test_views_pg_16(helper: &TestHelper) {
                         name: "product_name".to_string(),
                         ordinal_position: 1,
                     }],
+                    depends_on: vec![2.into()],
                     is_materialized: false,
                     ..default()
                 }],

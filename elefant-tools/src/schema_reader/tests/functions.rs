@@ -76,6 +76,7 @@ async fn test_functions(helper: &TestHelper) {
                                                end"#.into(),
                                               arguments: "text, text".to_string(),
                                               result: Some("text".to_string()),
+                                              object_id: 2.into(),
                                               ..default()
                                           },
                                           PostgresFunction {
@@ -125,8 +126,7 @@ async fn test_functions(helper: &TestHelper) {
                                               arguments: "value text".to_string(),
                                               result: Some("TABLE(id integer, name text)".to_string()),
                                               ..default()
-                                          }
-                                          ,
+                                          },
                                       ],
                                       aggregate_functions: vec![
                                           PostgresAggregateFunction {
@@ -135,6 +135,7 @@ async fn test_functions(helper: &TestHelper) {
                                               arguments: "text".to_string(),
                                               transition_type: "text".to_string(),
                                               parallel: Parallel::Unsafe,
+                                              depends_on: vec![2.into()],
                                               ..default()
                                           }
                                       ],

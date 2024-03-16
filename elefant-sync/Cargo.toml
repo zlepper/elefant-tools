@@ -13,8 +13,3 @@ tracing = "0.1.40"
 [dev-dependencies]
 elefant-test-macros = { path = "../elefant-test-macros" }
 elefant-tools = { path = "../elefant-tools", features = ["test_utilities"] }
-
-[profile.release]
-debug = "full"
-split-debuginfo = "off"
-lto = "fat"

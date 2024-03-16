@@ -349,7 +349,7 @@ dependencies = [
 
 [[package]]
 name = "drop-all-test-databases"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "anyhow",
  "elefant-tools",
@@ -364,7 +364,7 @@ checksum = "11157ac094ffbdde99aa67b23417ebdd801842852b500e395a45a9c0aac03e4a"
 
 [[package]]
 name = "elefant-sync"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "clap",
  "elefant-test-macros",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "elefant-test-macros"
-version = "0.1.0"
+version = "0.0.0"
 dependencies = [
  "darling",
  "quote",
@@ -385,7 +385,7 @@ dependencies = [
 
 [[package]]
 name = "elefant-tools"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
  "bytes",
  "elefant-test-macros",

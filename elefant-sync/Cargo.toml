@@ -1,12 +1,18 @@
 [package]
 name = "elefant-sync"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/zlepper/elefant-tools"
+authors = ["Zlepper"]
+description = "A tool like pg_dump and pg_restore, but with extra features, and probably more bugs."
+readme = "../readme.md"
+keywords = ["pg_dump", "pg_restore", "postgres", "backup", "restore"]
 
 [dependencies]
 clap = { version = "4.4", features = ["derive", "env"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"], default-features = false }
-elefant-tools = { path = "../elefant-tools" }
+elefant-tools = { path = "../elefant-tools", version = "0.0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing = "0.1.40"
 

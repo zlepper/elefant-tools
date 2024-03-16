@@ -1,7 +1,14 @@
 [package]
 name = "elefant-tools"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/zlepper/elefant-tools"
+authors = ["Zlepper"]
+description = "A library for doing things like pg_dump and pg_restore, with extra features, and probably more bugs."
+readme = "../readme.md"
+keywords = ["pg_dump", "pg_restore", "postgres", "backup", "restore"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

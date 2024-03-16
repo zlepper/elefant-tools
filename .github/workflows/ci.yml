@@ -73,3 +73,21 @@ jobs:
       with:
         name: elefant-sync-windows-amd64.exe
         path: target/release/elefant-sync.exe
+
+
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: Swatinem/rust-cache@v2
+        name: Cache dependencies
+
+      - name: Run benchmarks
+        run: sh ./benchmarks/run_benchmarks.sh
+
+      - name: Upload benchmark results
+        run: cat ./benchmarks/results/*.md >> $GITHUB_STEP_SUMMARY

@@ -87,7 +87,11 @@ jobs:
         name: Cache dependencies
 
       - name: Run benchmarks
-        run: ./benchmarks/run_benchmarks.sh
+        run: |
+          chmod +x ./benchmarks/*.sh 
+          ./benchmarks/run_benchmarks.sh
+        env:
+          ELEFANT_SYNC_PATH: target/release/elefant-sync
 
       - name: Upload benchmark results
         run: cat ./benchmarks/results/*.md >> $GITHUB_STEP_SUMMARY

@@ -50,6 +50,13 @@ set -e
 
 echo "Ready for some benching"
 
+echo "pg_restore path: $PG_RESTORE_PATH"
+echo "pg_dump path: $PG_DUMP_PATH"
+echo "psql path: $PSQL_PATH"
+echo "pg_isready path: $PG_IS_READY_PATH"
+echo "elefant-sync path: $ELEFANT_SYNC_PATH"
+
+
 docker rm elefant_sync_bench --force || true
 DOCKER_PID=$(docker run --rm -p "5432:5432" -e "POSTGRES_PASSWORD=passw0rd" --detach --name=elefant_sync_bench --health-cmd "pg_isready -U postgres" postgres:15)
 

@@ -110,7 +110,7 @@ ELEFANT_SYNC_COMMAND_FROM_SQL_COPY="\"$ELEFANT_SYNC_PATH\" import --target-db-na
 echo "$PSQL_PATH"
 echo "$PG_DUMP_PATH"
 
-hyperfine --prepare "sh benchmarks/import_prepare.sh" --warmup 1 --show-output \
+hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 --show-output \
           --export-markdown "benchmarks/results/import-from-sql.md" \
           --command-name "psql sql-copy" "$PG_RESTORE_IMPORT_SQL_COPY" \
           --command-name "psql sql-insert" "$PG_RESTORE_IMPORT_SQL_INSERTS" \

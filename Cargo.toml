@@ -5,7 +5,7 @@ members = [
     "elefant-sync",
     "elefant-test-macros",
     "drop-all-test-databases"
-]
+, "benchmark-import-prepare"]
 
 
 [profile.dev]

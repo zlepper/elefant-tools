@@ -54,7 +54,7 @@ impl PostgresTrigger {
 
         sql.push_str(" execute function ");
         sql.push_str(&self.function_name.quote(identifier_quoter, TypeOrFunctionName));
-        sql.push_str("(");
+        sql.push('(');
         
         if let Some(args) = &self.arguments {
             sql.push_str(args);

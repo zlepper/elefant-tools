@@ -100,7 +100,7 @@ hyperfine --command-name "pg_dump sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS" 
           --command-name "pg_dump sql-copy" "$PG_DUMP_COMMAND_TO_COPY" \
           --command-name "elefant-sync sql-insert" "$ELEFANT_SYNC_COMMAND_TO_SQL_INSERTS" \
           --command-name "elefant-sync sql-copy" "$ELEFANT_SYNC_COMMAND_TO_COPY" \
-          --export-markdown "benchmarks/results/export-as-sql.md"  --warmup 1
+          --export-markdown "benchmarks/results/export-as-sql.md"  --warmup 1 --show-output
 
 PG_RESTORE_IMPORT_SQL_INSERTS="\"$PSQL_PATH\" --dbname dvdrental_import --file benchmarks/results/pg_dump_result-insert.sql --echo-hidden --quiet -v ON_ERROR_STOP=1"
 PG_RESTORE_IMPORT_SQL_COPY="\"$PSQL_PATH\" --dbname dvdrental_import --file benchmarks/results/pg_dump_result-copy.sql --echo-hidden --quiet -v ON_ERROR_STOP=1"
@@ -110,7 +110,7 @@ ELEFANT_SYNC_COMMAND_FROM_SQL_COPY="\"$ELEFANT_SYNC_PATH\" import --target-db-na
 echo "$PSQL_PATH"
 echo "$PG_DUMP_PATH"
 
-hyperfine --prepare "sh benchmarks/import_prepare.sh" --warmup 1 \
+hyperfine --prepare "sh benchmarks/import_prepare.sh" --warmup 1 --show-output \
           --export-markdown "benchmarks/results/import-from-sql.md" \
           --command-name "psql sql-copy" "$PG_RESTORE_IMPORT_SQL_COPY" \
           --command-name "psql sql-insert" "$PG_RESTORE_IMPORT_SQL_INSERTS" \

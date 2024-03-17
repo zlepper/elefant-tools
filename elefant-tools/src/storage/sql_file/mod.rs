@@ -22,16 +22,41 @@ use crate::storage::table_data::TableData;
 #[cfg(test)]
 mod tests;
 
+/// Options that control how the SQL file is generated.
 pub struct SqlFileOptions {
+    /// How many rows are inserted per insert statement.
     pub max_rows_per_insert: usize,
+    /// The string that separates chunks of commands in the file.
     pub chunk_separator: String,
+    /// How many DDL commands to generate per chunk at most.
     pub max_commands_per_chunk: usize,
+    /// How to generate statements for inserting data. See the specific option values
+    /// in [SqlDataMode] for more information.
     pub data_mode: SqlDataMode,
 }
 
+/// How to generate statements for inserting data.
+#[allow(clippy::tabs_in_doc_comments)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum SqlDataMode {
+    /// Generate insert statements. A bit slower on import, but might work across many 
+    /// database systems.
+    /// Example:
+    /// ```sql
+    /// insert into public.store (store_id, manager_staff_id, address_id, last_update) values
+    /// (1, 1, 1, E'2006-02-15 09:57:12'),
+    /// (2, 2, 2, E'2006-02-15 09:57:12');
+    /// ```
     InsertStatements,
+    /// Generate copy statements. Much faster on import, but might not work across many
+    /// database systems.
+    /// Example:
+    /// ```sql
+    /// copy public.store (store_id, manager_staff_id, address_id, last_update) from stdin with (format text, header false);
+    /// 1	1	1	2006-02-15 09:57:12
+    /// 2	2	2	2006-02-15 09:57:12
+    /// \.
+    /// ```
     CopyStatements,
 }
 
@@ -65,16 +90,25 @@ impl Default for SqlFileOptions {
     }
 }
 
+/// A file to output sql to
 pub struct SqlFile<F: AsyncWrite + Unpin + Send + Sync> {
+    /// The underlying file, though it can be anything that implements `AsyncWrite`
     file: F,
+    /// If 'nothing' has been written to the chunk yet.
     is_empty: bool,
+    /// The options that control how the file is generated.
     options: SqlFileOptions,
+    /// The quoter to use for escaping identifiers.
     quoter: Arc<IdentifierQuoter>,
+    /// The number of commands written to the current chunk.
     current_command_count: usize,
+    /// The string that separates chunks of commands in the file.
     chunk_separator: Vec<u8>,
 }
 
 impl SqlFile<BufWriter<File>> {
+    /// Create a new `SqlFile` from a file path.
+    /// This automatically creates a new file and returns a `SqlFile` that writes to it.
     #[instrument(skip_all)]
     pub async fn new_file(path: &str, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
         let file = File::create(path).await?;
@@ -88,6 +122,8 @@ impl SqlFile<BufWriter<File>> {
 static CHUNK_SEPARATOR_PREFIX: &str = "-- chunk-separator-";
 
 impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
+    /// Create a new `SqlFile` from a file-like object. This does not do any additional buffering
+    /// so it's recommended to use a `BufWriter` or similar.
     pub async fn new(mut file: F, identifier_quoter: Arc<IdentifierQuoter>, options: SqlFileOptions) -> Result<Self> {
         let chunk_separator = format!("{}{} --", CHUNK_SEPARATOR_PREFIX, options.chunk_separator).into_bytes();
 
@@ -120,7 +156,7 @@ impl<'a, F: AsyncWrite + Unpin + Send + Sync + 'a> CopyDestinationFactory<'a> fo
         Ok(SequentialOrParallel::Sequential(self))
     }
 
-    async fn create_sequential_destination(&'a mut self) -> Result<Self::SequentialDestination>{
+    async fn create_sequential_destination(&'a mut self) -> Result<Self::SequentialDestination> {
         Ok(self)
     }
 
@@ -192,7 +228,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
         self.quoter.clone()
     }
-    
+
     async fn finish(&mut self) -> Result<()> {
         self.file.flush().await?;
         Ok(())
@@ -200,6 +236,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
 }
 
 impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
+    /// Writes the data stream to the file as insert statements.
     #[instrument(skip_all)]
     async fn write_data_stream_to_insert_statements<S: Stream<Item=Result<Bytes>> + Send + Unpin>(&mut self, stream: &mut S, schema: &PostgresSchema, table: &PostgresTable) -> Result<()> {
         let file = &mut self.file;
@@ -261,9 +298,9 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
         Ok(())
     }
 
+    /// Writes the data stream to the file as copy statements.
     #[instrument(skip_all)]
     async fn write_data_stream_to_copy_statements<S: Stream<Item=Result<Bytes>> + Send + Unpin>(&mut self, stream: &mut S, schema: &PostgresSchema, table: &PostgresTable) -> Result<()> {
-
         let file = &mut self.file;
 
         let mut count = 0;
@@ -272,10 +309,10 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
                 file.write_all(b"\n").await?;
                 file.write_all(&self.chunk_separator).await?;
                 file.write_all(b"\n").await?;
-                
+
                 let copy_command = table.get_copy_in_command(schema, &DataFormat::Text, &self.quoter);
                 file.write_all(copy_command.as_bytes()).await?;
-                
+
                 file.write_all(b"\n").await?;
                 file.write_all(&self.chunk_separator).await?;
                 file.write_all(b"\n").await?;
@@ -301,6 +338,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     }
 }
 
+/// Writes a single insert row
 async fn write_row<F: AsyncWrite + Unpin + Send + Sync>(file: &mut F, column_types: &[SimplifiedDataType], bytes: Bytes) -> Result<()> {
     let without_line_break = bytes.slice(0..bytes.len() - 1);
     let column_bytes = without_line_break.split(|b| *b == b'\t');
@@ -319,6 +357,7 @@ async fn write_row<F: AsyncWrite + Unpin + Send + Sync>(file: &mut F, column_typ
     Ok(())
 }
 
+/// Writes a single column in an insert row
 async fn write_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut F, bytes: &[u8], col_data_type: &SimplifiedDataType) -> Result<()> {
     if bytes == [b'\\', b'N'] {
         content.write_all(b"null").await?;
@@ -341,12 +380,14 @@ async fn write_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut F, byte
     Ok(())
 }
 
+/// Writes a `bool` column
 async fn write_bool_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut F, bytes: &[u8]) -> Result<()> {
     let value = bytes[0] == b't';
     content.write_all(format!("{}", value).as_bytes()).await?;
     Ok(())
 }
 
+/// Writes a generic `text` column
 async fn write_text_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut F, bytes: &[u8]) -> Result<()> {
     content.write_all(b"E'").await?;
 
@@ -362,6 +403,7 @@ async fn write_text_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut F,
     Ok(())
 }
 
+/// Writes a `number` column
 async fn write_number_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut F, bytes: &[u8]) -> Result<()> {
     match bytes[..] {
         [b'N', b'a', b'N'] | [b'I', b'n', b'f', b'i', b'n', b'i', b't', b'y'] | [b'-', b'I', b'n', b'f', b'i', b'n', b'i', b't', b'y'] => {
@@ -377,6 +419,10 @@ async fn write_number_column<F: AsyncWrite + Unpin + Send + Sync>(content: &mut 
     Ok(())
 }
 
+/// Applies the provided sql file context to the provided connection. 
+/// If the sql file was generated by using the [SqlFile] struct, 
+/// this function is quite memory efficient. If not the entire file
+/// will be read into memory before being executed in a single transaction.
 #[instrument(skip_all)]
 pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut F, target_connection: &PostgresClientWrapper) -> Result<()> {
     let mut sql_chunk = String::with_capacity(10000);
@@ -437,6 +483,7 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(content: &mut
     Ok(())
 }
 
+/// Applies the provided sql string to the provided connection. See [apply_sql_file] for more information.
 pub async fn apply_sql_string(file_content: &str, target_connection: &PostgresClientWrapper) -> Result<()> {
     let mut bytes = file_content.as_bytes();
     apply_sql_file(&mut bytes, target_connection).await

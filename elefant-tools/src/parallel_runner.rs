@@ -7,6 +7,10 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 use std::num::NonZeroUsize;
 use futures::StreamExt;
 
+/// Provides a way of waiting for multiple futures to complete in parallel.
+/// 
+/// The futures here needs to return a Result, which is the main difference from the standard
+/// FuturesUnordered.
 struct JoinHandles<T, E>
     where T: Future,
           T: Future<Output=Result<(), E>>
@@ -18,6 +22,7 @@ impl<T, E> JoinHandles<T, E>
     where T: Future,
           T: Future<Output=Result<(), E>>
 {
+    /// Create a new JoinHandles
     pub fn new() -> Self {
         let futures = FuturesUnordered::new();
 
@@ -26,10 +31,13 @@ impl<T, E> JoinHandles<T, E>
         }
     }
 
+    /// Adds another Future to the queue
     pub fn push(&mut self, future: T) {
         self.futures.push(future);
     }
 
+    /// Executes all futures in parallel and waits for all of them to complete.
+    /// If any of the futures returns an error, the error is returned.
     pub async fn join_all(mut self) -> T::Output {
         while let Some(r) = self.futures.next().await {
             r?;
@@ -38,6 +46,7 @@ impl<T, E> JoinHandles<T, E>
         Ok(())
     }
 
+    /// Waits for one of the futures to complete. If the future returns an error, the error is returned.
     pub async fn wait_one(&mut self) -> Result<(), E> {
         if let Some(r) = self.futures.next().await {
             r
@@ -47,6 +56,7 @@ impl<T, E> JoinHandles<T, E>
     }
 }
 
+/// Executes a given set of futures in parallel, with a maximum number of parallel executions.
 pub(crate) struct ParallelRunner<T, E>
     where T: Future,
           T: Future<Output=Result<(), E>>
@@ -59,6 +69,7 @@ impl<T, E> ParallelRunner<T, E>
     where T: Future,
           T: Future<Output=Result<(), E>>
 {
+    /// Creates a new ParallelRunner with the specified maximum number of parallel executions.
     pub fn new(max_parallel: NonZeroUsize) -> Self {
         let permits = Arc::new(Semaphore::new(max_parallel.get()));
 
@@ -68,6 +79,9 @@ impl<T, E> ParallelRunner<T, E>
         }
     }
 
+    /// Enqueues a new future to be executed in parallel. 
+    /// If the maximum number of parallel executions has been reached, this function will wait until
+    /// one of the futures has completed.
     pub async fn enqueue(&mut self, fut: T) -> Result<(), E>
     {
         loop {
@@ -91,6 +105,7 @@ impl<T, E> ParallelRunner<T, E>
         Ok(())
     }
 
+    /// Waits for all remaining futures to complete.
     pub async fn run_remaining(self) -> Result<(), E> {
         self.join_handles.join_all().await
     }

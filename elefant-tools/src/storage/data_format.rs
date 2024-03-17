@@ -1,3 +1,4 @@
+/// Describes how data can be copied when using the `COPY` command in postgres. 
 #[derive(Debug, Clone)]
 pub enum DataFormat {
     /// Slightly slower, but works across postgres versions, is human-readable and can be

@@ -1,6 +1,8 @@
 use thiserror::Error;
 use crate::storage::DataFormat;
 
+/// All the errors that can occur in the elefant-tools library
+#[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum ElefantToolsError {
     #[error("Error from postgres: `{0}`")]
@@ -105,4 +107,5 @@ pub enum ElefantToolsError {
     AggregateFunctionMissingTransitionFunction(String),
 }
 
+/// A result type that uses the ElefantToolsError as the error type
 pub type Result<T = ()> = std::result::Result<T, ElefantToolsError>;

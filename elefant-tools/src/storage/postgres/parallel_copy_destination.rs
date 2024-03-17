@@ -6,6 +6,7 @@ use crate::helpers::IMPORT_PREFIX;
 use crate::storage::postgres::connection_pool::ConnectionPool;
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 
+/// A copy destination for Postgres that works well with parallelism.
 #[derive(Clone)]
 pub struct ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
     connection_pool: ConnectionPool,

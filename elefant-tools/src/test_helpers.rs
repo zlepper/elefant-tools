@@ -7,16 +7,29 @@ use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 
 #[allow(dead_code)]
 
+/// A helper for running tests that require a database.
+/// 
+/// This will automatically create a new database for each test, 
+/// and drop it when the test is done, if the test succeeded.
+/// 
+/// All the methods on this struct unwraps errors directly to make it easier to write tests.
 pub struct TestHelper {
+    /// The name of the test database
     pub test_db_name: String,
+    /// The main connected used against the database
     main_connection: PostgresClientWrapper,
+    /// An identifier for the test helper
     helper_name: String,
+    /// The port of the Postgres instance that was connected to.
     pub port: u16,
+    /// If the database was cleaned up nicely
     cleaned_up_nicely: bool,
+    /// If the database is a timescale database
     is_timescale_db: bool,
 }
 
 impl Drop for TestHelper {
+    /// Drops the test helper, cleaning up the database if the test succeeded.
     fn drop(&mut self) {
         if self.cleaned_up_nicely {
             return;
@@ -44,10 +57,13 @@ impl RefUnwindSafe for TestHelper {}
 
 impl UnwindSafe for TestHelper {}
 
+/// Creates a new test helper, using a random database name.
+/// This will connect to Postgres 15 on port 5415.
 pub async fn get_test_helper(name: &str) -> TestHelper {
     get_test_helper_on_port(name, 5415).await
 }
 
+/// Creates a new test helper, using a random database name and a specific port.
 pub async fn get_test_helper_on_port(name: &str, port: u16) -> TestHelper {
     let id = Uuid::new_v4().simple().to_string();
 
@@ -72,46 +88,55 @@ pub async fn get_test_helper_on_port(name: &str, port: u16) -> TestHelper {
 }
 
 impl TestHelper {
+    /// Executes a query that does not return any results.
     pub async fn execute_not_query(&self, sql: &str) {
         self.get_conn().execute_non_query(sql).await.unwrap_or_else(|e| panic!("Failed to execute non query: {:?}\n{}", e, sql));
     }
 
+    /// Executes a query that returns results.
     pub async fn get_results<T: FromRow>(&self, sql: &str) -> Vec<T> {
         self.get_conn().get_results(sql).await.unwrap_or_else(|e| panic!("Failed to get results for query: {:?}\n{}", e, sql))
     }
 
+    /// Executes a query that returns a single column.
     pub async fn get_single_results<T: FromSqlOwned>(&self, sql: &str) -> Vec<T> {
         self.get_results::<(T, )>(sql).await.into_iter()
             .map(|t| t.0)
             .collect()
     }
 
+    /// Executes a query that returns a single row result.
     pub async fn get_result<T: FromRow>(&self, sql: &str) -> T {
         let results = self.get_results(sql).await;
         assert_eq!(results.len(), 1, "Expected one result, got {}", results.len());
         results.into_iter().next().unwrap()
     }
 
+    /// Executes a query that returns a single column of a single row result.
     pub async fn get_single_result<T: FromSqlOwned>(&self, sql: &str) -> T {
         let result = self.get_result::<(T, )>(sql).await;
         result.0
     }
 
+    /// Gets the underlying connection to the database.
     pub fn get_conn(&self) -> &PostgresClientWrapper {
         &self.main_connection
     }
     
+    /// Gets a connection to a specific schema in the database.
     pub async fn get_schema_connection(&self, schema: &str) -> PostgresClientWrapper {
         let connection_string = format!("host=localhost port={} user=postgres password=passw0rd dbname={} options=--search_path={},public", self.port, self.test_db_name, schema);
         PostgresClientWrapper::new(&connection_string).await.expect("Connection to test database failed. Is postgres running?")
     } 
 
+    /// Stops the test helper, cleaning up the database.
     pub async fn stop(mut self) {
         cleanup(&self.test_db_name, self.port).await;
         self.cleaned_up_nicely = true;
     }
 }
 
+/// Gets a connection to the specified database on the specified port.
 async fn get_test_connection_on_port(database_name: &str, port: u16) -> PostgresClientWrapper {
     PostgresClientWrapper::new(&format!("host=localhost port={port} user=postgres password=passw0rd dbname={database_name}")).await.expect("Connection to test database failed. Is postgres running?")
 }
@@ -138,6 +163,7 @@ impl crate::models::TimescaleSupport {
     }
 }
 
+/// Asset that the specified Postgres error occurred.
 pub fn assert_pg_error(result: crate::Result, code: SqlState) {
     match result {
         Err(ElefantToolsError::PostgresErrorWithQuery {

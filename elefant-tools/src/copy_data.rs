@@ -35,6 +35,9 @@ impl CopyDataOptions {
     }
 }
 
+/// Copies data and structures from the provided source to the destination.
+/// 
+/// This is probably the main function you want to deal with when using Elefant Tools as a library. 
 #[instrument(skip_all)]
 pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(source: &S, destination: &'d mut D, options: CopyDataOptions) -> Result<()> {
     let data_format = get_data_type(source, destination, &options).await?;
@@ -155,6 +158,12 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
     Ok(())
 }
 
+/// Applies all structures needed to be able to actually insert data. This includes:
+/// * Creating schemas
+/// * Creating tables
+/// * Creating functions
+/// * Creating views
+/// * Creating custom types
 #[instrument(skip_all)]
 async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, definition: &PostgresDatabase) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
@@ -208,6 +217,7 @@ async fn apply_pre_copy_structure<D: CopyDestination>(destination: &mut D, defin
     Ok(())
 }
 
+/// Actually copies data between two tables. 
 #[instrument(skip_all)]
 async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mut D, target_schema: &PostgresSchema, target_table: &PostgresTable, source_schema: &PostgresSchema, source_table: &PostgresTable, data_format: &DataFormat) -> Result<()> {
     let data = source.get_data(source_schema, source_table, data_format).await?;
@@ -218,6 +228,11 @@ async fn do_copy<S: CopySource, D: CopyDestination>(source: &S, destination: &mu
 }
 
 
+/// Get instructions to apply after the data has been copied. This includes:
+/// * Creating indexes
+/// * Creating constraints
+/// * Creating triggers
+/// * Refreshing materialized views
 #[instrument(skip_all)]
 fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quoter: &IdentifierQuoter) -> Vec<Vec<String>> {
     let mut statements = Vec::new();
@@ -306,6 +321,7 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
 }
 
 
+/// Applies the structures generated in [get_post_apply_statement_groups] to the destination sequentially.
 #[instrument(skip_all)]
 async fn apply_post_copy_structure_sequential<D: CopyDestination>(destination: &mut D, definition: &PostgresDatabase) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
@@ -321,6 +337,7 @@ async fn apply_post_copy_structure_sequential<D: CopyDestination>(destination: &
     Ok(())
 }
 
+/// Applies the structures generated in [get_post_apply_statement_groups] to the destination in parallel.
 #[instrument(skip_all)]
 async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(destination: &mut D, definition: &PostgresDatabase, options: &CopyDataOptions) -> Result<()> {
     let identifier_quoter = destination.get_identifier_quoter();
@@ -352,6 +369,8 @@ async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(d
     Ok(())
 }
 
+/// Get the data format to use when copying data from the source to the destination, that both
+/// source and destination supports. 
 #[instrument(skip_all)]
 async fn get_data_type(source: &impl CopySourceFactory, destination: &impl CopyDestinationFactory<'_>, options: &CopyDataOptions) -> Result<DataFormat> {
     let source_formats = source.supported_data_format().await?;

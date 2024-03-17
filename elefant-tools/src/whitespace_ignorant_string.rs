@@ -1,7 +1,8 @@
 use std::fmt::{Debug, Display};
 use std::ops::{Deref, DerefMut};
 
-/// A string that ignores repeated whitespace when comparing equality.
+/// A string that ignores repeated whitespace when comparing equality,
+/// while still storing the original string.
 #[repr(transparent)]
 #[derive(Default, Eq, Clone)]
 pub struct WhitespaceIgnorantString {

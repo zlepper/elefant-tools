@@ -6,6 +6,7 @@ use tracing::instrument;
 use crate::{CopySource, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper, PostgresDatabase, PostgresInstanceStorage, PostgresSchema, PostgresTable, TableData};
 use crate::schema_reader::SchemaReader;
 
+/// A copy source for Postgres that works well single-threaded workloads.
 #[derive(Clone)]
 pub struct SequentialSafePostgresInstanceCopySourceStorage<'a> {
     connection: &'a PostgresClientWrapper,

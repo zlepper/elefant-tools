@@ -105,15 +105,19 @@ pub enum Storage {
     /// elefant-sync tool to import it, however no additional processing can be done during import.
     /// This is only recommended for very small databases. For larger databases, use one of the Elefant options.
     SqlFile {
+        /// The path to the .sql file to import/export
         #[arg(long)]
         path: String,
         
+        /// How many rows to generate per insert statement. Only considered on export
         #[arg(long, default_value_t = 1000, env)]
         max_rows_per_insert: usize,
         
+        /// How many DDL commands to generate per chunk. Only considered on export
         #[arg(long, default_value_t = 10, env)]
         max_commands_per_chunk: usize,
         
+        /// The format to use when exporting. Only considered on export
         #[arg(long, default_value_t = SqlDataMode::CopyStatements, env)]
         format: SqlDataMode,
     },

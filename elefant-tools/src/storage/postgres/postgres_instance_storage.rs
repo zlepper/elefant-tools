@@ -10,6 +10,7 @@ use crate::storage::postgres::parallel_copy_source::ParallelSafePostgresInstance
 use crate::storage::postgres::sequential_copy_destination::SequentialSafePostgresInstanceCopyDestinationStorage;
 use crate::storage::postgres::sequential_copy_source::SequentialSafePostgresInstanceCopySourceStorage;
 
+/// A CopyTarget for Postgres.
 pub struct PostgresInstanceStorage<'a> {
     pub(crate) connection: &'a PostgresClientWrapper,
     pub(crate) postgres_version: String,

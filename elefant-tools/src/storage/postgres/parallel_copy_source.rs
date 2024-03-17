@@ -8,6 +8,10 @@ use crate::schema_reader::SchemaReader;
 use crate::storage::postgres::connection_pool::{ConnectionPool, ReleaseConnection};
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 
+/// A copy source for Postgres that works well with parallelism.
+/// 
+/// This uses repeatable read isolation level and a snapshot to ensure that the data is consistent
+/// across the entire dump. 
 #[derive(Clone)]
 pub struct ParallelSafePostgresInstanceCopySourceStorage<'a> {
     connection_pool: ConnectionPool,

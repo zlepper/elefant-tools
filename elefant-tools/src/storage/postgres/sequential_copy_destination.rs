@@ -5,6 +5,7 @@ use crate::{AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapp
 use crate::helpers::IMPORT_PREFIX;
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 
+/// A copy destination for Postgres that works well single-threaded workloads.
 #[derive(Clone)]
 pub struct SequentialSafePostgresInstanceCopyDestinationStorage<'a> {
     connection: &'a PostgresClientWrapper,

@@ -1,10 +1,17 @@
+
+/// Used for tracking dependencies between objects and to handle renames.
+/// 
+/// ObjectId has a bit odd equality behavior. If any of the values are none, then all an ObjectId 
+/// is considered equal to any other ObjectId. This makes it easier to deal with in tests, while
+/// still making it possible to use it as a key to link things..
 #[derive(Copy, Clone, Debug, Default, PartialOrd)]
 pub struct ObjectId {
     value: Option<usize>,
 }
 
 impl ObjectId {
-    pub(crate) fn new(value: usize) -> Self {
+    /// Creates a new object id with the specified value
+    pub fn new(value: usize) -> Self {
         ObjectId { value: Some(value) }
     }
 }
@@ -29,15 +36,21 @@ impl Eq for ObjectId {
 
 }
 
+/// Provides a way to generate non-conflicting ObjectIds within
+/// the same run, while ensuring the generation is deterministic.
+/// 
+/// This allows to exact id checking in Tests when relevant.
 pub struct ObjectIdGenerator {
     next_id: usize,
 }
 
 impl ObjectIdGenerator {
+    /// Creates a new ObjectIdGenerator
     pub fn new() -> Self {
         Self { next_id: 1 }
     }
 
+    /// Generates the next ObjectId
     pub fn next(&mut self) -> ObjectId {
         let id = self.next_id;
         self.next_id += 1;
@@ -45,13 +58,23 @@ impl ObjectIdGenerator {
     }
 }
 
-
+/// Trait for objects that have dependencies
+/// 
+/// This is used for topological sorting of objects to ensure
+/// they are created in the correct order.
 pub trait HaveDependencies {
+    /// Returns the [ObjectId]s this object depends on
     fn depends_on(&self) -> &Vec<ObjectId>;
+    /// Returns the [ObjectId] of this object
     fn object_id(&self) -> ObjectId;
 }
 
+/// Trait for iterators that can be sorted by dependencies
 pub trait DependencySortable: Iterator {
+    /// Sorts the items in the iterator by dependencies.
+    /// 
+    /// # Panics
+    /// This will panic if circular dependencies are detected.
     fn sort_by_dependencies(self) -> Vec<Self::Item>;
 }
 
@@ -71,7 +94,6 @@ impl<I> DependencySortable for I
 
 
         // Move everything with 0 dependencies to the front
-
         let mut i = 0;
         let mut j = sorted.len() - 1;
         while i < j {

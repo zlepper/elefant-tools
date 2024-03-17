@@ -1,5 +1,6 @@
 use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 
+/// A trait for reading chunks of strings from a reader until a separator line is encountered.
 pub(crate) trait StringChunkReader {
     // separator should include the newline
     fn read_lines_until_separator_line(&mut self, separator: &str, s: &mut String) -> impl std::future::Future<Output=std::io::Result<ChunkResult>> + Send;
@@ -38,7 +39,9 @@ impl<R> StringChunkReader for R
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub(crate) enum ChunkResult {
+    /// A chunk of data was read, however we haven't reached the end of the file yet.
     Chunk(usize),
+    /// A chunk of data was read, and we have reached the end of the file.
     End(usize),
 }
 

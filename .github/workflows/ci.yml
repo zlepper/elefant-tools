@@ -59,6 +59,10 @@ jobs:
   build-for-docker:
     name: Build for Docker
     runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+      id-token: write
     steps:
     - run: |
         apt-get update && apt-get install -y --no-install-recommends musl-tools

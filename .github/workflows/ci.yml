@@ -56,6 +56,22 @@ jobs:
         name: elefant-sync-linux-amd64
         path: target/release/elefant-sync
 
+  build-for-docker:
+    name: Build for Docker
+    runs-on: ubuntu-latest
+    steps:
+    - run: |
+        apt-get update && apt-get install -y --no-install-recommends musl-tools
+        rustup target add x86_64-unknown-linux-musl
+
+    - uses: actions/checkout@v4
+
+    - uses: Swatinem/rust-cache@v2
+      name: Cache dependencies
+
+    - name: Build executable
+      run: cargo build --release --package=elefant-sync --target x86_64-unknown-linux-musl
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
 

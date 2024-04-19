@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use crate::models::PostgresSequence;
 use crate::models::*;
+use crate::object_id::ObjectIdGenerator;
 use crate::postgres_client_wrapper::PostgresClientWrapper;
 use crate::schema_reader::check_constraint::CheckConstraintResult;
 use crate::schema_reader::foreign_key::ForeignKeyResult;
@@ -9,21 +9,23 @@ use crate::schema_reader::index::IndexResult;
 use crate::schema_reader::index_column::IndexColumnResult;
 use crate::schema_reader::table::TablesResult;
 use crate::schema_reader::table_column::TableColumnsResult;
-use crate::{ElefantToolsError, ObjectId, Result};
+use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
 use crate::schema_reader::timescale_hypertable::HypertableResult;
 use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDimensionResult;
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
-use crate::TableTypeDetails::TimescaleHypertable;
-use crate::object_id::{ObjectIdGenerator};
-use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
 use crate::schema_reader::view::ViewResult;
 use crate::schema_reader::view_column::ViewColumnResult;
+use crate::TableTypeDetails::TimescaleHypertable;
+use crate::{ElefantToolsError, ObjectId, Result};
+use futures::try_join;
+use std::collections::HashMap;
 
 use itertools::Itertools;
 use ordered_float::NotNan;
 use tracing::instrument;
 
 mod check_constraint;
+mod domain;
 mod enumeration;
 mod extension;
 mod foreign_key;
@@ -37,15 +39,14 @@ mod table;
 mod table_column;
 #[cfg(test)]
 pub mod tests;
+mod timescale_continuous_aggregate;
 mod timescale_hypertable;
 mod timescale_hypertable_dimension;
+mod timescale_job;
 mod trigger;
 mod unique_constraint;
 mod view;
 mod view_column;
-mod timescale_continuous_aggregate;
-mod timescale_job;
-mod domain;
 
 pub struct SchemaReader<'a> {
     connection: &'a PostgresClientWrapper,
@@ -61,23 +62,45 @@ impl SchemaReader<'_> {
         let mut object_id_generator = ObjectIdGenerator::new();
         let mut object_id_mapping = PgOidToObjectIdMapping::default();
 
-        let mut extensions = self.get_extensions().await?;
-        let schemas = self.get_schemas().await?;
-        let tables = self.get_tables().await?;
-        let columns = self.get_columns().await?;
-        let check_constraints = self.get_check_constraints().await?;
-        let unique_constraints = self.get_unique_constraints().await?;
-        let indices = self.get_indices().await?;
-        let index_columns = self.get_index_columns().await?;
-        let sequences = self.get_sequences().await?;
-        let foreign_keys = self.get_foreign_keys().await?;
-        let foreign_key_columns = self.get_foreign_key_columns().await?;
-        let views = self.get_views().await?;
-        let view_columns = self.get_view_columns().await?;
-        let functions = self.get_functions().await?;
-        let triggers = self.get_triggers().await?;
-        let enums = self.get_enums().await?;
-        let domains = self.get_domains().await?;
+        let (
+            extensions,
+            schemas,
+            tables,
+            columns,
+            check_constraints,
+            unique_constraints,
+            indices,
+            index_columns,
+            sequences,
+            foreign_keys,
+            foreign_key_columns,
+            views,
+            view_columns,
+            functions,
+            triggers,
+            enums,
+            domains,
+        ) = try_join!(
+            self.get_extensions(),
+            self.get_schemas(),
+            self.get_tables(),
+            self.get_columns(),
+            self.get_check_constraints(),
+            self.get_unique_constraints(),
+            self.get_indices(),
+            self.get_index_columns(),
+            self.get_sequences(),
+            self.get_foreign_keys(),
+            self.get_foreign_key_columns(),
+            self.get_views(),
+            self.get_view_columns(),
+            self.get_functions(),
+            self.get_triggers(),
+            self.get_enums(),
+            self.get_domains()
+        )?;
+
+        let mut extensions = extensions;
 
         let mut db = PostgresDatabase::default();
 
@@ -94,16 +117,17 @@ impl SchemaReader<'_> {
             extensions.retain(|e| e.extension_name != "timescaledb_toolkit");
         }
 
-        let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) = if db.timescale_support.is_enabled {
-            let hypertables = self.get_hypertables().await?;
-            let hypertable_dimensions = self.get_hypertable_dimensions().await?;
-            let continuous_aggregates = self.get_continuous_aggregates().await?;
-            let jobs = self.get_timescale_jobs().await?;
-
-            (hypertables, hypertable_dimensions, continuous_aggregates, jobs)
-        } else {
-            (vec![], vec![], vec![], vec![])
-        };
+        let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) =
+            if db.timescale_support.is_enabled {
+                try_join!(
+                    self.get_hypertables(),
+                    self.get_hypertable_dimensions(),
+                    self.get_continuous_aggregates(),
+                    self.get_timescale_jobs()
+                )?
+            } else {
+                (vec![], vec![], vec![], vec![])
+            };
 
         for row in schemas {
             let schema = PostgresSchema {
@@ -162,11 +186,16 @@ impl SchemaReader<'_> {
             current_schema.sequences.push(sequence);
         }
 
-        let pg_stat_statements_enabled = extensions.iter().any(|e| e.extension_name == "pg_stat_statements");
+        let pg_stat_statements_enabled = extensions
+            .iter()
+            .any(|e| e.extension_name == "pg_stat_statements");
 
         for view in &views {
-
-            if pg_stat_statements_enabled && view.schema_name == "public" && (view.view_name == "pg_stat_statements" || view.view_name == "pg_stat_statements_info") {
+            if pg_stat_statements_enabled
+                && view.schema_name == "public"
+                && (view.view_name == "pg_stat_statements"
+                    || view.view_name == "pg_stat_statements_info")
+            {
                 continue;
             }
 
@@ -197,30 +226,73 @@ impl SchemaReader<'_> {
                 let function = PostgresAggregateFunction {
                     function_name: function.function_name.clone(),
                     arguments: function.arguments.clone(),
-                    state_transition_function: function.aggregate_state_transition_function.clone().ok_or_else(|| ElefantToolsError::AggregateFunctionMissingTransitionFunction(function.function_name.clone()))?,
-                    final_function: function.aggregate_final_function.clone().and_then(none_if_irrelevant),
-                    combine_function: function.aggregate_combine_function.clone().and_then(none_if_irrelevant),
-                    serial_function: function.aggregate_serial_function.clone().and_then(none_if_irrelevant),
-                    deserial_function: function.aggregate_deserial_function.clone().and_then(none_if_irrelevant),
-                    moving_state_transition_function: function.aggregate_moving_state_transition_function.clone().and_then(none_if_irrelevant),
-                    inverse_moving_state_transition_function: function.aggregate_inverse_moving_state_transition_function.clone().and_then(none_if_irrelevant),
-                    moving_final_function: function.aggregate_moving_final_function.clone().and_then(none_if_irrelevant),
+                    state_transition_function: function
+                        .aggregate_state_transition_function
+                        .clone()
+                        .ok_or_else(|| {
+                            ElefantToolsError::AggregateFunctionMissingTransitionFunction(
+                                function.function_name.clone(),
+                            )
+                        })?,
+                    final_function: function
+                        .aggregate_final_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    combine_function: function
+                        .aggregate_combine_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    serial_function: function
+                        .aggregate_serial_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    deserial_function: function
+                        .aggregate_deserial_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    moving_state_transition_function: function
+                        .aggregate_moving_state_transition_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    inverse_moving_state_transition_function: function
+                        .aggregate_inverse_moving_state_transition_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    moving_final_function: function
+                        .aggregate_moving_final_function
+                        .clone()
+                        .and_then(none_if_irrelevant),
                     final_extra_data: function.aggregate_final_extra_data.unwrap_or_default(),
-                    moving_final_extra_data: function.aggregate_moving_final_extra_data.unwrap_or_default(),
+                    moving_final_extra_data: function
+                        .aggregate_moving_final_extra_data
+                        .unwrap_or_default(),
                     final_modify: function.aggregate_final_modify.unwrap_or_default(),
                     moving_final_modify: function.aggregate_moving_final_modify.unwrap_or_default(),
-                    sort_operator: function.aggregate_sort_operator.clone().and_then(none_if_irrelevant),
-                    transition_type: function.aggregate_transition_type.clone().ok_or_else(|| ElefantToolsError::AggregateFunctionMissingTransitionType(function.function_name.clone()))?,
+                    sort_operator: function
+                        .aggregate_sort_operator
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    transition_type: function.aggregate_transition_type.clone().ok_or_else(
+                        || {
+                            ElefantToolsError::AggregateFunctionMissingTransitionType(
+                                function.function_name.clone(),
+                            )
+                        },
+                    )?,
                     transition_space: function.aggregate_transition_space.and_then(none_if_zero),
-                    moving_transition_type: function.aggregate_moving_transition_type.clone().and_then(none_if_irrelevant),
-                    moving_transition_space: function.aggregate_moving_transition_space.and_then(none_if_zero),
+                    moving_transition_type: function
+                        .aggregate_moving_transition_type
+                        .clone()
+                        .and_then(none_if_irrelevant),
+                    moving_transition_space: function
+                        .aggregate_moving_transition_space
+                        .and_then(none_if_zero),
                     initial_value: function.aggregate_initial_value.clone(),
                     moving_initial_value: function.aggregate_moving_initial_value.clone(),
                     parallel: function.parallel,
                     object_id: object_id_generator.next(),
                     depends_on: vec![],
                 };
-
 
                 object_id_mapping.insert(oid, function.object_id);
 
@@ -254,7 +326,6 @@ impl SchemaReader<'_> {
 
                 current_schema.functions.push(function);
             }
-
         }
 
         for extension in &extensions {
@@ -270,11 +341,15 @@ impl SchemaReader<'_> {
         }
 
         for trigger in triggers {
-            if db.timescale_support.is_enabled && hypertables.iter().any(|h| {
-                h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
-            }) {
+            if db.timescale_support.is_enabled
+                && hypertables.iter().any(|h| {
+                    h.table_name == trigger.table_name && h.table_schema == trigger.schema_name
+                })
+            {
                 // Skip the trigger if it's a TimescaleDB internal trigger
-                if trigger.name == "ts_insert_blocker" || trigger.name == "ts_cagg_invalidation_trigger" {
+                if trigger.name == "ts_insert_blocker"
+                    || trigger.name == "ts_cagg_invalidation_trigger"
+                {
                     continue;
                 }
             }
@@ -313,30 +388,34 @@ impl SchemaReader<'_> {
         }
 
         for timescale_job in timescale_jobs {
-            db.timescale_support.user_defined_jobs.push(TimescaleDbUserDefinedJob {
-                function_name: timescale_job.function_name.clone(),
-                function_schema: timescale_job.function_schema.clone(),
-                check_config_name: timescale_job.check_config_name.clone(),
-                check_config_schema: timescale_job.check_config_schema.clone(),
-                schedule_interval: timescale_job.schedule_interval,
-                fixed_schedule: timescale_job.fixed_schedule,
-                config: timescale_job.config.clone().map(|c| c.into()),
-                scheduled: timescale_job.scheduled,
-                object_id: object_id_generator.next(),
-            })
+            db.timescale_support
+                .user_defined_jobs
+                .push(TimescaleDbUserDefinedJob {
+                    function_name: timescale_job.function_name.clone(),
+                    function_schema: timescale_job.function_schema.clone(),
+                    check_config_name: timescale_job.check_config_name.clone(),
+                    check_config_schema: timescale_job.check_config_schema.clone(),
+                    schedule_interval: timescale_job.schedule_interval,
+                    fixed_schedule: timescale_job.fixed_schedule,
+                    config: timescale_job.config.clone().map(|c| c.into()),
+                    scheduled: timescale_job.scheduled,
+                    object_id: object_id_generator.next(),
+                })
         }
-        
+
         for domain in &domains {
             let current_schema = db.get_or_create_schema_mut(&domain.schema_name);
-            
+
             let oid = domain.domain_oid;
-            
+
             let domain = PostgresDomain {
                 name: domain.domain_name.clone(),
                 base_type_name: domain.base_type_name.clone(),
                 default_value: domain.default_value.clone(),
                 not_null: domain.not_null,
-                constraint: if let (Some(name), Some(definition)) = (&domain.constraint_name, &domain.constraint_definition) {
+                constraint: if let (Some(name), Some(definition)) =
+                    (&domain.constraint_name, &domain.constraint_definition)
+                {
                     Some(PostgresDomainConstraint {
                         name: name.clone(),
                         definition: definition.clone(),
@@ -349,12 +428,11 @@ impl SchemaReader<'_> {
                 depends_on: vec![],
                 data_type_length: domain.data_type_length,
             };
-            
+
             object_id_mapping.insert(oid, domain.object_id);
-            
+
             current_schema.domains.push(domain);
         }
-
 
         for view in &views {
             if let Some(depends_on) = &view.depends_on {
@@ -362,7 +440,11 @@ impl SchemaReader<'_> {
 
                 let own_object_id = object_id_mapping.get(view.oid).unwrap(); // SAFE: We have just inserted the oid above
 
-                let this = current_schema.views.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+                let this = current_schema
+                    .views
+                    .iter_mut()
+                    .find(|v| v.object_id == own_object_id)
+                    .unwrap(); // SAFE: We have just inserted it above
 
                 for oid in depends_on {
                     if let Some(depends_on) = object_id_mapping.get(*oid) {
@@ -378,7 +460,11 @@ impl SchemaReader<'_> {
 
                 let own_object_id = object_id_mapping.get(table.oid).unwrap(); // SAFE: We have just inserted the oid above
 
-                let this = current_schema.tables.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+                let this = current_schema
+                    .tables
+                    .iter_mut()
+                    .find(|v| v.object_id == own_object_id)
+                    .unwrap(); // SAFE: We have just inserted it above
 
                 for oid in depends_on {
                     if let Some(depends_on) = object_id_mapping.get(*oid) {
@@ -395,7 +481,11 @@ impl SchemaReader<'_> {
                 let own_object_id = object_id_mapping.get(function.oid).unwrap(); // SAFE: We have just inserted the oid above
 
                 if function.function_kind == FunctionKind::Aggregate {
-                    let this = current_schema.aggregate_functions.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
+                    let this = current_schema
+                        .aggregate_functions
+                        .iter_mut()
+                        .find(|v| v.object_id == own_object_id)
+                        .unwrap(); // SAFE: We have just inserted it above
 
                     for oid in depends_on {
                         if let Some(depends_on) = object_id_mapping.get(*oid) {
@@ -403,9 +493,12 @@ impl SchemaReader<'_> {
                         }
                     }
                 } else {
-                    
-                    let this = current_schema.functions.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
-    
+                    let this = current_schema
+                        .functions
+                        .iter_mut()
+                        .find(|v| v.object_id == own_object_id)
+                        .unwrap(); // SAFE: We have just inserted it above
+
                     for oid in depends_on {
                         if let Some(depends_on) = object_id_mapping.get(*oid) {
                             this.depends_on.push(depends_on);
@@ -414,15 +507,19 @@ impl SchemaReader<'_> {
                 }
             }
         }
-        
+
         for domain in &domains {
             if let Some(depends_on) = &domain.depends_on {
                 let current_schema = db.get_or_create_schema_mut(&domain.schema_name);
-                
+
                 let own_object_id = object_id_mapping.get(domain.domain_oid).unwrap(); // SAFE: We have just inserted the oid above
-                
-                let this = current_schema.domains.iter_mut().find(|v| v.object_id == own_object_id).unwrap(); // SAFE: We have just inserted it above
-                
+
+                let this = current_schema
+                    .domains
+                    .iter_mut()
+                    .find(|v| v.object_id == own_object_id)
+                    .unwrap(); // SAFE: We have just inserted it above
+
                 for oid in depends_on {
                     if let Some(depends_on) = object_id_mapping.get(*oid) {
                         this.depends_on.push(depends_on);
@@ -430,7 +527,6 @@ impl SchemaReader<'_> {
                 }
             }
         }
-
 
         Ok(db)
     }
@@ -442,14 +538,18 @@ impl SchemaReader<'_> {
         continuous_aggregates: &[ContinuousAggregateResult],
         object_id_generator: &mut ObjectIdGenerator,
     ) -> PostgresView {
-        let continuous_aggregate = continuous_aggregates.iter().find(|c| c.view_name == view.view_name && c.view_schema == view.schema_name);
+        let continuous_aggregate = continuous_aggregates
+            .iter()
+            .find(|c| c.view_name == view.view_name && c.view_schema == view.schema_name);
         PostgresView {
             name: view.view_name.clone(),
             definition: if let Some(ca) = &continuous_aggregate {
                 &ca.view_definition
             } else {
                 &view.definition
-            }.clone().into(),
+            }
+            .clone()
+            .into(),
             columns: view_columns
                 .iter()
                 .filter(|c| c.view_name == view.view_name && c.schema_name == view.schema_name)
@@ -461,7 +561,11 @@ impl SchemaReader<'_> {
             comment: view.comment.clone(),
             is_materialized: view.is_materialized || continuous_aggregate.is_some(),
             view_options: if let Some(ca) = continuous_aggregate {
-                let refresh = if let (Some(refresh), Some(start), Some(end)) = (ca.refresh_interval, ca.refresh_start_offset, ca.refresh_end_offset) {
+                let refresh = if let (Some(refresh), Some(start), Some(end)) = (
+                    ca.refresh_interval,
+                    ca.refresh_start_offset,
+                    ca.refresh_end_offset,
+                ) {
                     Some(TimescaleContinuousAggregateRefreshOptions {
                         interval: refresh,
                         start_offset: start,
@@ -470,7 +574,6 @@ impl SchemaReader<'_> {
                 } else {
                     None
                 };
-
 
                 let compression = if let (false, None, None, None, None, None) = (
                     ca.compression_enabled,
@@ -487,13 +590,18 @@ impl SchemaReader<'_> {
                         compression_schedule_interval: ca.compress_job_interval,
                         chunk_time_interval: ca.compress_chunk_time_interval,
                         compress_after: ca.compress_after,
-                        order_by_columns: Self::get_hypertable_compression_order_by_columns(&ca.compress_order_by, &ca.compress_order_by_desc, &ca.compress_order_by_nulls_first),
+                        order_by_columns: Self::get_hypertable_compression_order_by_columns(
+                            &ca.compress_order_by,
+                            &ca.compress_order_by_desc,
+                            &ca.compress_order_by_nulls_first,
+                        ),
                         segment_by_columns: ca.compress_segment_by.clone(),
                     })
                 };
 
-
-                let retention = if let (Some(schedule_interval), Some(drop_after)) = (ca.retention_schedule_interval, ca.retention_drop_after) {
+                let retention = if let (Some(schedule_interval), Some(drop_after)) =
+                    (ca.retention_schedule_interval, ca.retention_drop_after)
+                {
                     Some(HypertableRetention {
                         schedule_interval,
                         drop_after,
@@ -515,9 +623,11 @@ impl SchemaReader<'_> {
         }
     }
 
-    fn get_hypertable_compression_order_by_columns(compress_order_by: &Option<Vec<String>>,
-                                                   compress_order_by_desc: &Option<Vec<bool>>,
-                                                   compress_order_by_nulls_first: &Option<Vec<bool>>) -> Option<Vec<HypertableCompressionOrderedColumn>> {
+    fn get_hypertable_compression_order_by_columns(
+        compress_order_by: &Option<Vec<String>>,
+        compress_order_by_desc: &Option<Vec<bool>>,
+        compress_order_by_nulls_first: &Option<Vec<bool>>,
+    ) -> Option<Vec<HypertableCompressionOrderedColumn>> {
         if let (Some(order_by), Some(desc), Some(nulls_first)) = (
             &compress_order_by,
             &compress_order_by_desc,
@@ -616,12 +726,17 @@ impl SchemaReader<'_> {
                     compression_schedule_interval: hypertable.compression_schedule_interval,
                     chunk_time_interval: hypertable.compression_chunk_interval,
                     compress_after: hypertable.compress_after,
-                    order_by_columns: Self::get_hypertable_compression_order_by_columns(&hypertable.compress_order_by, &hypertable.compress_order_by_desc, &hypertable.compress_order_by_nulls_first),
+                    order_by_columns: Self::get_hypertable_compression_order_by_columns(
+                        &hypertable.compress_order_by,
+                        &hypertable.compress_order_by_desc,
+                        &hypertable.compress_order_by_nulls_first,
+                    ),
                     segment_by_columns: hypertable.compress_segment_by.clone(),
                 })
             };
 
-            let retention = hypertable.retention_schedule_interval
+            let retention = hypertable
+                .retention_schedule_interval
                 .zip(hypertable.retention_drop_after)
                 .map(|(schedule_interval, drop_after)| HypertableRetention {
                     schedule_interval,
@@ -739,7 +854,7 @@ impl SchemaReader<'_> {
                     comment: check_constraint.comment.clone(),
                     object_id: object_id_generator.next(),
                 }
-                    .into()
+                .into()
             })
             .collect();
 
@@ -791,7 +906,7 @@ impl SchemaReader<'_> {
                     comment: fk.comment.clone(),
                     object_id: object_id_generator.next(),
                 }
-                    .into()
+                .into()
             })
             .collect();
 
@@ -924,7 +1039,7 @@ fn none_if_zero(i: i32) -> Option<i32> {
 
 #[derive(Debug, Default)]
 struct PgOidToObjectIdMapping {
-    mapping: HashMap<i64, ObjectId>
+    mapping: HashMap<i64, ObjectId>,
 }
 
 impl PgOidToObjectIdMapping {

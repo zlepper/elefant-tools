@@ -1,11 +1,12 @@
 use std::cmp::Ordering;
+use serde::{Deserialize, Serialize};
 use crate::{PostgresSchema, PostgresTable};
 use crate::helpers::StringExt;
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresIndex {
     pub name: String,
     pub key_columns: Vec<PostgresIndexKeyColumn>,
@@ -18,7 +19,8 @@ pub struct PostgresIndex {
     pub object_id: ObjectId,
 }
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum PostgresIndexType {
     PrimaryKey,
     Unique {
@@ -120,7 +122,7 @@ impl PostgresIndex {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresIndexKeyColumn {
     pub name: String,
     pub ordinal_position: i32,
@@ -140,19 +142,19 @@ impl PartialOrd for PostgresIndexKeyColumn {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum PostgresIndexColumnDirection {
     Ascending,
     Descending,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub enum PostgresIndexNullsOrder {
     First,
     Last,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresIndexIncludedColumn {
     pub name: String,
     pub ordinal_position: i32,

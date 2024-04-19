@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use crate::{ElefantToolsError, PostgresSchema};
 use crate::helpers::StringExt;
 use crate::object_id::ObjectId;
@@ -5,7 +6,7 @@ use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{ColumnName, TypeOrFunctionName};
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresTrigger {
     pub name: String,
     pub table_name: String,
@@ -79,7 +80,7 @@ impl PostgresTrigger {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub enum PostgresTriggerEvent {
     #[default]
     Insert,
@@ -111,7 +112,7 @@ impl PostgresTriggerEvent {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub enum PostgresTriggerTiming {
     #[default]
     Before,
@@ -130,7 +131,7 @@ impl FromPgChar for PostgresTriggerTiming {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub enum PostgresTriggerLevel {
     #[default]
     Row,

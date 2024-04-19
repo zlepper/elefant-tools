@@ -61,5 +61,6 @@ from pg_type typ
 where typ.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e')
   and typ.typtype = 'd'
+  and has_type_privilege(typ.oid, 'USAGE')
 order by nsp.nspname, typ.typname, con.conname;
 "#);

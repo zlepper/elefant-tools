@@ -15,7 +15,7 @@ use crate::storage::{BaseCopyTarget, CopyDestination};
 use crate::{AsyncCleanup, CopyDestinationFactory, ParallelCopyDestinationNotAvailable, PostgresClientWrapper, Result, SequentialOrParallel, SupportedParallelism};
 use crate::chunk_reader::{ChunkResult, StringChunkReader};
 use crate::helpers::IMPORT_PREFIX;
-use crate::quoting::IdentifierQuoter;
+use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
 use crate::storage::data_format::DataFormat;
 use crate::storage::table_data::TableData;
 
@@ -241,7 +241,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     async fn write_data_stream_to_insert_statements<S: Stream<Item=Result<Bytes>> + Send + Unpin>(&mut self, stream: &mut S, schema: &PostgresSchema, table: &PostgresTable) -> Result<()> {
         let file = &mut self.file;
 
-        let column_types = table.columns.iter().map(|c| c.get_simplified_data_type()).collect_vec();
+        let column_types = table.get_writable_columns().map(|c| c.get_simplified_data_type()).collect_vec();
 
         let mut count = 0;
         while let Some(bytes) = stream.next().await {
@@ -260,11 +260,11 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
                         }
 
                         file.write_all(b"insert into ").await?;
-                        file.write_all(schema.name.as_bytes()).await?;
+                        file.write_all(schema.name.quote(&self.quoter, AttemptedKeywordUsage::TypeOrFunctionName).as_bytes()).await?;
                         file.write_all(b".").await?;
-                        file.write_all(table.name.as_bytes()).await?;
+                        file.write_all(table.name.quote(&self.quoter, AttemptedKeywordUsage::TypeOrFunctionName).as_bytes()).await?;
                         file.write_all(b" (").await?;
-                        for (index, column) in table.columns.iter().enumerate() {
+                        for (index, column) in table.get_writable_columns().enumerate() {
                             if index != 0 {
                                 file.write_all(b", ").await?;
                             }

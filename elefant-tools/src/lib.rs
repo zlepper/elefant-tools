@@ -13,6 +13,7 @@ mod whitespace_ignorant_string;
 mod parallel_runner;
 mod object_id;
 mod chunk_reader;
+mod pg_interval;
 
 pub use error::*;
 pub use storage::*;

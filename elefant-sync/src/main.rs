@@ -2,15 +2,15 @@ use std::num::NonZeroUsize;
 use clap::Parser;
 use tracing::{instrument};
 use crate::cli::{Commands, CopyArgs, ExportDbArgs, ImportDbArgs, Storage};
-
-mod cli;
-
 use elefant_tools::{apply_sql_file, copy_data, CopyDataOptions, PostgresInstanceStorage, Result, SqlFileOptions};
 use elefant_tools::PostgresClientWrapper;
 
+mod cli;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
+
     let cli = cli::Cli::parse();
 
     run(cli).await?;
@@ -48,7 +48,10 @@ async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism:
 
     let copy_data_options = CopyDataOptions {
         max_parallel: Some(max_parallelism),
-        ..CopyDataOptions::default()
+        target_schema: db_args.source_schema.clone(),
+        schema_only: db_args.schema_only,
+        data_format: None,
+        rename_schema_to: None,
     };
 
     match destination {
@@ -57,7 +60,7 @@ async fn do_export(db_args: ExportDbArgs, destination: Storage, max_parallelism:
                 max_rows_per_insert,
                 data_mode: format,
                 max_commands_per_chunk,
-                ..SqlFileOptions::default()
+                chunk_separator: SqlFileOptions::default().chunk_separator,
             }).await?;
 
             copy_data(&source, &mut sql_file_destination, copy_data_options).await?;
@@ -100,7 +103,8 @@ async fn do_copy(copy_args: CopyArgs, max_parallel: NonZeroUsize) -> Result<()> 
         data_format: None,
         max_parallel: Some(max_parallel),
         rename_schema_to: None,
-        target_schema: None
+        target_schema: copy_args.source.source_schema.clone(),
+        schema_only: copy_args.source.schema_only,
     }).await?;
 
     Ok(())

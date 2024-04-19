@@ -1,5 +1,5 @@
-use pg_interval::Interval;
 use tokio_postgres::Row;
+use crate::pg_interval::Interval;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
 
@@ -51,15 +51,19 @@ select ht.schema_name,
         cs.segmentby,
         retention_job.schedule_interval as retention_schedule_interval,
         (retention_job.config->>'drop_after')::interval as retention_drop_after
-from _timescaledb_catalog.hypertable ht
+
+from (select * from _timescaledb_catalog.hypertable ht
+               join pg_catalog.pg_namespace n on ht.schema_name = n.nspname
+         left join pg_depend dep on dep.objid = n.oid
+WHERE (n.oid > 16384 or n.nspname = 'public')
+    and (dep.objid is null or dep.deptype <> 'e' )
+and has_schema_privilege(n.oid, 'USAGE')
+offset 0 -- Optimization barrier to avoid postgres inlining the subquery and causing permission issues
+               ) ht
 left join _timescaledb_catalog.dimension dim on ht.id = dim.hypertable_id and dim.compress_interval_length is not null
 left join _timescaledb_config.bgw_job compression_job on compression_job.hypertable_id = ht.id and compression_job.proc_name = 'policy_compression' and compression_job.proc_schema = '_timescaledb_functions'
 left join _timescaledb_catalog.compression_settings cs on cs.relid = (ht.schema_name || '.' || ht.table_name)::regclass
 left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
-join pg_catalog.pg_namespace n on ht.schema_name = n.nspname
-         left join pg_depend dep on dep.objid = n.oid
-WHERE (n.oid > 16384 or n.nspname = 'public')
-    and (dep.objid is null or dep.deptype <> 'e' )
 ORDER BY ht.schema_name, ht.table_name;
 "#);
 

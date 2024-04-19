@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresExtension {
     pub name: String,
     pub schema_name: String,

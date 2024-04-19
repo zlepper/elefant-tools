@@ -22,6 +22,9 @@ pub struct CopyDataOptions {
     /// If `target_schema` is specified it will be renamed to this
     /// when applied to the destination.
     pub rename_schema_to: Option<String>,
+    
+    /// Only the schema will be copied, but not any data
+    pub schema_only: bool,
 }
 
 const NON_ZERO_USIZE1: NonZeroUsize = unsafe { 
@@ -85,64 +88,65 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
 
     destination.commit_transaction().await?;
 
-    let mut parallel_runner = ParallelRunner::new(options.get_max_parallel_or_1());
-
-
-    for target_schema in &target_definition.schemas {
-        let source_schema = source_definition.schemas.iter().find(|s| s.object_id == target_schema.object_id);
-        let source_schema = match source_schema {
-            Some(s) => s,
-            None => {
-                continue;
-            }
-        };
+    if !options.schema_only {
+        let mut parallel_runner = ParallelRunner::new(options.get_max_parallel_or_1());
         
-        for target_table in &target_schema.tables {
-            if let TableTypeDetails::PartitionedParentTable { .. } = &target_table.table_type {
-                continue;
-            }
-            
-            let source_table = source_schema.tables.iter().find(|t| t.object_id == target_table.object_id);
-            let source_table = match source_table {
+        for target_schema in &target_definition.schemas {
+            let source_schema = source_definition.schemas.iter().find(|s| s.object_id == target_schema.object_id);
+            let source_schema = match source_schema {
                 Some(s) => s,
                 None => {
                     continue;
                 }
             };
 
-            match source {
-                SequentialOrParallel::Sequential(ref source) => {
-                    match &mut destination {
-                        SequentialOrParallel::Sequential(ref mut destination) => {
-                            do_copy(source, destination, target_schema, target_table, source_schema, source_table, &data_format).await?
-                        }
-                        SequentialOrParallel::Parallel(ref mut destination) => {
-                            do_copy(source, destination, target_schema, target_table,  source_schema, source_table, &data_format).await?
+            for target_table in &target_schema.tables {
+                if let TableTypeDetails::PartitionedParentTable { .. } = &target_table.table_type {
+                    continue;
+                }
+
+                let source_table = source_schema.tables.iter().find(|t| t.object_id == target_table.object_id);
+                let source_table = match source_table {
+                    Some(s) => s,
+                    None => {
+                        continue;
+                    }
+                };
+
+                match source {
+                    SequentialOrParallel::Sequential(ref source) => {
+                        match &mut destination {
+                            SequentialOrParallel::Sequential(ref mut destination) => {
+                                do_copy(source, destination, target_schema, target_table, source_schema, source_table, &data_format).await?
+                            }
+                            SequentialOrParallel::Parallel(ref mut destination) => {
+                                do_copy(source, destination, target_schema, target_table, source_schema, source_table, &data_format).await?
+                            }
                         }
                     }
-                }
-                SequentialOrParallel::Parallel(ref source) => {
-                    match &mut destination {
-                        SequentialOrParallel::Sequential(ref mut destination) => {
-                            do_copy(source, destination, target_schema, target_table,  source_schema, source_table, &data_format).await?
-                        }
-                        SequentialOrParallel::Parallel(ref mut destination) => {
-                            let source = source.clone();
-                            let destination = destination.clone();
-                            let df = data_format.clone();
-                            parallel_runner.enqueue(async move {
-                                let source = source;
-                                let mut destination = destination;
-                                do_copy(&source, &mut destination, target_schema, target_table, source_schema, source_table, &df).await
-                            }).await?;
+                    SequentialOrParallel::Parallel(ref source) => {
+                        match &mut destination {
+                            SequentialOrParallel::Sequential(ref mut destination) => {
+                                do_copy(source, destination, target_schema, target_table, source_schema, source_table, &data_format).await?
+                            }
+                            SequentialOrParallel::Parallel(ref mut destination) => {
+                                let source = source.clone();
+                                let destination = destination.clone();
+                                let df = data_format.clone();
+                                parallel_runner.enqueue(async move {
+                                    let source = source;
+                                    let mut destination = destination;
+                                    do_copy(&source, &mut destination, target_schema, target_table, source_schema, source_table, &df).await
+                                }).await?;
+                            }
                         }
                     }
                 }
             }
         }
-    }
 
-    parallel_runner.run_remaining().await?;
+        parallel_runner.run_remaining().await?;
+    }
 
     match &mut destination {
         SequentialOrParallel::Sequential(ref mut destination) => {
@@ -246,7 +250,14 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
                 if index.index_constraint_type == PostgresIndexType::PrimaryKey {
                     continue;
                 }
-                group_1.push(index.get_create_index_command(schema, table, identifier_quoter));
+
+                let sql = index.get_create_index_command(schema, table, identifier_quoter);
+                if table.is_timescale_table() {
+                    statements.push(vec![sql]);
+                } else {
+                    group_1.push(sql);
+
+                }
             }
         }
 
@@ -275,7 +286,11 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
             for constraint in &table.constraints {
                 if let PostgresConstraint::Unique(uk) = constraint {
                     let sql = uk.get_create_statement(table, schema, identifier_quoter);
-                    group_3.push(sql);
+                    if table.is_timescale_table() {
+                        statements.push(vec![sql]);
+                    } else {
+                        group_3.push(sql);
+                    }
                 }
             }
         }
@@ -314,6 +329,15 @@ fn get_post_apply_statement_groups(definition: &PostgresDatabase, identifier_quo
     for job in &definition.timescale_support.user_defined_jobs {
         group_5.push(job.get_create_sql(identifier_quoter));
     }
+
+    for schema in &definition.schemas {
+        for table in &schema.tables {
+            if let Some(timescale_post) = table.get_timescale_post_settings(schema, identifier_quoter) {
+                group_5.push(timescale_post);
+            }
+        }
+    }
+    
     statements.push(group_5);
 
 

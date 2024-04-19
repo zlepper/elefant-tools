@@ -72,17 +72,15 @@ pub struct ExportDbArgs {
     /// The schema to export. If not specified, all schemas will be exported
     #[arg(long, env)]
     pub source_schema: Option<String>,
+    
+    /// Only the schema will be exported, but not the data
+    #[arg(long, env)]
+    pub schema_only: bool,
 }
 
 impl ExportDbArgs {
     pub(crate) fn get_connection_string(&self) -> String {
-        let mut connection_string = format!("host={} port={} user={} password={} dbname={}", self.source_db_host, self.source_db_port, self.source_db_user, self.source_db_password, self.source_db_name);
-        
-        if let Some(schema) = &self.source_schema {
-            connection_string.push_str(&format!(" options=--search_path={}", schema));
-        }
-        
-        connection_string
+        format!("host={} port={} user={} password={} dbname={}", self.source_db_host, self.source_db_port, self.source_db_user, self.source_db_password, self.source_db_name)
     }
     
     #[cfg(test)]
@@ -94,6 +92,7 @@ impl ExportDbArgs {
             source_db_password: "passw0rd".to_string(),
             source_db_name: helper.test_db_name.clone(),
             source_schema: None,
+            schema_only: false,
         }
     }
 }

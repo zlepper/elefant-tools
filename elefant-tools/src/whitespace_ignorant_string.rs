@@ -1,61 +1,60 @@
 use std::fmt::{Debug, Display};
 use std::ops::{Deref, DerefMut};
+use serde::{Deserialize, Serialize};
 
 /// A string that ignores repeated whitespace when comparing equality,
 /// while still storing the original string.
 #[repr(transparent)]
-#[derive(Default, Eq, Clone)]
-pub struct WhitespaceIgnorantString {
-    inner: String,
-}
+#[derive(Default, Eq, Clone, Serialize, Deserialize)]
+pub struct WhitespaceIgnorantString(String);
 
 impl Deref for  WhitespaceIgnorantString {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.0
     }
 }
 
 impl DerefMut for WhitespaceIgnorantString {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+        &mut self.0
     }
 }
 
 impl From<String> for WhitespaceIgnorantString {
     fn from(s: String) -> Self {
-        Self { inner: s }
+        Self(s)
     }
 }
 
 impl From<&str> for WhitespaceIgnorantString {
     fn from(s: &str) -> Self {
-        Self { inner: s.to_string() }
+        Self(s.to_string())
     }
 }
 
 impl From<WhitespaceIgnorantString> for String {
     fn from(s: WhitespaceIgnorantString) -> Self {
-        s.inner
+        s.0
     }
 }
 
 impl Debug for WhitespaceIgnorantString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Debug::fmt(&self.inner, f)
+        std::fmt::Debug::fmt(&self.0, f)
     }
 }
 
 impl Display for WhitespaceIgnorantString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(&self.inner, f)
+        std::fmt::Display::fmt(&self.0, f)
     }
 }
 
 impl PartialEq<Self> for WhitespaceIgnorantString {
     fn eq(&self, other: &Self) -> bool {
-        self.inner.split_whitespace().collect::<String>() == other.inner.split_whitespace().collect::<String>()
+        self.0.split_whitespace().collect::<String>() == other.0.split_whitespace().collect::<String>()
     }
 }
 

@@ -129,7 +129,7 @@ pub fn pg_test(args: TokenStream, item: TokenStream) -> TokenStream {
 
             #input
 
-            #[tokio::test]
+            #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
             async fn #actual_test_function_name() {
                 #(#test_helpers_create)*
 

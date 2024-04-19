@@ -1,4 +1,4 @@
-use pg_interval::Interval;
+use crate::pg_interval::Interval;
 use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;

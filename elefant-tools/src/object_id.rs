@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 
 /// Used for tracking dependencies between objects and to handle renames.
 /// 
 /// ObjectId has a bit odd equality behavior. If any of the values are none, then all an ObjectId 
 /// is considered equal to any other ObjectId. This makes it easier to deal with in tests, while
 /// still making it possible to use it as a key to link things..
-#[derive(Copy, Clone, Debug, Default, PartialOrd)]
+#[derive(Copy, Clone, Debug, Default, PartialOrd, Serialize, Deserialize)]
 pub struct ObjectId {
     value: Option<usize>,
 }

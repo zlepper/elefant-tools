@@ -1,6 +1,7 @@
-use pg_interval::Interval;
+use serde::{Deserialize, Serialize};
+use crate::pg_interval::Interval;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct HypertableRetention {
     pub drop_after: Interval,
     pub schedule_interval: Interval,

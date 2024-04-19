@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use crate::{default, TimescaleDbUserDefinedJob};
 use crate::models::extension::PostgresExtension;
 use crate::models::schema::PostgresSchema;
 use crate::object_id::ObjectId;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresDatabase {
     pub schemas: Vec<PostgresSchema>,
     pub enabled_extensions: Vec<PostgresExtension>,
@@ -11,7 +12,7 @@ pub struct PostgresDatabase {
     pub object_id: ObjectId,
 }
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct TimescaleSupport {
     pub is_enabled: bool,
     pub timescale_toolkit_is_enabled: bool,

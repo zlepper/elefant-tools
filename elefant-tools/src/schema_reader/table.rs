@@ -93,5 +93,6 @@ from pg_class cl
 where cl.relkind in ('r', 'p')
   and cl.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e' )
+    and has_table_privilege(cl.oid, 'SELECT, INSERT, UPDATE')
 order by ns.nspname, cl.relname;
 "#);

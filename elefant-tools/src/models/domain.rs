@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use crate::{IdentifierQuoter, ObjectId, PostgresSchema};
 use crate::quoting::{AttemptedKeywordUsage, Quotable, quote_value_string};
 
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct PostgresDomain {
     pub name: String,
     pub object_id: ObjectId,
@@ -14,7 +15,7 @@ pub struct PostgresDomain {
     pub data_type_length: Option<i32>
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresDomainConstraint {
     pub name: String,
     pub definition: String,

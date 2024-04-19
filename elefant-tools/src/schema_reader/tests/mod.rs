@@ -11,6 +11,7 @@ mod functions;
 mod foreign_keys;
 mod indices;
 mod column_types;
+mod respects_permissions;
 
 use super::*;
 use crate::default;

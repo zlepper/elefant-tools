@@ -1,5 +1,6 @@
 use itertools::Itertools;
-use pg_interval::Interval;
+use serde::{Deserialize, Serialize};
+use crate::pg_interval::Interval;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
 use crate::{default, ElefantToolsError, HypertableCompression, PostgresIndexType};
@@ -9,11 +10,11 @@ use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
-use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
+use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::storage::DataFormat;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresTable {
     pub name: String,
     pub columns: Vec<PostgresColumn>,
@@ -90,7 +91,8 @@ impl PostgresTable {
                     sql.push_str(&index.name.quote(identifier_quoter, ColumnName));
                     sql.push_str(" primary key (");
 
-                    sql.push_join(", ", index.key_columns.iter().map(|c| c.name.quote(identifier_quoter, ColumnName)));
+                    // We don't need to escape the column names here as they are already escaped in the index definition.
+                    sql.push_join(", ", index.key_columns.iter().map(|c| &c.name));
                     sql.push(')');
                     text_row_count += 1;
                 }
@@ -131,7 +133,7 @@ impl PostgresTable {
             }
             else if let TableTypeDetails::InheritedTable {parent_tables} = &self.table_type {
                 sql.push_str("\n) inherits (");
-                sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter, ColumnName)));
+                sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName)));
                 sql.push(')');
             }
             else {
@@ -165,7 +167,7 @@ impl PostgresTable {
             }
         }
 
-        if let TableTypeDetails::TimescaleHypertable {dimensions, compression, retention} = &self.table_type {
+        if let TableTypeDetails::TimescaleHypertable {dimensions, compression: _, retention: _} = &self.table_type {
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {
                 match dim {
@@ -191,16 +193,6 @@ impl PostgresTable {
                         }
                     }
                 }
-            }
-
-            if let Some(compression) = compression {
-                sql.push_str("\nalter table ");
-                compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
-            }
-
-            if let Some(retention) = retention {
-                sql.push('\n');
-                retention.add_retention(&mut sql, &escaped_relation_name);
             }
         }
 
@@ -277,16 +269,52 @@ impl PostgresTable {
     }
 
     fn get_copy_columns_expression(&self, identifier_quoter: &IdentifierQuoter) -> String {
-        self.columns.iter()
-            .filter(|c| c.generated.is_none())
-            .sorted_by_key(|c| c.ordinal_position)
+        self.get_writable_columns()
             .map(|c| c.name.as_str())
             .quote(identifier_quoter, ColumnName)
             .join(", ")
     }
+
+    pub fn get_writable_columns(&self) -> impl Iterator<Item=&PostgresColumn> {
+        self.columns.iter()
+            .filter(|c| c.generated.is_none())
+            .sorted_by_key(|c| c.ordinal_position)
+    }
+
+    pub fn get_timescale_post_settings(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
+
+        if let TableTypeDetails::TimescaleHypertable {compression, retention, ..} = &self.table_type {
+            let escaped_relation_name = format!("{}.{}", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+            let mut sql = String::new();
+            if let Some(compression) = compression {
+                sql.push_str("alter table ");
+                compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
+            }
+
+            if let Some(retention) = retention {
+                if sql.len() > 0 {
+                    sql.push('\n');
+                }
+
+                retention.add_retention(&mut sql, &escaped_relation_name);
+            }
+
+            if !sql.is_empty() {
+                return Some(sql);
+            }
+        }
+
+        None
+
+    }
+
+    pub fn is_timescale_table(&self) -> bool {
+        matches!(self.table_type, TableTypeDetails::TimescaleHypertable {..})
+    }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum TableTypeDetails {
     #[default]
     Table,
@@ -309,13 +337,14 @@ pub enum TableTypeDetails {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum PartitionedTableColumns {
     Columns(Vec<String>),
     Expression(String),
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum TablePartitionStrategy {
     Hash,
     List,
@@ -333,7 +362,8 @@ impl FromPgChar for TablePartitionStrategy {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum HypertableDimension {
     Time {
         column_name: String,

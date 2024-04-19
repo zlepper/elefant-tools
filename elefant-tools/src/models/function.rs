@@ -2,12 +2,13 @@ use std::fmt::Display;
 use crate::{ElefantToolsError, PostgresSchema};
 use crate::postgres_client_wrapper::FromPgChar;
 use ordered_float::NotNan;
+use serde::{Deserialize, Serialize};
 use crate::object_id::ObjectId;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub enum FunctionKind {
     #[default]
     Function,
@@ -28,7 +29,7 @@ impl FromPgChar for FunctionKind {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub enum Volatility {
     Immutable,
     Stable,
@@ -47,7 +48,7 @@ impl FromPgChar for Volatility {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub enum Parallel {
     Safe,
     Restricted,
@@ -66,7 +67,7 @@ impl FromPgChar for Parallel {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresFunction {
     pub function_name: String,
     pub language: String,
@@ -182,7 +183,7 @@ impl PostgresFunction {
 }
 
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub enum FinalModify {
     #[default]
     ReadOnly,
@@ -213,7 +214,7 @@ impl Display for FinalModify {
 }
 
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresAggregateFunction {
     pub function_name: String,
     pub arguments: String,

@@ -60,5 +60,6 @@ WHERE NOT pg_is_other_temp_schema(n.oid)
   AND c.relkind = 'S'::"char"
   and c.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e' )
+    and has_sequence_privilege(s.seqrelid, 'SELECT,USAGE,UPDATE')
 order by schemaname, sequencename
 "#);

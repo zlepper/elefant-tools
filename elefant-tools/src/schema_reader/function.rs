@@ -148,6 +148,7 @@ from pg_proc proc
          left join pg_description des on proc.oid = des.objoid
          left join pg_aggregate agg on proc.oid = agg.aggfnoid
 where ns.nspname = 'public' and ext.extname is null
+      and has_function_privilege(proc.oid, 'EXECUTE')
 order by ns.nspname, proc.proname;
 "#
         } else {
@@ -204,6 +205,7 @@ from pg_proc proc
          left join pg_type agg_type on agg.aggtranstype = agg_type.oid
          left join pg_type m_agg_type on agg.aggmtranstype = m_agg_type.oid
 where ns.nspname = 'public' and ext.extname is null
+      and has_function_privilege(proc.oid, 'EXECUTE')
 order by ns.nspname, proc.proname;
 "#
         };

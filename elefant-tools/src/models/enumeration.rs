@@ -1,9 +1,10 @@
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresEnum {
     pub name: String,
     pub values: Vec<String>,

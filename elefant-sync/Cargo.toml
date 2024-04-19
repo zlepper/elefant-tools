@@ -15,6 +15,7 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"], d
 elefant-tools = { path = "../elefant-tools", version = "0.0.1" }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing = "0.1.40"
+serde_json = "1.0"
 
 [dev-dependencies]
 elefant-test-macros = { path = "../elefant-test-macros" }

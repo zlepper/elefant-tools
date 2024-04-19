@@ -1,4 +1,5 @@
-use pg_interval::Interval;
+use serde::{Deserialize, Serialize};
+use crate::pg_interval::Interval;
 use crate::{HypertableCompression, PostgresSchema};
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::object_id::{HaveDependencies, ObjectId};
@@ -6,7 +7,7 @@ use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresView {
     pub name: String,
     pub definition: WhitespaceIgnorantString,
@@ -123,14 +124,15 @@ impl PostgresView {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresViewColumn {
     pub name: String,
     pub ordinal_position: i32,
 }
 
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum ViewOptions {
     #[default]
     None,
@@ -141,7 +143,7 @@ pub enum ViewOptions {
     },
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TimescaleContinuousAggregateRefreshOptions {
     pub interval: Interval,
     pub start_offset: Interval,

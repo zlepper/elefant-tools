@@ -1,13 +1,14 @@
 use std::cmp::Ordering;
 use std::str::FromStr;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
 use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresForeignKey {
     pub name: String,
     pub columns: Vec<PostgresForeignKeyColumn>,
@@ -129,7 +130,7 @@ impl PartialOrd for PostgresForeignKey {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresForeignKeyColumn {
     pub name: String,
     pub ordinal_position: i32,
@@ -148,7 +149,7 @@ impl PartialOrd for PostgresForeignKeyColumn {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresForeignKeyReferencedColumn {
     pub name: String,
     pub ordinal_position: i32,
@@ -166,7 +167,7 @@ impl PartialOrd for PostgresForeignKeyReferencedColumn {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum ReferenceAction {
     NoAction,
     Restrict,

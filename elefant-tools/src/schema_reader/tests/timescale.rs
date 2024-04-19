@@ -1,5 +1,5 @@
 use ordered_float::NotNan;
-use pg_interval::Interval;
+use crate::pg_interval::Interval;
 use elefant_test_macros::pg_test;
 use crate::{default, FunctionKind, HypertableCompression, HypertableCompressionOrderedColumn, HypertableDimension, HypertableRetention, PostgresColumn, PostgresDatabase, PostgresFunction, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable, PostgresView, PostgresViewColumn, TableTypeDetails, TimescaleContinuousAggregateRefreshOptions, TimescaleDbUserDefinedJob, TimescaleSupport, ViewOptions};
 use crate::schema_reader::tests::test_introspection;

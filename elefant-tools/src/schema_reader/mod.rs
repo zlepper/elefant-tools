@@ -162,7 +162,14 @@ impl SchemaReader<'_> {
             current_schema.sequences.push(sequence);
         }
 
+        let pg_stat_statements_enabled = extensions.iter().any(|e| e.extension_name == "pg_stat_statements");
+
         for view in &views {
+
+            if pg_stat_statements_enabled && view.schema_name == "public" && (view.view_name == "pg_stat_statements" || view.view_name == "pg_stat_statements_info") {
+                continue;
+            }
+
             let current_schema = db.get_or_create_schema_mut(&view.schema_name);
 
             let oid = view.oid;

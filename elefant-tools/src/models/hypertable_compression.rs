@@ -1,9 +1,10 @@
-use pg_interval::Interval;
+use serde::{Deserialize, Serialize};
+use crate::pg_interval::Interval;
 use crate::helpers::StringExt;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::quoting::{IdentifierQuoter, Quotable};
 
-#[derive(Debug, Eq, PartialEq, Clone, Default)]
+#[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct HypertableCompression {
     pub enabled: bool,
     pub segment_by_columns: Option<Vec<String>>,
@@ -13,7 +14,7 @@ pub struct HypertableCompression {
     pub compress_after: Option<Interval>,
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct HypertableCompressionOrderedColumn {
     pub column_name: String,
     pub descending: bool,

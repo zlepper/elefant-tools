@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
+use serde::{Deserialize, Serialize};
 use crate::{PostgresSchema};
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresSequence {
     pub name: String,
     pub data_type: String,

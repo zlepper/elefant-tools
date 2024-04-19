@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use AttemptedKeywordUsage::{Other};
 use crate::{PostgresSchema, PostgresTable};
 use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresColumn {
     pub name: String,
     pub ordinal_position: i32,
@@ -50,7 +51,7 @@ impl Default for PostgresColumn {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum SimplifiedDataType {
     Number,
     Text,

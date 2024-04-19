@@ -50,5 +50,6 @@ from pg_class tab
 where tab.oid > 16384
   and tab.relkind in('v', 'm')
   and (dep.objid is null or dep.deptype <> 'e' )
+  and has_table_privilege(tab.oid, 'SELECT')
 order by schema_name, view_name;
 "#);

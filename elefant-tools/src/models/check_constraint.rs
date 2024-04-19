@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
+use serde::{Deserialize, Serialize};
 use crate::object_id::ObjectId;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresCheckConstraint {
     pub name: String,
     pub check_clause: WhitespaceIgnorantString,

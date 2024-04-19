@@ -719,3 +719,60 @@ async fn materialized_views_with_dependencies() {
     apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
 
 }
+
+#[test]
+async fn generated_columns_are_not_exported() {
+    let source = get_test_helper("source").await;
+
+    //language=postgresql
+    source.execute_not_query(r#"
+create table my_table (
+    id serial primary key,
+    value text not null,
+    search_vector tsvector generated always as (to_tsvector('english'::regconfig, value)) stored,
+    active_interval tstzrange not null
+);
+
+insert into my_table (value, active_interval) values
+('foo', E'["2024-03-27 10:23:26.531284+00",)'),
+('foo', E'["2024-03-27 10:23:26.531284+00",)');
+
+        "#).await;
+
+    let result_file = export_to_string(&source, default()).await;
+
+    similar_asserts::assert_eq!(result_file, indoc! {r#"
+            -- chunk-separator-test_chunk_separator --
+            SET statement_timeout = 0;
+            SET lock_timeout = 0;
+            SET idle_in_transaction_session_timeout = 0;
+            SET check_function_bodies = false;
+            SET xmloption = content;
+            SET row_security = off;
+            -- chunk-separator-test_chunk_separator --
+            create schema if not exists public;
+
+            create table public.my_table (
+                id int4 not null,
+                value text not null,
+                search_vector tsvector generated always as (to_tsvector('english'::regconfig, value)) stored,
+                active_interval tstzrange not null,
+                constraint my_table_pkey primary key (id)
+            );
+
+            -- chunk-separator-test_chunk_separator --
+            insert into public.my_table (id, value, active_interval) values
+            (1, E'foo', E'["2024-03-27 10:23:26.531284+00",)'),
+            (2, E'foo', E'["2024-03-27 10:23:26.531284+00",)');
+
+
+            -- chunk-separator-test_chunk_separator --
+            create sequence public.my_table_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+
+            select pg_catalog.setval('public.my_table_id_seq', 2, true);
+
+            alter table public.my_table alter column id set default nextval('my_table_id_seq'::regclass);"#});
+
+    let destination = get_test_helper("destination").await;
+    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+}

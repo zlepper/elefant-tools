@@ -138,7 +138,18 @@ impl TestHelper {
 
 /// Gets a connection to the specified database on the specified port.
 async fn get_test_connection_on_port(database_name: &str, port: u16) -> PostgresClientWrapper {
-    PostgresClientWrapper::new(&format!("host=localhost port={port} user=postgres password=passw0rd dbname={database_name}")).await.expect("Connection to test database failed. Is postgres running?")
+    get_test_connection_full(database_name, port, "postgres", "passw0rd", None).await
+}
+
+/// Gets a connection to the specified database on the specified port.
+pub(crate) async fn get_test_connection_full(database_name: &str, port: u16, user: &str, password: &str, schema: Option<&str>) -> PostgresClientWrapper {
+    let mut connection_string = format!("host=localhost port={port} user={user} password={password} dbname={database_name}");
+    
+    if let Some(schema) = schema {
+        connection_string.push_str(&format!(" options=--search_path={}", schema));
+    }
+    
+    PostgresClientWrapper::new(&connection_string).await.expect("Connection to test database failed. Is postgres running?")
 }
 
 async fn cleanup(db_name: &str, port: u16) {

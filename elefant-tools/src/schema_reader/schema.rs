@@ -25,5 +25,6 @@ FROM pg_namespace n
          left join pg_depend dep on dep.objid = n.oid
 WHERE (n.oid > 16384 or n.nspname = 'public')
     and (dep.objid is null or dep.deptype <> 'e' )
+    and has_schema_privilege(n.oid, 'CREATE')
 ORDER BY n.nspname;
 "#);

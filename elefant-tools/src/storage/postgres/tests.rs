@@ -4,7 +4,7 @@ use crate::storage::tests::validate_copy_state;
 use crate::test_helpers::*;
 use elefant_test_macros::pg_test;
 use std::num::NonZeroUsize;
-use crate::{DataFormat, default, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresInstanceStorage, PostgresSchema, PostgresSequence, PostgresTable, storage};
+use crate::{apply_sql_string, DataFormat, default, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresInstanceStorage, PostgresSchema, PostgresSequence, PostgresTable, storage};
 use crate::schema_reader::SchemaReader;
 use crate::test_helpers;
 
@@ -61,7 +61,9 @@ async fn copies_between_databases_text_format(source: &TestHelper, destination: 
 }
 
 async fn test_round_trip(sql: &str, source: &TestHelper, destination: &TestHelper) {
-    source.execute_not_query(sql).await;
+    apply_sql_string(sql, source.get_conn()).await.unwrap();
+
+    // source.execute_not_query(sql).await;
 
     let source_schema = introspect_schema(source).await;
     let source = PostgresInstanceStorage::new(source.get_conn())
@@ -630,7 +632,8 @@ CREATE TABLE stocks_real_time (
   time TIMESTAMPTZ NOT NULL,
   symbol TEXT NOT NULL,
   price DOUBLE PRECISION NULL,
-  day_volume INT NULL
+  day_volume INT NULL,
+  primary key (time, symbol, day_volume)
 );
 
 SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
@@ -966,3 +969,37 @@ create table my_table(
     var_char_array varchar(666)[] not null
 );
 "#);
+
+
+
+#[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+#[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+async fn timescale_foreign_keys_on_compressed_tables(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+create table user_files(
+    id serial primary key,
+    file_name text not null
+);
+
+create table user_file_downloads(
+    time timestamptz not null,
+    user_file_id int not null references user_files(id)
+);
+
+select create_hypertable('user_file_downloads', by_range('time', '7 day'::interval));
+
+alter table user_file_downloads set(
+    timescaledb.compress,
+        timescaledb.compress_segmentby = 'user_file_id'
+    );
+
+select add_compression_policy('user_file_downloads', interval '7 days');
+
+       "#,
+        source,
+        destination,
+    )
+        .await;
+}
+

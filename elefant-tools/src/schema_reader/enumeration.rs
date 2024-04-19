@@ -30,6 +30,7 @@ join pg_namespace ns on t.typnamespace = ns.oid
 left join pg_description d on d.objoid = t.oid
          left join pg_depend dep on dep.objid = ns.oid
 where (dep.objid is null or dep.deptype <> 'e' )
+  and has_type_privilege(t.oid, 'USAGE')
 order by ns.nspname, t.typname, e.enumsortorder
 ) as enums
 group by enums.nspname, enums.typname;

@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use crate::models::sequence::PostgresSequence;
 use crate::models::table::PostgresTable;
 use crate::models::view::PostgresView;
@@ -7,7 +8,7 @@ use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresSchema {
     pub tables: Vec<PostgresTable>,
     pub sequences: Vec<PostgresSequence>,

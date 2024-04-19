@@ -1,10 +1,11 @@
 use std::cmp::Ordering;
+use serde::{Deserialize, Serialize};
 use crate::{PostgresSchema, PostgresTable};
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone)]
+#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresUniqueConstraint {
     pub name: String,
     pub unique_index_name: String,

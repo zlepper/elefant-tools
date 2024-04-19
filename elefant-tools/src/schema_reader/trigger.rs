@@ -93,5 +93,6 @@ WHERE
     NOT t.tgisinternal
   and c.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e' )
+    and has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE')
 order by trigger_schema, trigger_name;
 "#);

@@ -1,10 +1,11 @@
-use pg_interval::Interval;
+use serde::{Deserialize, Serialize};
+use crate::pg_interval::Interval;
 use crate::object_id::ObjectId;
 use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TimescaleDbUserDefinedJob {
     pub function_name: String,
     pub function_schema: String,

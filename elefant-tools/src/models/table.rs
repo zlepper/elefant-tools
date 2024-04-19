@@ -292,7 +292,7 @@ impl PostgresTable {
             }
 
             if let Some(retention) = retention {
-                if sql.len() > 0 {
+                if !sql.is_empty() {
                     sql.push('\n');
                 }
 

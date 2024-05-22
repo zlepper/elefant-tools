@@ -37,4 +37,8 @@ impl PostgresSchema {
         
         sql
     }
+    
+    pub(crate) fn try_get_table(&self, table_name: &str) -> Option<&PostgresTable> {
+        self.tables.iter().find(|t| t.name == table_name)
+    }
 }

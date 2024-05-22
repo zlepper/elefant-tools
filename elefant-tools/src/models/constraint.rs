@@ -28,3 +28,13 @@ impl From<PostgresUniqueConstraint> for PostgresConstraint {
         PostgresConstraint::Unique(value)
     }
 }
+
+impl PostgresConstraint {
+    pub(crate) fn name(&self) -> &str {
+        match self {
+            PostgresConstraint::Check(constraint) => &constraint.name,
+            PostgresConstraint::ForeignKey(constraint) => &constraint.name,
+            PostgresConstraint::Unique(constraint) => &constraint.name,
+        }
+    }
+}

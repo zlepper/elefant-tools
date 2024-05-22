@@ -134,6 +134,10 @@ impl TestHelper {
         cleanup(&self.test_db_name, self.port).await;
         self.cleaned_up_nicely = true;
     }
+    
+    pub async fn create_another_database(&self, name: &str) -> TestHelper {
+        get_test_helper_on_port(name, self.port).await
+    }
 }
 
 /// Gets a connection to the specified database on the specified port.

@@ -4,7 +4,11 @@ use crate::storage::tests::validate_copy_state;
 use crate::test_helpers::*;
 use elefant_test_macros::pg_test;
 use std::num::NonZeroUsize;
-use crate::{apply_sql_string, DataFormat, default, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresInstanceStorage, PostgresSchema, PostgresSequence, PostgresTable, storage};
+use std::sync::Arc;
+use itertools::Itertools;
+use crate::{apply_sql_string, DataFormat, default, IdentifierQuoter, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresInstanceStorage, PostgresSchema, PostgresSequence, PostgresTable, SqlDataMode, SqlFile, SqlFileOptions, storage};
+use crate::chunk_reader::StringChunkReader;
+use crate::helpers::StringExt;
 use crate::schema_reader::SchemaReader;
 use crate::test_helpers;
 
@@ -1003,3 +1007,136 @@ select add_compression_policy('user_file_downloads', interval '7 days');
         .await;
 }
 
+async fn export_to_string(source: &TestHelper) -> String {
+    let mut result_file = Vec::<u8>::new();
+
+
+    {
+        let quoter = IdentifierQuoter::empty();
+
+        let mut sql_file = SqlFile::new(&mut result_file, Arc::new(quoter), SqlFileOptions {
+            chunk_separator: "test_chunk_separator".to_string(),
+            max_commands_per_chunk: 1,
+            data_mode: SqlDataMode::InsertStatements,
+            ..default()
+        }).await.unwrap();
+
+        let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
+
+
+        copy_data(&source, &mut sql_file, CopyDataOptions::default()).await.unwrap();
+    }
+
+    String::from_utf8(result_file).unwrap()
+}
+const SEPARATOR_LINE: &str = "-- chunk-separator-test_chunk_separator --\n";
+
+#[pg_test(arg(postgres = 15))]
+async fn test_differential_copy(source: &TestHelper) {
+
+    source.execute_not_query(r#"
+
+        CREATE TABLE products (
+            product_no integer PRIMARY KEY,
+            name text,
+            price numeric
+        );
+        
+        insert into products(product_no, name, price) values (1, 'foo', 1.0), (2, 'bar', 2.0), (3, 'baz', 3.0);
+
+        CREATE TABLE orders (
+            order_id integer PRIMARY KEY,
+            shipping_address text
+        );
+        
+        insert into orders(order_id, shipping_address) values (1, 'foo'), (2, 'bar'), (3, 'baz');
+
+        CREATE TABLE order_items (
+            product_no integer REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
+            order_id integer REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
+            quantity integer,
+            PRIMARY KEY (product_no, order_id)
+        );
+        
+        insert into order_items(product_no, order_id, quantity) values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+    "#).await;
+
+    let source_schema = introspect_schema(source).await;
+
+    assert_eq!(source_schema.schemas[0].tables.len(), 3);
+
+    let sql = export_to_string(source).await;
+
+    let source_storage = PostgresInstanceStorage::new(source.get_conn())
+        .await
+        .unwrap();
+
+    let commands = sql.as_bytes().read_lines_until_separator_line_to_vec(SEPARATOR_LINE).await.unwrap();
+
+    for i in 0..commands.len() {
+        let to_execute = commands.iter().take(i);
+
+        let destination = source.create_another_database(&format!("test_{i}")).await;
+
+        for command in to_execute {
+            destination.execute_not_query(command).await;
+        }
+
+        let mut destination_worker = PostgresInstanceStorage::new(destination.get_conn())
+            .await
+            .unwrap();
+
+        copy_data(
+            &source_storage,
+            &mut destination_worker,
+            CopyDataOptions {
+                data_format: None,
+                max_parallel: None,
+                differential: true,
+                ..default()
+            },
+        )
+            .await
+            .expect("Failed to copy data");
+
+        let destination_schema = introspect_schema(&destination).await;
+
+        assert_eq!(destination_schema.schemas[0].tables.len(), 3);
+        assert_eq!(source_schema, destination_schema);
+
+        let destination_raw_connection = destination.get_conn().underlying_connection();
+        let source_raw_connection = source.get_conn().underlying_connection();
+
+        for schema in &source_schema.schemas {
+            for table in &schema.tables {
+                let mut query = "select ".to_string();
+                
+                query.push_join(", ", &table.columns.iter().filter(|c| c.generated.is_none()).map(|c| format!("{}::text", c.name)).collect_vec());
+                
+                query.push_str(" from ");
+                query.push_str(&schema.name);
+                query.push('.');
+                query.push_str(&table.name);
+                
+                
+                let from_source = source_raw_connection.query(&query, &[]).await.unwrap();
+                let from_destination = destination_raw_connection.query(&query, &[]).await.unwrap();
+                
+                assert_eq!(from_source.len(), from_destination.len(), "Table: {}.{}. Expected {}, got {}", schema.name, table.name, from_source.len(), from_destination.len());
+
+                for (row_index, (source_row, destination_row)) in from_source.iter().zip(from_destination).enumerate() {
+                    for (idx, col) in source_row.columns().iter().enumerate() {
+                        let source_value: String = source_row.get(idx);
+                        let destination_value: String = destination_row.get(idx);
+                        assert_eq!(source_value, destination_value, "Table: {}.{}. Row: {}. Column: {}. Expected {:?}, got {:?}", schema.name, table.name, row_index, col.name(), source_value, destination_value);
+                    }
+                }
+            }
+        }
+
+        destination.stop().await;
+
+
+    }
+
+}

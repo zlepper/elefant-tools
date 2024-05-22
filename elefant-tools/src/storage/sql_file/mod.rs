@@ -167,7 +167,7 @@ impl<'a, F: AsyncWrite + Unpin + Send + Sync + 'a> CopyDestinationFactory<'a> fo
 
 impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
     #[instrument(skip_all)]
-    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>) -> Result<()> {
+    fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>, x: bool) -> impl std::future::Future<Output=Result<()>> + Send {
         let file = &mut self.file;
         if self.current_command_count > 0 {
             file.write_all(b"\n").await?;

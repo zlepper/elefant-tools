@@ -59,6 +59,11 @@ impl PostgresClientWrapper {
             connection_string: self.connection_string.clone(),
         })
     }
+
+
+    pub(crate) fn underlying_connection(&self) -> &Client {
+        &self.client.client
+    }
 }
 
 impl Deref for PostgresClientWrapper {

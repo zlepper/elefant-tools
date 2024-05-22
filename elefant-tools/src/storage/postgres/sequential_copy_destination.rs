@@ -1,8 +1,10 @@
+use std::future::Future;
 use std::sync::Arc;
 use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt};
-use crate::{AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapper, PostgresSchema, PostgresTable, TableData};
+use crate::{AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapper, PostgresDatabase, PostgresSchema, PostgresTable, TableData};
 use crate::helpers::IMPORT_PREFIX;
+use crate::schema_reader::SchemaReader;
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 
 /// A copy destination for Postgres that works well single-threaded workloads.
@@ -80,6 +82,16 @@ impl<'a> CopyDestination for SequentialSafePostgresInstanceCopyDestinationStorag
 
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
         self.identifier_quoter.clone()
+    }
+
+
+    async fn try_introspect(&self) -> crate::Result<Option<PostgresDatabase>> {
+        let reader = SchemaReader::new(self.connection);
+        reader.introspect_database().await.map(Some)
+    }
+
+    async fn has_data_in_table(&self, schema: &PostgresSchema, table: &PostgresTable) -> crate::Result<bool> {
+        todo!()
     }
 }
 

@@ -73,4 +73,8 @@ impl PostgresDatabase {
             ..self.clone()
         }
     }
+    
+    pub(crate) fn try_get_schema(&self, schema_name: &str) -> Option<&PostgresSchema> {
+        self.schemas.iter().find(|s| s.name == schema_name)
+    }
 }

@@ -107,9 +107,24 @@ pub trait CopyDestination: Send {
     /// Should get the identifier quoter that works with this destination. This ensures
     /// quoting respects the rules of the destination, not the source.
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter>;
+
     fn finish(&mut self) -> impl std::future::Future<Output = Result<()>> + Send {
-        async move {
+        async {
             Ok(())
+        }
+    }
+
+    /// Should try to introspect the destination. If introspection is not supported, this should return `Ok(None)`,
+    /// not an error. Errors should only be returned if introspection is supported, but failed.
+    fn try_introspect(&self) -> impl std::future::Future<Output = Result<Option<PostgresDatabase>>> + Send {
+        async {
+            Ok(None)
+        }
+    }
+    
+    fn has_data_in_table(&self, schema: &PostgresSchema, table: &PostgresTable) -> impl std::future::Future<Output = Result<bool>> + Send {
+        async {
+            Ok(false)
         }
     }
 }
@@ -172,6 +187,13 @@ impl< S: CopyDestination, P: CopyDestination + Clone + Sync> SequentialOrParalle
             SequentialOrParallel::Parallel(p) => p.finish().await,
         }
     }
+
+    pub(crate) async fn try_get_introspeciton(&self) -> Result<Option<PostgresDatabase>> {
+        match self {
+            SequentialOrParallel::Sequential(s) => s.try_introspect().await,
+            SequentialOrParallel::Parallel(p) => p.try_introspect().await,
+        }
+    }
     
 } 
 
@@ -184,7 +206,7 @@ pub struct ParallelCopyDestinationNotAvailable {
 }
 
 impl CopyDestination for ParallelCopyDestinationNotAvailable {
-    async fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, _schema: &PostgresSchema, _table: &PostgresTable, _data: TableData<S, C>) -> Result<()> {
+    fn apply_data<S: Stream<Item=Result<Bytes>> + Send, C: AsyncCleanup>(&mut self, schema: &PostgresSchema, table: &PostgresTable, data: TableData<S, C>, x: bool) -> impl std::future::Future<Output=Result<()>> + Send {
         unreachable!("Parallel copy destination not available")
     }
 

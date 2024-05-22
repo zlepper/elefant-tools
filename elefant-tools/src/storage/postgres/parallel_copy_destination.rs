@@ -4,8 +4,9 @@ use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt};
 use itertools::Itertools;
 use tracing::{error, info, instrument};
-use crate::{AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapper, PostgresSchema, PostgresTable, TableData};
+use crate::{AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapper, PostgresDatabase, PostgresSchema, PostgresTable, TableData};
 use crate::helpers::IMPORT_PREFIX;
+use crate::schema_reader::SchemaReader;
 use crate::storage::postgres::connection_pool::ConnectionPool;
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 
@@ -132,6 +133,11 @@ impl<'a> CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<
 
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
         self.identifier_quoter.clone()
+    }
+
+    async fn try_introspect(&self) -> crate::Result<Option<PostgresDatabase>> {
+        let reader = SchemaReader::new(self.main_connection);
+        reader.introspect_database().await.map(Some)
     }
 }
 

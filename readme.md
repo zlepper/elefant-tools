@@ -4,7 +4,7 @@ way as `pg_dump` and `pg_restore`. In addition Elefant Tools can do direct copie
 without the need to write to disk. This is useful for example when you want to copy a database from one
 server to another, or when you want to copy a database from a server to a local development environment.
 
-The main difference is that Elefant Tools is written in Rust, Is designed to be more 
+The main difference is that Elefant Tools is written in Rust, is designed to be more 
 flexible than `pg_dump` and `pg_restore`, and provides a library for doing full 
 customization and transformation of the structure of the database.
 
@@ -46,7 +46,7 @@ elefant-sync export sql-file --path my_dump.sql --format CopyStatements
 elefant-sync import sql-file --path my_dump.sql
 ```
 
-### Copy between two databases with temporary files
+### Copy between two databases without temporary files
 This was one of the main original use cases for this tool. It allows you to copy a database from one server to another
 without writing to disk. This is useful when you have a large database and aren't sure if you have enough disk space. 
 Also it's faster than dump + restore, so there's that.
@@ -166,7 +166,7 @@ If you can, providing the actual code to support the feature would be very helpf
 ```
 
 Do note: This uses high level features in Timescale, and doesn't operate directly on the underlying
-chunks/catalog tables from timescale, unlike pg_dump. This means data might be chunked slightly different
+chunks/catalog tables from timescale, unlike `pg_dump`. This means data might be chunked slightly different
 from the original database, but the data should be the same. For example if you have changed the chunk 
 interval at some point and have chunks with different sizes, they will all have the same size in the dump.
 

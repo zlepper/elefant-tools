@@ -201,5 +201,5 @@ jobs:
         with:
           generateReleaseNotes: "true"
           assets: |
-            artifacts/elefant-sync-windows-amd64
-            artifacts/elefant-sync-linux-amd64
+            -  artifacts/elefant-sync-windows-amd64
+            -  artifacts/elefant-sync-linux-amd64

@@ -46,6 +46,23 @@ elefant-sync export sql-file --path my_dump.sql --format CopyStatements
 elefant-sync import sql-file --path my_dump.sql
 ```
 
+### Copy between two databases with temporary files
+This was one of the main original use cases for this tool. It allows you to copy a database from one server to another
+without writing to disk. This is useful when you have a large database and aren't sure if you have enough disk space. 
+Also it's faster than dump + restore, so there's that.
+```bash
+elefant-sync copy --source-db-name my_source_db --target-db-name my_target_db
+```
+
+While this tool doesn't support running everything in one transaction, it does support "differential copying". 
+This means that if the copy fails, you can just run the same command again, and it will continue where it left off,
+which is often times what you are actually trying to achieve with the full transaction:
+
+```bash
+elefant-sync copy --source-db-name my_source_db --target-db-name my_target_db --differential
+```
+
+### The `--help` command
 
 I would very much recommend checking out the `--help` command for each of the commands to see all the options available,
 for example:

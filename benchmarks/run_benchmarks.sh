@@ -69,11 +69,13 @@ PG_DUMP_COMMAND_TO_SQL_INSERTS="pg_dump --dbname dvdrental --rows-per-insert=100
 PG_DUMP_COMMAND_TO_COPY="pg_dump --dbname dvdrental | psql --dbname dvdrental_import --echo-hidden --quiet -v ON_ERROR_STOP=1"
 ELEFANT_SYNC_COPY_DIRECTLY_SINGLE="\"$ELEFANT_SYNC_PATH\" --max-parallelism 1 copy --source-db-name dvdrental --target-db-name dvdrental_import"
 ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL="\"$ELEFANT_SYNC_PATH\" copy --source-db-name dvdrental --target-db-name dvdrental_import"
+ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL_DIFFERENTIAL="\"$ELEFANT_SYNC_PATH\" copy --source-db-name dvdrental --target-db-name dvdrental_import --differential"
 
 hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
           --export-markdown "benchmarks/results/sync-between-databases.md" \
           --command-name "elefant-sync copy non-parallel" "$ELEFANT_SYNC_COPY_DIRECTLY_SINGLE" \
           --command-name "elefant-sync copy parallel" "$ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL" \
+          --command-name "elefant-sync copy parallel differential" "$ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL_DIFFERENTIAL" \
           --command-name "pg_dump => psql sql-copy" "$PG_DUMP_COMMAND_TO_COPY" \
           --command-name "pg_dump => psql sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS"
 

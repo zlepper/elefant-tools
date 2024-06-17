@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
-use AttemptedKeywordUsage::{Other};
-use crate::{PostgresSchema, PostgresTable};
 use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
+use crate::{PostgresSchema, PostgresTable};
+use serde::{Deserialize, Serialize};
+use AttemptedKeywordUsage::Other;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresColumn {
@@ -17,8 +17,21 @@ pub struct PostgresColumn {
 }
 
 impl PostgresColumn {
-    pub fn get_alter_table_set_default_statement(&self, table: &PostgresTable, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
-        self.default_value.as_ref().map(|default_value| format!("alter table {}.{} alter column {} set default {};", schema.name.quote(identifier_quoter, Other), table.name.quote(identifier_quoter, Other), self.name.quote(identifier_quoter, Other), default_value))
+    pub fn get_alter_table_set_default_statement(
+        &self,
+        table: &PostgresTable,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> Option<String> {
+        self.default_value.as_ref().map(|default_value| {
+            format!(
+                "alter table {}.{} alter column {} set default {};",
+                schema.name.quote(identifier_quoter, Other),
+                table.name.quote(identifier_quoter, Other),
+                self.name.quote(identifier_quoter, Other),
+                default_value
+            )
+        })
     }
 }
 
@@ -28,7 +41,7 @@ impl PostgresColumn {
             return SimplifiedDataType::Text;
         }
         match self.data_type.as_str() {
-            "int2"|"int4"|"int8"|"float4"|"float8" => SimplifiedDataType::Number,
+            "int2" | "int4" | "int8" | "float4" | "float8" => SimplifiedDataType::Number,
             "boolean" => SimplifiedDataType::Bool,
             _ => SimplifiedDataType::Text,
         }

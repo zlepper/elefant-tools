@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CheckConstraintResult {
@@ -24,7 +24,10 @@ impl FromRow for CheckConstraintResult {
 }
 
 //language=postgresql
-define_working_query!(get_check_constraints, CheckConstraintResult, r#"
+define_working_query!(
+    get_check_constraints,
+    CheckConstraintResult,
+    r#"
 select ns.nspname                                     as table_schema,
        cl.relname                                     as table_name,
        ct.conname                                     as constraint_name,
@@ -39,4 +42,5 @@ where ct.oid > 16384
   and ct.contype = 'c'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, ct.conname;
-"#);
+"#
+);

@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display};
 use std::ops::{Deref, DerefMut};
-use serde::{Deserialize, Serialize};
 
 /// A string that ignores repeated whitespace when comparing equality,
 /// while still storing the original string.
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Default, Eq, Clone, Serialize, Deserialize)]
 pub struct WhitespaceIgnorantString(String);
 
-impl Deref for  WhitespaceIgnorantString {
+impl Deref for WhitespaceIgnorantString {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
@@ -54,7 +54,8 @@ impl Display for WhitespaceIgnorantString {
 
 impl PartialEq<Self> for WhitespaceIgnorantString {
     fn eq(&self, other: &Self) -> bool {
-        self.0.split_whitespace().collect::<String>() == other.0.split_whitespace().collect::<String>()
+        self.0.split_whitespace().collect::<String>()
+            == other.0.split_whitespace().collect::<String>()
     }
 }
 

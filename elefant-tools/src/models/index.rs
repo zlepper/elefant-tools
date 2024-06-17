@@ -1,10 +1,10 @@
-use std::cmp::Ordering;
-use serde::{Deserialize, Serialize};
-use crate::{PostgresSchema, PostgresTable};
 use crate::helpers::StringExt;
 use crate::object_id::ObjectId;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::{PostgresSchema, PostgresTable};
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresIndex {
@@ -43,17 +43,39 @@ impl PartialOrd for PostgresIndex {
 }
 
 impl PostgresIndex {
-    pub fn get_create_index_command(&self, schema: &PostgresSchema, table: &PostgresTable, identifier_quoter: &IdentifierQuoter) -> String {
+    pub fn get_create_index_command(
+        &self,
+        schema: &PostgresSchema,
+        table: &PostgresTable,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
         if PostgresIndexType::PrimaryKey == self.index_constraint_type {
-            return format!("alter table {}.{} add constraint {} primary key ({});", schema.name.quote(identifier_quoter, ColumnName), table.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName), self.key_columns.iter().map(|c| c.name.quote(identifier_quoter, ColumnName)).collect::<Vec<String>>().join(", "));
+            return format!(
+                "alter table {}.{} add constraint {} primary key ({});",
+                schema.name.quote(identifier_quoter, ColumnName),
+                table.name.quote(identifier_quoter, ColumnName),
+                self.name.quote(identifier_quoter, ColumnName),
+                self.key_columns
+                    .iter()
+                    .map(|c| c.name.quote(identifier_quoter, ColumnName))
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            );
         }
 
         let index_type = match self.index_constraint_type {
-            PostgresIndexType::Unique{..} => "unique ",
+            PostgresIndexType::Unique { .. } => "unique ",
             _ => "",
         };
 
-        let mut command = format!("create {}index {} on {}.{} using {} (", index_type, self.name.quote(identifier_quoter, ColumnName), schema.name.quote(identifier_quoter, ColumnName), table.name.quote(identifier_quoter, ColumnName), self.index_type);
+        let mut command = format!(
+            "create {}index {} on {}.{} using {} (",
+            index_type,
+            self.name.quote(identifier_quoter, ColumnName),
+            schema.name.quote(identifier_quoter, ColumnName),
+            table.name.quote(identifier_quoter, ColumnName),
+            self.index_type
+        );
 
         for (i, column) in self.key_columns.iter().enumerate() {
             if i > 0 {
@@ -65,20 +87,20 @@ impl PostgresIndex {
             match column.direction {
                 Some(PostgresIndexColumnDirection::Ascending) => {
                     command.push_str(" asc");
-                },
+                }
                 Some(PostgresIndexColumnDirection::Descending) => {
                     command.push_str(" desc");
-                },
-                _ => {},
+                }
+                _ => {}
             }
 
             match column.nulls_order {
                 Some(PostgresIndexNullsOrder::First) => {
                     command.push_str(" nulls first");
-                },
+                }
                 Some(PostgresIndexNullsOrder::Last) => {
                     command.push_str(" nulls last");
-                },
+                }
                 _ => {}
             }
         }
@@ -88,12 +110,20 @@ impl PostgresIndex {
         if !self.included_columns.is_empty() {
             command.push_str(" include (");
 
-            command.push_join(", ", self.included_columns.iter().map(|c| c.name.quote(identifier_quoter, ColumnName)));
+            command.push_join(
+                ", ",
+                self.included_columns
+                    .iter()
+                    .map(|c| c.name.quote(identifier_quoter, ColumnName)),
+            );
 
             command.push(')');
         }
 
-        if let PostgresIndexType::Unique { nulls_distinct: false } = self.index_constraint_type {
+        if let PostgresIndexType::Unique {
+            nulls_distinct: false,
+        } = self.index_constraint_type
+        {
             command.push_str(" nulls not distinct")
         }
 

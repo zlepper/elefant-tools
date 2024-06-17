@@ -1,11 +1,11 @@
+use crate::postgres_client_wrapper::FromRow;
+use crate::schema_reader::SchemaReader;
 use tokio_postgres::Row;
 use tracing::instrument;
-use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::{SchemaReader};
 
 pub struct ForeignKeyColumnResult {
     pub constraint_name: String,
-    pub constraint_schema_name: String,
+    // pub constraint_schema_name: String,
     pub source_table_name: String,
     pub source_schema_name: String,
     pub source_table_column_name: String,
@@ -17,7 +17,7 @@ impl FromRow for ForeignKeyColumnResult {
     fn from_row(row: Row) -> crate::Result<Self> {
         Ok(Self {
             constraint_name: row.try_get(0)?,
-            constraint_schema_name: row.try_get(1)?,
+            // constraint_schema_name: row.try_get(1)?,
             source_table_name: row.try_get(2)?,
             source_schema_name: row.try_get(3)?,
             source_table_column_name: row.try_get(4)?,
@@ -27,11 +27,11 @@ impl FromRow for ForeignKeyColumnResult {
     }
 }
 
-
 impl SchemaReader<'_> {
     #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_foreign_key_columns(&self) -> crate::Result<Vec<ForeignKeyColumnResult>> {
-
+    pub(in crate::schema_reader) async fn get_foreign_key_columns(
+        &self,
+    ) -> crate::Result<Vec<ForeignKeyColumnResult>> {
         //language=postgresql
         let query = if self.connection.version() >= 150 {
             r#"

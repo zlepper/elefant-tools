@@ -28,9 +28,8 @@ where datname like 'test_db_%'
             .unwrap();
 
         for db_name in databases {
-            
             println!("Dropping database {}", db_name);
-            
+
             if version >= 130000 {
                 conn.execute_non_query(&format!("drop database {} with (force);", db_name))
                     .await?;
@@ -40,7 +39,7 @@ where datname like 'test_db_%'
                     .await?;
             }
         }
-        
+
         println!("Finished port {}", port);
     }
 

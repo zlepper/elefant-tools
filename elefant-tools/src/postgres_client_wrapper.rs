@@ -1,11 +1,11 @@
+use crate::Result;
+use bytes::Buf;
 use std::fmt::Display;
 use std::ops::Deref;
 use tokio::task::JoinHandle;
-use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
-use tokio_postgres::types::{FromSqlOwned};
-use crate::{Result};
-use bytes::Buf;
 use tokio_postgres::row::RowIndex;
+use tokio_postgres::types::FromSqlOwned;
+use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
 use tracing::instrument;
 
 /// A wrapper around tokio_postgres::Client, which provides a more convenient interface for working with the client.
@@ -20,22 +20,32 @@ pub struct PostgresClientWrapper {
 
 impl PostgresClientWrapper {
     /// Create a new PostgresClientWrapper.
-    /// 
-    /// This will connect to the postgres server to figure out the version of the server. 
+    ///
+    /// This will connect to the postgres server to figure out the version of the server.
     /// If the version is less than 12, an error is returned.
     #[instrument(skip_all)]
     pub async fn new(connection_string: &str) -> Result<Self> {
         let client = PostgresClient::new(connection_string).await?;
 
-        let version = match &client.client.simple_query("SHOW server_version_num;").await?[0] {
+        let version = match &client
+            .client
+            .simple_query("SHOW server_version_num;")
+            .await?[0]
+        {
             tokio_postgres::SimpleQueryMessage::Row(row) => {
-                let version: i32 = row.get(0).expect("failed to get version from row").parse().expect("failed to parse version");
+                let version: i32 = row
+                    .get(0)
+                    .expect("failed to get version from row")
+                    .parse()
+                    .expect("failed to parse version");
                 if version < 120000 {
-                    return Err(crate::ElefantToolsError::UnsupportedPostgresVersion(version));
+                    return Err(crate::ElefantToolsError::UnsupportedPostgresVersion(
+                        version,
+                    ));
                 }
                 version / 1000
             }
-            _ => return Err(crate::ElefantToolsError::InvalidPostgresVersionResponse)
+            _ => return Err(crate::ElefantToolsError::InvalidPostgresVersionResponse),
         };
 
         Ok(PostgresClientWrapper {
@@ -60,7 +70,7 @@ impl PostgresClientWrapper {
         })
     }
 
-
+    #[cfg(test)]
     pub(crate) fn underlying_connection(&self) -> &Client {
         &self.client.client
     }
@@ -81,20 +91,18 @@ pub struct PostgresClient {
 }
 
 impl PostgresClient {
-    
     /// Create a new PostgresClient.
-    /// 
+    ///
     /// This will establish a connection to the postgres server.
     pub async fn new(connection_string: &str) -> Result<Self> {
-        let (client, connection) =
-            tokio_postgres::connect(connection_string, NoTls).await?;
+        let (client, connection) = tokio_postgres::connect(connection_string, NoTls).await?;
 
         // The connection object performs the actual communication with the database,
         // so spawn it off to run on its own.
         let join_handle = tokio::spawn(async move {
             match connection.await {
                 Err(e) => Err(crate::ElefantToolsError::PostgresError(e)),
-                Ok(_) => Ok(())
+                Ok(_) => Ok(()),
             }
         });
 
@@ -104,12 +112,13 @@ impl PostgresClient {
         })
     }
 
-
     /// Execute a query that does not return any results.
     pub async fn execute_non_query(&self, sql: &str) -> Result {
-        self.client.batch_execute(sql).await.map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
-            source: e,
-            query: sql.to_string(),
+        self.client.batch_execute(sql).await.map_err(|e| {
+            crate::ElefantToolsError::PostgresErrorWithQuery {
+                source: e,
+                query: sql.to_string(),
+            }
         })?;
 
         Ok(())
@@ -117,9 +126,11 @@ impl PostgresClient {
 
     /// Execute a query that returns results.
     pub async fn get_results<T: FromRow>(&self, sql: &str) -> Result<Vec<T>> {
-        let query_results = self.client.query(sql, &[]).await.map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
-            source: e,
-            query: sql.to_string(),
+        let query_results = self.client.query(sql, &[]).await.map_err(|e| {
+            crate::ElefantToolsError::PostgresErrorWithQuery {
+                source: e,
+                query: sql.to_string(),
+            }
         })?;
 
         let mut output = Vec::with_capacity(query_results.len());
@@ -149,7 +160,10 @@ impl PostgresClient {
 
     /// Execute a query that returns a single column of results.
     pub async fn get_single_results<T: FromSqlOwned>(&self, sql: &str) -> Result<Vec<T>> {
-        let r = self.get_results::<(T, )>(sql).await?.into_iter()
+        let r = self
+            .get_results::<(T,)>(sql)
+            .await?
+            .into_iter()
             .map(|t| t.0)
             .collect();
 
@@ -158,13 +172,14 @@ impl PostgresClient {
 
     /// Execute a query that returns a single column of a single row of results.
     pub async fn get_single_result<T: FromSqlOwned>(&self, sql: &str) -> Result<T> {
-        let result = self.get_result::<(T, )>(sql).await?;
+        let result = self.get_result::<(T,)>(sql).await?;
         Ok(result.0)
     }
 
     /// Starts a COPY IN operation.
     pub async fn copy_in<U>(&self, sql: &str) -> Result<CopyInSink<U>>
-        where U: Buf + Send + 'static
+    where
+        U: Buf + Send + 'static,
     {
         let sink = self.client.copy_in(sql).await?;
         Ok(sink)
@@ -177,47 +192,39 @@ impl PostgresClient {
     }
 }
 
-
 impl Drop for PostgresClient {
     fn drop(&mut self) {
         self.join_handle.abort();
     }
 }
 
-/// Provides a more convenient way of reading an 
+/// Provides a more convenient way of reading an
 /// entire row from a tokio_postgres::Row into a type.
 pub trait FromRow: Sized {
     fn from_row(row: Row) -> Result<Self>;
 }
 
-impl<T1: FromSqlOwned> FromRow for (T1, ) {
+impl<T1: FromSqlOwned> FromRow for (T1,) {
     fn from_row(row: Row) -> Result<Self> {
-        Ok((
-            row.try_get(0)?,
-        ))
+        Ok((row.try_get(0)?,))
     }
 }
 
 impl<T1: FromSqlOwned, T2: FromSqlOwned> FromRow for (T1, T2) {
     fn from_row(row: Row) -> Result<Self> {
-        Ok((
-            row.try_get(0)?,
-            row.try_get(1)?,
-        ))
+        Ok((row.try_get(0)?, row.try_get(1)?))
     }
 }
 
 impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned> FromRow for (T1, T2, T3) {
     fn from_row(row: Row) -> Result<Self> {
-        Ok((
-            row.try_get(0)?,
-            row.try_get(1)?,
-            row.try_get(2)?,
-        ))
+        Ok((row.try_get(0)?, row.try_get(1)?, row.try_get(2)?))
     }
 }
 
-impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned> FromRow for (T1, T2, T3, T4) {
+impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned> FromRow
+    for (T1, T2, T3, T4)
+{
     fn from_row(row: Row) -> Result<Self> {
         Ok((
             row.try_get(0)?,
@@ -228,7 +235,9 @@ impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned> Fro
     }
 }
 
-impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5: FromSqlOwned> FromRow for (T1, T2, T3, T4, T5) {
+impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5: FromSqlOwned>
+    FromRow for (T1, T2, T3, T4, T5)
+{
     fn from_row(row: Row) -> Result<Self> {
         Ok((
             row.try_get(0)?,
@@ -240,7 +249,15 @@ impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5:
     }
 }
 
-impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5: FromSqlOwned, T6: FromSqlOwned> FromRow for (T1, T2, T3, T4, T5, T6) {
+impl<
+        T1: FromSqlOwned,
+        T2: FromSqlOwned,
+        T3: FromSqlOwned,
+        T4: FromSqlOwned,
+        T5: FromSqlOwned,
+        T6: FromSqlOwned,
+    > FromRow for (T1, T2, T3, T4, T5, T6)
+{
     fn from_row(row: Row) -> Result<Self> {
         Ok((
             row.try_get(0)?,
@@ -253,7 +270,6 @@ impl<T1: FromSqlOwned, T2: FromSqlOwned, T3: FromSqlOwned, T4: FromSqlOwned, T5:
     }
 }
 
-
 /// A trait for converting a postgres char to a Rust type.
 pub(crate) trait FromPgChar: Sized {
     fn from_pg_char(c: char) -> std::result::Result<Self, crate::ElefantToolsError>;
@@ -264,7 +280,10 @@ pub(crate) trait RowEnumExt {
     /// Get an enum value from a row.
     fn try_get_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<T>;
     /// Get an optional enum value from a row, aka `Option<T>`.
-    fn try_get_opt_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<Option<T>>;
+    fn try_get_opt_enum_value<T: FromPgChar, I: RowIndex + Display>(
+        &self,
+        idx: I,
+    ) -> Result<Option<T>>;
 }
 
 impl RowEnumExt for Row {
@@ -274,14 +293,17 @@ impl RowEnumExt for Row {
         T::from_pg_char(c)
     }
 
-    fn try_get_opt_enum_value<T: FromPgChar, I: RowIndex + Display>(&self, idx: I) -> Result<Option<T>> {
+    fn try_get_opt_enum_value<T: FromPgChar, I: RowIndex + Display>(
+        &self,
+        idx: I,
+    ) -> Result<Option<T>> {
         let value: Option<i8> = self.try_get(idx)?;
         match value {
             Some(value) => {
                 let c = value as u8 as char;
                 Ok(Some(T::from_pg_char(c)?))
             }
-            None => Ok(None)
+            None => Ok(None),
         }
     }
 }

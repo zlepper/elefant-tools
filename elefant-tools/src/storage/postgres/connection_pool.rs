@@ -1,6 +1,6 @@
+use crate::{AsyncCleanup, PostgresClientWrapper};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use crate::{AsyncCleanup, PostgresClientWrapper};
 
 /// A very simple connection pool for Postgres connections.
 #[derive(Clone, Default)]
@@ -29,7 +29,7 @@ impl ConnectionPool {
 }
 
 /// A wrapper around a connection that will release the connection back to the pool when `cleanup`
-/// is called. 
+/// is called.
 pub struct ReleaseConnection {
     pool: ConnectionPool,
     connection: PostgresClientWrapper,
@@ -41,7 +41,6 @@ impl ReleaseConnection {
         Self { pool, connection }
     }
 }
-
 
 impl AsyncCleanup for ReleaseConnection {
     async fn cleanup(self) -> crate::Result<()> {

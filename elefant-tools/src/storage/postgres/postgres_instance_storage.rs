@@ -1,14 +1,17 @@
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio_postgres::Row;
-use tracing::instrument;
-use crate::{BaseCopyTarget, CopyDestinationFactory, CopySourceFactory, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper, SequentialOrParallel, SupportedParallelism};
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
 use crate::quoting::AllowedKeywordUsage;
 use crate::storage::postgres::parallel_copy_destination::ParallelSafePostgresInstanceCopyDestinationStorage;
 use crate::storage::postgres::parallel_copy_source::ParallelSafePostgresInstanceCopySourceStorage;
 use crate::storage::postgres::sequential_copy_destination::SequentialSafePostgresInstanceCopyDestinationStorage;
 use crate::storage::postgres::sequential_copy_source::SequentialSafePostgresInstanceCopySourceStorage;
+use crate::{
+    BaseCopyTarget, CopyDestinationFactory, CopySourceFactory, DataFormat, ElefantToolsError,
+    IdentifierQuoter, PostgresClientWrapper, SequentialOrParallel, SupportedParallelism,
+};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio_postgres::Row;
+use tracing::instrument;
 
 /// A CopyTarget for Postgres.
 pub struct PostgresInstanceStorage<'a> {
@@ -101,7 +104,6 @@ impl BaseCopyTarget for PostgresInstanceStorage<'_> {
     }
 }
 
-
 impl<'a> CopySourceFactory for PostgresInstanceStorage<'a> {
     type SequentialSource = SequentialSafePostgresInstanceCopySourceStorage<'a>;
     type ParallelSource = ParallelSafePostgresInstanceCopySourceStorage<'a>;
@@ -131,13 +133,16 @@ impl<'a> CopyDestinationFactory<'a> for PostgresInstanceStorage<'a> {
 
     async fn create_destination(
         &'a mut self,
-    ) -> crate::Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>> {
+    ) -> crate::Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>>
+    {
         let par = ParallelSafePostgresInstanceCopyDestinationStorage::new(self).await?;
 
         Ok(SequentialOrParallel::Parallel(par))
     }
 
-    async fn create_sequential_destination(&'a mut self) -> crate::Result<Self::SequentialDestination> {
+    async fn create_sequential_destination(
+        &'a mut self,
+    ) -> crate::Result<Self::SequentialDestination> {
         let seq = SequentialSafePostgresInstanceCopyDestinationStorage::new(self).await?;
 
         Ok(seq)
@@ -147,4 +152,3 @@ impl<'a> CopyDestinationFactory<'a> for PostgresInstanceStorage<'a> {
         SupportedParallelism::Parallel
     }
 }
-

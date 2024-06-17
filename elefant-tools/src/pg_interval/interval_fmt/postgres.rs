@@ -6,7 +6,7 @@ impl IntervalNorm {
         if self.is_zeroed() {
             return "00:00:00".to_owned();
         }
-        
+
         let mut interval = String::new();
 
         if self.years != 0 {
@@ -23,7 +23,7 @@ impl IntervalNorm {
             interval.push_str(&self.days.to_string());
             interval.push_str(" days ");
         }
-        
+
         if self.is_time_present() {
             if !self.is_time_interval_pos() {
                 interval.push('-');
@@ -41,7 +41,7 @@ impl IntervalNorm {
                 interval.push_str(&format!(".{:06}", super::safe_abs_u64(self.microseconds)))
             }
         }
-        
+
         interval.trim().to_owned()
     }
 }

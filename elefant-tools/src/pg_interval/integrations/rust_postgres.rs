@@ -1,7 +1,7 @@
+use crate::pg_interval::interval::Interval;
 use bytes::{Buf, BufMut, BytesMut};
 use std::error::Error;
-use tokio_postgres::types::{FromSql, IsNull, to_sql_checked, ToSql, Type};
-use crate::pg_interval::interval::Interval;
+use tokio_postgres::types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for Interval {
     fn from_sql(_: &Type, mut raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {

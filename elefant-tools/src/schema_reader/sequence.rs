@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct SequenceResult {
     pub schema_name: String,
@@ -35,7 +35,10 @@ impl FromRow for SequenceResult {
 }
 
 //language=postgresql
-define_working_query!(get_sequences, SequenceResult, r#"
+define_working_query!(
+    get_sequences,
+    SequenceResult,
+    r#"
 SELECT n.nspname                   AS schemaname,
        c.relname                   AS sequencename,
        t.typname                   AS data_type,
@@ -62,4 +65,5 @@ WHERE NOT pg_is_other_temp_schema(n.oid)
   and (dep.objid is null or dep.deptype <> 'e' )
     and has_sequence_privilege(s.seqrelid, 'SELECT,USAGE,UPDATE')
 order by schemaname, sequencename
-"#);
+"#
+);

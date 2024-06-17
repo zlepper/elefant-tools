@@ -1,8 +1,13 @@
-use elefant_test_macros::pg_test;
-use crate::{default, PostgresColumn, PostgresConstraint, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexIncludedColumn, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable, PostgresUniqueConstraint, TimescaleSupport};
 use crate::schema_reader::tests;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{
+    default, PostgresColumn, PostgresConstraint, PostgresDatabase, PostgresIndex,
+    PostgresIndexColumnDirection, PostgresIndexIncludedColumn, PostgresIndexKeyColumn,
+    PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable,
+    PostgresUniqueConstraint, TimescaleSupport,
+};
+use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]
@@ -104,7 +109,7 @@ async fn indices(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -175,7 +180,7 @@ async fn index_types(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -229,7 +234,7 @@ async fn filtered_index(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -296,7 +301,7 @@ async fn index_with_include(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 15))]
@@ -352,5 +357,5 @@ async fn table_with_non_distinct_nulls(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }

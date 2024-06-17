@@ -1,7 +1,7 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
-use crate::PostgresColumn;
 use crate::schema_reader::define_working_query;
+use crate::PostgresColumn;
+use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TableColumnsResult {
@@ -32,15 +32,12 @@ impl FromRow for TableColumnsResult {
             comment: row.try_get(8)?,
             array_dimensions: match row.try_get(9) {
                 Ok(d) => d,
-                Err(_) => {
-                    row.try_get::<_, i16>(9)? as i32
-                }
+                Err(_) => row.try_get::<_, i16>(9)? as i32,
             },
-            data_type_length: row.try_get(10)?
+            data_type_length: row.try_get(10)?,
         })
     }
 }
-
 
 impl TableColumnsResult {
     pub fn to_postgres_column(&self) -> PostgresColumn {
@@ -58,9 +55,11 @@ impl TableColumnsResult {
     }
 }
 
-
 //language=postgresql
-define_working_query!(get_columns, TableColumnsResult, r#"
+define_working_query!(
+    get_columns,
+    TableColumnsResult,
+    r#"
 select ns.nspname,
        cl.relname,
        attr.attname,
@@ -91,4 +90,5 @@ where cl.relkind in ('r', 'p')
   and attr.attnum > 0
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, attr.attnum;
-"#);
+"#
+);

@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct SchemaResult {
     pub name: String,
@@ -17,7 +17,10 @@ impl FromRow for SchemaResult {
 }
 
 //language=postgresql
-define_working_query!(get_schemas, SchemaResult, r#"
+define_working_query!(
+    get_schemas,
+    SchemaResult,
+    r#"
 SELECT n.nspname AS name,
        d.description AS comment
 FROM pg_namespace n
@@ -27,4 +30,5 @@ WHERE (n.oid > 16384 or n.nspname = 'public')
     and (dep.objid is null or dep.deptype <> 'e' )
     and has_schema_privilege(n.oid, 'CREATE')
 ORDER BY n.nspname;
-"#);
+"#
+);

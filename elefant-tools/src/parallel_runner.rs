@@ -1,34 +1,34 @@
-use std::future::Future;
 use futures::stream::FuturesUnordered;
-use std::pin::Pin;
-use std::task::{Context, Poll};
-use std::sync::Arc;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
-use std::num::NonZeroUsize;
 use futures::StreamExt;
+use std::future::Future;
+use std::num::NonZeroUsize;
+use std::pin::Pin;
+use std::sync::Arc;
+use std::task::{Context, Poll};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, TryAcquireError};
 
 /// Provides a way of waiting for multiple futures to complete in parallel.
-/// 
+///
 /// The futures here needs to return a Result, which is the main difference from the standard
 /// FuturesUnordered.
 struct JoinHandles<T, E>
-    where T: Future,
-          T: Future<Output=Result<(), E>>
+where
+    T: Future,
+    T: Future<Output = Result<(), E>>,
 {
     futures: FuturesUnordered<T>,
 }
 
 impl<T, E> JoinHandles<T, E>
-    where T: Future,
-          T: Future<Output=Result<(), E>>
+where
+    T: Future,
+    T: Future<Output = Result<(), E>>,
 {
     /// Create a new JoinHandles
     pub fn new() -> Self {
         let futures = FuturesUnordered::new();
 
-        Self {
-            futures,
-        }
+        Self { futures }
     }
 
     /// Adds another Future to the queue
@@ -58,16 +58,18 @@ impl<T, E> JoinHandles<T, E>
 
 /// Executes a given set of futures in parallel, with a maximum number of parallel executions.
 pub(crate) struct ParallelRunner<T, E>
-    where T: Future,
-          T: Future<Output=Result<(), E>>
+where
+    T: Future,
+    T: Future<Output = Result<(), E>>,
 {
     join_handles: JoinHandles<WaitingFuture<T, E>, E>,
     permits: Arc<Semaphore>,
 }
 
 impl<T, E> ParallelRunner<T, E>
-    where T: Future,
-          T: Future<Output=Result<(), E>>
+where
+    T: Future,
+    T: Future<Output = Result<(), E>>,
 {
     /// Creates a new ParallelRunner with the specified maximum number of parallel executions.
     pub fn new(max_parallel: NonZeroUsize) -> Self {
@@ -79,11 +81,10 @@ impl<T, E> ParallelRunner<T, E>
         }
     }
 
-    /// Enqueues a new future to be executed in parallel. 
+    /// Enqueues a new future to be executed in parallel.
     /// If the maximum number of parallel executions has been reached, this function will wait until
     /// one of the futures has completed.
-    pub async fn enqueue(&mut self, fut: T) -> Result<(), E>
-    {
+    pub async fn enqueue(&mut self, fut: T) -> Result<(), E> {
         loop {
             match Arc::clone(&self.permits).try_acquire_owned() {
                 Ok(permit) => {
@@ -112,16 +113,18 @@ impl<T, E> ParallelRunner<T, E>
 }
 
 struct WaitingFuture<F, E>
-    where F: Future,
-          F: Future<Output=Result<(), E>>
+where
+    F: Future,
+    F: Future<Output = Result<(), E>>,
 {
     inner: Pin<Box<F>>,
     _permit: OwnedSemaphorePermit,
 }
 
 impl<F, E> Future for WaitingFuture<F, E>
-    where F: Future,
-          F: Future<Output=Result<(), E>>
+where
+    F: Future,
+    F: Future<Output = Result<(), E>>,
 {
     type Output = F::Output;
 
@@ -132,9 +135,9 @@ impl<F, E> Future for WaitingFuture<F, E>
 
 #[cfg(test)]
 mod tests {
+    use crate::parallel_runner::ParallelRunner;
     use std::num::NonZeroUsize;
     use tokio::test;
-    use crate::parallel_runner::ParallelRunner;
 
     #[test]
     async fn runs_in_parallel() {
@@ -152,7 +155,11 @@ mod tests {
 
         let took = end - start;
 
-        assert!(took < std::time::Duration::from_millis(200), "Took {:?}", took);
+        assert!(
+            took < std::time::Duration::from_millis(200),
+            "Took {:?}",
+            took
+        );
     }
 
     #[test]
@@ -171,7 +178,12 @@ mod tests {
 
         let took = end - start;
 
-        assert!(took < std::time::Duration::from_millis(400) && took > std::time::Duration::from_millis(200), "Took {:?}", took);
+        assert!(
+            took < std::time::Duration::from_millis(400)
+                && took > std::time::Duration::from_millis(200),
+            "Took {:?}",
+            took
+        );
     }
 
     async fn delay(dur_ms: u64) -> Result<(), &'static str> {

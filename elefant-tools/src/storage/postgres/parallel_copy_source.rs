@@ -1,17 +1,20 @@
-use std::sync::Arc;
-use futures::stream::MapErr;
-use futures::TryStreamExt;
-use tokio_postgres::CopyOutStream;
-use tracing::instrument;
-use crate::{CopySource, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper, PostgresDatabase, PostgresSchema, PostgresTable, TableData};
 use crate::schema_reader::SchemaReader;
 use crate::storage::postgres::connection_pool::{ConnectionPool, ReleaseConnection};
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
+use crate::{
+    CopySource, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper,
+    PostgresDatabase, PostgresSchema, PostgresTable, TableData,
+};
+use futures::stream::MapErr;
+use futures::TryStreamExt;
+use std::sync::Arc;
+use tokio_postgres::CopyOutStream;
+use tracing::instrument;
 
 /// A copy source for Postgres that works well with parallelism.
-/// 
+///
 /// This uses repeatable read isolation level and a snapshot to ensure that the data is consistent
-/// across the entire dump. 
+/// across the entire dump.
 #[derive(Clone)]
 pub struct ParallelSafePostgresInstanceCopySourceStorage<'a> {
     connection_pool: ConnectionPool,
@@ -82,11 +85,10 @@ impl<'a> CopySource for ParallelSafePostgresInstanceCopySourceStorage<'a> {
         Ok(TableData {
             data_format: data_format.clone(),
             data: stream,
-            cleanup: ReleaseConnection::new(self.connection_pool.clone(), connection)
+            cleanup: ReleaseConnection::new(self.connection_pool.clone(), connection),
         })
     }
 }
-
 
 fn tokio_postgres_error_to_crate_error(e: tokio_postgres::Error) -> ElefantToolsError {
     e.into()

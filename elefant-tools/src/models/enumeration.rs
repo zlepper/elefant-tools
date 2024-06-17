@@ -1,8 +1,8 @@
+use crate::object_id::ObjectId;
+use crate::quoting::AttemptedKeywordUsage::TypeOrFunctionName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use crate::object_id::ObjectId;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
-use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresEnum {
@@ -14,7 +14,10 @@ pub struct PostgresEnum {
 
 impl PostgresEnum {
     pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut sql = format!("create type {} as enum (", self.name.quote(identifier_quoter, TypeOrFunctionName));
+        let mut sql = format!(
+            "create type {} as enum (",
+            self.name.quote(identifier_quoter, TypeOrFunctionName)
+        );
         sql.push_str(&self.values.iter().map(|v| quote_value_string(v)).join(", "));
         sql.push_str(");");
 

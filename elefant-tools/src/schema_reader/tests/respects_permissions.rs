@@ -244,90 +244,116 @@ async fn hypertable_permissions(helper: &TestHelper) {
     let reader = SchemaReader::new(&schema_one_connection);
     let schema_one_introspection = reader.introspect_database().await.unwrap();
 
-    assert_eq!(schema_one_introspection, PostgresDatabase {
-        schemas: vec![PostgresSchema {
-            tables: vec![PostgresTable {
-                name: "my_table".to_string(),
-                columns: vec![PostgresColumn {
-                    name: "time".to_string(),
-                    ordinal_position: 1,
-                    is_nullable: false,
-                    data_type: "timestamptz".to_string(),
-                    default_value: None,
-                    generated: None,
-                    comment: None,
-                    array_dimensions: 0,
-                    data_type_length: None,
-                }, PostgresColumn {
-                    name: "id".to_string(),
-                    ordinal_position: 2,
-                    is_nullable: true,
-                    data_type: "int4".to_string(),
-                    default_value: None,
-                    generated: None,
-                    comment: None,
-                    array_dimensions: 0,
-                    data_type_length: None,
-                }],
-                constraints: vec![],
-                indices: vec![PostgresIndex {
-                    name: "my_table_time_idx".to_string(),
-                    key_columns: vec![PostgresIndexKeyColumn {
-                        name: "\"time\"".to_string(),
-                        ordinal_position: 1,
-                        direction: Some(PostgresIndexColumnDirection::Descending),
-                        nulls_order: Some(PostgresIndexNullsOrder::First),
+    assert_eq!(
+        schema_one_introspection,
+        PostgresDatabase {
+            schemas: vec![
+                PostgresSchema {
+                    tables: vec![PostgresTable {
+                        name: "my_table".to_string(),
+                        columns: vec![
+                            PostgresColumn {
+                                name: "time".to_string(),
+                                ordinal_position: 1,
+                                is_nullable: false,
+                                data_type: "timestamptz".to_string(),
+                                default_value: None,
+                                generated: None,
+                                comment: None,
+                                array_dimensions: 0,
+                                data_type_length: None,
+                            },
+                            PostgresColumn {
+                                name: "id".to_string(),
+                                ordinal_position: 2,
+                                is_nullable: true,
+                                data_type: "int4".to_string(),
+                                default_value: None,
+                                generated: None,
+                                comment: None,
+                                array_dimensions: 0,
+                                data_type_length: None,
+                            }
+                        ],
+                        constraints: vec![],
+                        indices: vec![PostgresIndex {
+                            name: "my_table_time_idx".to_string(),
+                            key_columns: vec![PostgresIndexKeyColumn {
+                                name: "\"time\"".to_string(),
+                                ordinal_position: 1,
+                                direction: Some(PostgresIndexColumnDirection::Descending),
+                                nulls_order: Some(PostgresIndexNullsOrder::First),
+                            }],
+                            index_type: "btree".to_string(),
+                            predicate: None,
+                            included_columns: vec![],
+                            index_constraint_type: PostgresIndexType::Index,
+                            storage_parameters: vec![],
+                            comment: None,
+                            object_id: ObjectId::new(3),
+                        }],
+                        comment: None,
+                        storage_parameters: vec![],
+                        table_type: TimescaleHypertable {
+                            dimensions: vec![HypertableDimension::Time {
+                                column_name: "time".to_string(),
+                                time_interval: Interval {
+                                    months: 0,
+                                    days: 7,
+                                    microseconds: 0
+                                },
+                            }],
+                            compression: None,
+                            retention: None,
+                        },
+                        object_id: ObjectId::new(4),
+                        depends_on: vec![],
                     }],
-                    index_type: "btree".to_string(),
-                    predicate: None,
-                    included_columns: vec![],
-                    index_constraint_type: PostgresIndexType::Index,
-                    storage_parameters: vec![],
-                    comment: None,
-                    object_id: ObjectId::new(3),
-                }],
-                comment: None,
-                storage_parameters: vec![],
-                table_type: TimescaleHypertable {
-                    dimensions: vec![HypertableDimension::Time {
-                        column_name: "time".to_string(),
-                        time_interval: Interval { months: 0, days: 7, microseconds: 0 },
-                    }],
-                    compression: None,
-                    retention: None,
-                },
-                object_id: ObjectId::new(4),
-                depends_on: vec![],
-            }],
-            sequences: vec![],
-            views: vec![PostgresView {
-                name: "my_view".to_string(),
-                definition: r#" SELECT public.time_bucket('1 day'::interval, my_table."time") AS tb,
+                    sequences: vec![],
+                    views: vec![PostgresView {
+                        name: "my_view".to_string(),
+                        definition:
+                            r#" SELECT public.time_bucket('1 day'::interval, my_table."time") AS tb,
     count(my_table.id) AS count
    FROM my_table
-  GROUP BY (public.time_bucket('1 day'::interval, my_table."time"));"# .into(),
-                columns: vec![PostgresViewColumn {
-                    name: "tb".to_string(),
-                    ordinal_position: 1,
-                }, PostgresViewColumn {
-                    name: "count".to_string(),
-                    ordinal_position: 2,
-                }],
-                comment: None,
-                is_materialized: true,
-                view_options: TimescaleContinuousAggregate { refresh: None, compression: None, retention: None },
-                object_id: ObjectId::new(5),
-                depends_on: vec![],
-            }],
-            name: "ht_one".to_string(),
-            object_id: ObjectId::new(1),
+  GROUP BY (public.time_bucket('1 day'::interval, my_table."time"));"#
+                                .into(),
+                        columns: vec![
+                            PostgresViewColumn {
+                                name: "tb".to_string(),
+                                ordinal_position: 1,
+                            },
+                            PostgresViewColumn {
+                                name: "count".to_string(),
+                                ordinal_position: 2,
+                            }
+                        ],
+                        comment: None,
+                        is_materialized: true,
+                        view_options: TimescaleContinuousAggregate {
+                            refresh: None,
+                            compression: None,
+                            retention: None
+                        },
+                        object_id: ObjectId::new(5),
+                        depends_on: vec![],
+                    }],
+                    name: "ht_one".to_string(),
+                    object_id: ObjectId::new(1),
+                    ..default()
+                },
+                PostgresSchema {
+                    name: "public".to_string(),
+                    object_id: ObjectId::new(2),
+                    ..default()
+                }
+            ],
+            timescale_support: TimescaleSupport {
+                is_enabled: true,
+                timescale_toolkit_is_enabled: true,
+                ..default()
+            },
             ..default()
-        }, PostgresSchema {
-            name: "public".to_string(),
-            object_id: ObjectId::new(2),
-            ..default()
-        }],
-        timescale_support: TimescaleSupport { is_enabled: true, timescale_toolkit_is_enabled: true, ..default() },
-        ..default()
-    })
+        }
+    )
 }

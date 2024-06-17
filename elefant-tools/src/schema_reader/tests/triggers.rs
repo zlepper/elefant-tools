@@ -1,9 +1,13 @@
+use crate::schema_reader::tests;
+use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{
+    default, FunctionKind, Parallel, PostgresColumn, PostgresDatabase, PostgresFunction,
+    PostgresSchema, PostgresTable, PostgresTrigger, PostgresTriggerEvent, PostgresTriggerLevel,
+    PostgresTriggerTiming, TimescaleSupport, Volatility,
+};
 use elefant_test_macros::pg_test;
 use ordered_float::NotNan;
-use crate::{default, FunctionKind, Parallel, PostgresColumn, PostgresDatabase, PostgresFunction, PostgresSchema, PostgresTable, PostgresTrigger, PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming, TimescaleSupport, Volatility};
-use crate::schema_reader::tests;
-use crate::test_helpers::TestHelper;
-use crate::test_helpers;
 
 /*
 create function pg_catalog.tsvector_update_trigger() returns trigger

@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 /// Used for tracking dependencies between objects and to handle renames.
-/// 
-/// ObjectId has a bit odd equality behavior. If any of the values are none, then all an ObjectId 
+///
+/// ObjectId has a bit odd equality behavior. If any of the values are none, then all an ObjectId
 /// is considered equal to any other ObjectId. This makes it easier to deal with in tests, while
 /// still making it possible to use it as a key to link things..
 #[derive(Copy, Clone, Debug, Default, PartialOrd, Serialize, Deserialize)]
@@ -33,13 +33,11 @@ impl PartialEq for ObjectId {
     }
 }
 
-impl Eq for ObjectId {
-
-}
+impl Eq for ObjectId {}
 
 /// Provides a way to generate non-conflicting ObjectIds within
 /// the same run, while ensuring the generation is deterministic.
-/// 
+///
 /// This allows to exact id checking in Tests when relevant.
 pub struct ObjectIdGenerator {
     next_id: usize,
@@ -60,7 +58,7 @@ impl ObjectIdGenerator {
 }
 
 /// Trait for objects that have dependencies
-/// 
+///
 /// This is used for topological sorting of objects to ensure
 /// they are created in the correct order.
 pub trait HaveDependencies {
@@ -73,26 +71,23 @@ pub trait HaveDependencies {
 /// Trait for iterators that can be sorted by dependencies
 pub trait DependencySortable: Iterator {
     /// Sorts the items in the iterator by dependencies.
-    /// 
+    ///
     /// # Panics
     /// This will panic if circular dependencies are detected.
     fn sort_by_dependencies(self) -> Vec<Self::Item>;
 }
 
 impl<I> DependencySortable for I
-    where I: Iterator + Sized,
-          I::Item: HaveDependencies
+where
+    I: Iterator + Sized,
+    I::Item: HaveDependencies,
 {
     fn sort_by_dependencies(self) -> Vec<Self::Item> {
-
-
-
         let mut sorted: Vec<Self::Item> = self.collect();
 
         if sorted.is_empty() {
             return sorted;
         }
-
 
         // Move everything with 0 dependencies to the front
         let mut i = 0;
@@ -132,17 +127,16 @@ impl<I> DependencySortable for I
             }
         }
 
-
         sorted
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use itertools::Itertools;
     use std::fmt::{Debug, Formatter};
     use std::panic::catch_unwind;
-    use itertools::Itertools;
-    use super::*;
 
     #[derive(Eq, Clone)]
     struct TestItem {
@@ -173,7 +167,6 @@ mod tests {
 
     #[test]
     fn sorted_by_dependencies_1() {
-
         let items = vec![
             TestItem {
                 object_id: 1.into(),
@@ -193,15 +186,13 @@ mod tests {
             let sorted = items.into_iter().sort_by_dependencies();
 
             assert!(matches!(sorted[0].object_id.value.unwrap(), 1));
-            assert!(matches!(sorted[1].object_id.value.unwrap(), 2|3));
-            assert!(matches!(sorted[2].object_id.value.unwrap(), 2|3));
+            assert!(matches!(sorted[1].object_id.value.unwrap(), 2 | 3));
+            assert!(matches!(sorted[2].object_id.value.unwrap(), 2 | 3));
         }
-
     }
 
     #[test]
     fn sorted_by_dependencies_2() {
-
         let items = vec![
             TestItem {
                 object_id: 1.into(),
@@ -220,15 +211,14 @@ mod tests {
         for items in items.into_iter().permutations(3) {
             let sorted = items.into_iter().sort_by_dependencies();
 
-            assert!(matches!(sorted[0].object_id.value.unwrap(), 2|3));
-            assert!(matches!(sorted[1].object_id.value.unwrap(), 2|3));
+            assert!(matches!(sorted[0].object_id.value.unwrap(), 2 | 3));
+            assert!(matches!(sorted[1].object_id.value.unwrap(), 2 | 3));
             assert!(matches!(sorted[2].object_id.value.unwrap(), 1));
         }
     }
 
     #[test]
     fn sorted_by_dependencies_3() {
-
         let items = vec![
             TestItem {
                 object_id: 1.into(),
@@ -255,7 +245,6 @@ mod tests {
 
     #[test]
     fn sorted_by_dependencies_4() {
-
         let items = vec![
             TestItem {
                 object_id: 1.into(),
@@ -282,9 +271,7 @@ mod tests {
 
     #[test]
     fn circular_dependencies() {
-
         let result = catch_unwind(|| {
-
             let items = vec![
                 TestItem {
                     object_id: 1.into(),
@@ -304,7 +291,6 @@ mod tests {
         });
 
         assert!(result.is_err());
-
     }
 
     #[test]
@@ -316,17 +302,17 @@ mod tests {
 
     #[test]
     fn handles_single_item_input() {
-        let items: Vec<TestItem> = vec![
-            TestItem {
-                object_id: 1.into(),
-                depends_on: vec![],
-            },];
+        let items: Vec<TestItem> = vec![TestItem {
+            object_id: 1.into(),
+            depends_on: vec![],
+        }];
         let sorted = items.into_iter().sort_by_dependencies();
-        assert_eq!(sorted, vec![
-            TestItem {
+        assert_eq!(
+            sorted,
+            vec![TestItem {
                 object_id: 1.into(),
                 depends_on: vec![],
-            },]);
+            },]
+        );
     }
-
 }

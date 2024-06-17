@@ -1,18 +1,20 @@
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use crate::pg_interval::Interval;
+use crate::helpers::StringExt;
 use crate::models::column::PostgresColumn;
 use crate::models::constraint::PostgresConstraint;
-use crate::{default, ElefantToolsError, HypertableCompression, PostgresIndexType};
-use crate::helpers::StringExt;
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::object_id::ObjectId;
+use crate::pg_interval::Interval;
 use crate::postgres_client_wrapper::FromPgChar;
-use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::quoting::{
+    quote_value_string, AttemptedKeywordUsage, IdentifierQuoter, Quotable, QuotableIter,
+};
 use crate::storage::DataFormat;
+use crate::{default, ElefantToolsError, HypertableCompression, PostgresIndexType};
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresTable {
@@ -35,13 +37,24 @@ impl PostgresTable {
         }
     }
 
-    pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-
-        let escaped_relation_name = format!("{}.{}", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+    pub fn get_create_statement(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
+        let escaped_relation_name = format!(
+            "{}.{}",
+            schema.name.quote(identifier_quoter, ColumnName),
+            self.name.quote(identifier_quoter, ColumnName)
+        );
         let mut sql = "create table ".to_string();
         sql.push_str(&escaped_relation_name);
 
-        if let TableTypeDetails::PartitionedChildTable {partition_expression, parent_table} = &self.table_type {
+        if let TableTypeDetails::PartitionedChildTable {
+            partition_expression,
+            parent_table,
+        } = &self.table_type
+        {
             sql.push_str(" partition of ");
             sql.push_str(&parent_table.quote(identifier_quoter, ColumnName));
             sql.push(' ');
@@ -59,7 +72,7 @@ impl PostgresTable {
                 sql.push_str(&column.name.quote(identifier_quoter, ColumnName));
                 sql.push(' ');
                 sql.push_str(&column.data_type.quote(identifier_quoter, ColumnName));
-                
+
                 if let Some(length) = column.data_type_length {
                     sql.push_str(&format!("({})", length));
                 }
@@ -111,7 +124,12 @@ impl PostgresTable {
                 }
             }
 
-            if let TableTypeDetails::PartitionedParentTable {partition_strategy, partition_columns, ..} = &self.table_type {
+            if let TableTypeDetails::PartitionedParentTable {
+                partition_strategy,
+                partition_columns,
+                ..
+            } = &self.table_type
+            {
                 sql.push_str("\n) partition by ");
                 sql.push_str(match partition_strategy {
                     TablePartitionStrategy::Hash => "hash",
@@ -122,7 +140,12 @@ impl PostgresTable {
 
                 match partition_columns {
                     PartitionedTableColumns::Columns(columns) => {
-                        sql.push_join(", ", columns.iter().map(|c| c.quote(identifier_quoter, ColumnName)));
+                        sql.push_join(
+                            ", ",
+                            columns
+                                .iter()
+                                .map(|c| c.quote(identifier_quoter, ColumnName)),
+                        );
                     }
                     PartitionedTableColumns::Expression(expr) => {
                         sql.push_str(expr);
@@ -130,13 +153,16 @@ impl PostgresTable {
                 }
 
                 sql.push(')');
-            }
-            else if let TableTypeDetails::InheritedTable {parent_tables} = &self.table_type {
+            } else if let TableTypeDetails::InheritedTable { parent_tables } = &self.table_type {
                 sql.push_str("\n) inherits (");
-                sql.push_join(", ", parent_tables.iter().map(|c| c.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName)));
+                sql.push_join(
+                    ", ",
+                    parent_tables.iter().map(|c| {
+                        c.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName)
+                    }),
+                );
                 sql.push(')');
-            }
-            else {
+            } else {
                 sql.push_str("\n)");
             }
         }
@@ -150,46 +176,84 @@ impl PostgresTable {
         sql.push(';');
 
         if let Some(c) = &self.comment {
-            sql.push_str(&format!("\ncomment on table {} is {};", escaped_relation_name, quote_value_string(c)));
+            sql.push_str(&format!(
+                "\ncomment on table {} is {};",
+                escaped_relation_name,
+                quote_value_string(c)
+            ));
         }
 
         for col in &self.columns {
             if let Some(c) = &col.comment {
-                sql.push_str(&format!("\ncomment on column {}.{} is {};", escaped_relation_name, col.name.quote(identifier_quoter, ColumnName), quote_value_string(c)));
+                sql.push_str(&format!(
+                    "\ncomment on column {}.{} is {};",
+                    escaped_relation_name,
+                    col.name.quote(identifier_quoter, ColumnName),
+                    quote_value_string(c)
+                ));
             }
         }
 
         for constraint in &self.constraints {
             if let PostgresConstraint::Check(constraint) = constraint {
                 if let Some(c) = &constraint.comment {
-                    sql.push_str(&format!("\ncomment on constraint {} on {} is {};", constraint.name.quote(identifier_quoter, ColumnName), escaped_relation_name, quote_value_string(c)));
+                    sql.push_str(&format!(
+                        "\ncomment on constraint {} on {} is {};",
+                        constraint.name.quote(identifier_quoter, ColumnName),
+                        escaped_relation_name,
+                        quote_value_string(c)
+                    ));
                 }
             }
         }
 
-        if let TableTypeDetails::TimescaleHypertable {dimensions, compression: _, retention: _} = &self.table_type {
+        if let TableTypeDetails::TimescaleHypertable {
+            dimensions,
+            compression: _,
+            retention: _,
+        } = &self.table_type
+        {
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {
                 match dim {
-                    HypertableDimension::Time {column_name, time_interval} => {
+                    HypertableDimension::Time {
+                        column_name,
+                        time_interval,
+                    } => {
                         if idx == 0 {
                             sql.push_str(&format!("\nselect public.create_hypertable('{}', by_range('{}', INTERVAL '{}'), create_default_indexes => false);", escaped_relation_name, column_name.quote(identifier_quoter, ColumnName), time_interval.to_postgres()));
                         } else {
                             sql.push_str(&format!("\nselect public.add_dimension('{}', by_range('{}', INTERVAL '{}'));", escaped_relation_name, column_name.quote(identifier_quoter, ColumnName), time_interval.to_postgres()));
                         }
                     }
-                    HypertableDimension::SpaceInterval { column_name, integer_interval } => {
+                    HypertableDimension::SpaceInterval {
+                        column_name,
+                        integer_interval,
+                    } => {
                         if idx == 0 {
                             sql.push_str(&format!("\nselect public.create_hypertable('{}', by_range('{}', {}), create_default_indexes => false);", escaped_relation_name, column_name.quote(identifier_quoter, ColumnName), integer_interval));
                         } else {
-                            sql.push_str(&format!("\nselect public.add_dimension('{}', by_range('{}', {}));", escaped_relation_name, column_name.quote(identifier_quoter, ColumnName), integer_interval));
+                            sql.push_str(&format!(
+                                "\nselect public.add_dimension('{}', by_range('{}', {}));",
+                                escaped_relation_name,
+                                column_name.quote(identifier_quoter, ColumnName),
+                                integer_interval
+                            ));
                         }
                     }
-                    HypertableDimension::SpacePartitions { column_name, num_partitions } => {
+                    HypertableDimension::SpacePartitions {
+                        column_name,
+                        num_partitions,
+                    } => {
                         if idx == 0 {
                             sql.push_str(&format!("\nselect public.create_hypertable('{}', by_hash('{}', {}), create_default_indexes => false);", escaped_relation_name, column_name.quote(identifier_quoter, ColumnName), num_partitions));
                         } else {
-                            sql.push_str(&format!("\nselect public.add_dimension('{}', by_hash('{}', {}));", escaped_relation_name, column_name.quote(identifier_quoter, ColumnName), num_partitions));
+                            sql.push_str(&format!(
+                                "\nselect public.add_dimension('{}', by_hash('{}', {}));",
+                                escaped_relation_name,
+                                column_name.quote(identifier_quoter, ColumnName),
+                                num_partitions
+                            ));
                         }
                     }
                 }
@@ -197,12 +261,16 @@ impl PostgresTable {
         }
 
         sql
-
     }
 
-    pub fn get_copy_in_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {
+    pub fn get_copy_in_command(
+        &self,
+        schema: &PostgresSchema,
+        data_format: &DataFormat,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
         let mut s = "copy ".to_string();
-        
+
         s.push_str(&schema.name.quote(identifier_quoter, ColumnName));
         s.push('.');
         s.push_str(&self.name.quote(identifier_quoter, ColumnName));
@@ -227,10 +295,15 @@ impl PostgresTable {
         s
     }
 
-    pub fn get_copy_out_command(&self, schema: &PostgresSchema, data_format: &DataFormat, identifier_quoter: &IdentifierQuoter) -> String {
+    pub fn get_copy_out_command(
+        &self,
+        schema: &PostgresSchema,
+        data_format: &DataFormat,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
         let mut s = "copy ".to_string();
-        
-        if let TableTypeDetails::TimescaleHypertable {..} = self.table_type {
+
+        if let TableTypeDetails::TimescaleHypertable { .. } = self.table_type {
             s.push_str("(select ");
             let cols = self.get_copy_columns_expression(identifier_quoter);
 
@@ -241,7 +314,7 @@ impl PostgresTable {
             s.push('.');
             s.push_str(&self.name.quote(identifier_quoter, ColumnName));
             s.push_str(") ");
-        }  else {
+        } else {
             s.push_str(&schema.name.quote(identifier_quoter, ColumnName));
             s.push('.');
             s.push_str(&self.name.quote(identifier_quoter, ColumnName));
@@ -275,20 +348,37 @@ impl PostgresTable {
             .join(", ")
     }
 
-    pub fn get_writable_columns(&self) -> impl Iterator<Item=&PostgresColumn> {
-        self.columns.iter()
+    pub fn get_writable_columns(&self) -> impl Iterator<Item = &PostgresColumn> {
+        self.columns
+            .iter()
             .filter(|c| c.generated.is_none())
             .sorted_by_key(|c| c.ordinal_position)
     }
 
-    pub fn get_timescale_post_settings(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
-
-        if let TableTypeDetails::TimescaleHypertable {compression, retention, ..} = &self.table_type {
-            let escaped_relation_name = format!("{}.{}", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+    pub fn get_timescale_post_settings(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> Option<String> {
+        if let TableTypeDetails::TimescaleHypertable {
+            compression,
+            retention,
+            ..
+        } = &self.table_type
+        {
+            let escaped_relation_name = format!(
+                "{}.{}",
+                schema.name.quote(identifier_quoter, ColumnName),
+                self.name.quote(identifier_quoter, ColumnName)
+            );
             let mut sql = String::new();
             if let Some(compression) = compression {
                 sql.push_str("alter table ");
-                compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
+                compression.add_compression_settings(
+                    &mut sql,
+                    &escaped_relation_name,
+                    identifier_quoter,
+                );
             }
 
             if let Some(retention) = retention {
@@ -305,11 +395,13 @@ impl PostgresTable {
         }
 
         None
-
     }
 
     pub fn is_timescale_table(&self) -> bool {
-        matches!(self.table_type, TableTypeDetails::TimescaleHypertable {..})
+        matches!(
+            self.table_type,
+            TableTypeDetails::TimescaleHypertable { .. }
+        )
     }
 }
 
@@ -334,7 +426,7 @@ pub enum TableTypeDetails {
         dimensions: Vec<HypertableDimension>,
         compression: Option<HypertableCompression>,
         retention: Option<HypertableRetention>,
-    }
+    },
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
@@ -357,7 +449,9 @@ impl FromPgChar for TablePartitionStrategy {
             'h' => Ok(TablePartitionStrategy::Hash),
             'l' => Ok(TablePartitionStrategy::List),
             'r' => Ok(TablePartitionStrategy::Range),
-            _ => Err(ElefantToolsError::InvalidTablePartitioningStrategy(c.to_string())),
+            _ => Err(ElefantToolsError::InvalidTablePartitioningStrategy(
+                c.to_string(),
+            )),
         }
     }
 }
@@ -378,4 +472,3 @@ pub enum HypertableDimension {
         num_partitions: i16,
     },
 }
-

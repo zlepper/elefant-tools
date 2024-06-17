@@ -1,10 +1,13 @@
-use std::sync::Arc;
+use crate::schema_reader::SchemaReader;
+use crate::{
+    CopySource, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper,
+    PostgresDatabase, PostgresInstanceStorage, PostgresSchema, PostgresTable, TableData,
+};
 use futures::stream::MapErr;
 use futures::TryStreamExt;
+use std::sync::Arc;
 use tokio_postgres::CopyOutStream;
 use tracing::instrument;
-use crate::{CopySource, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper, PostgresDatabase, PostgresInstanceStorage, PostgresSchema, PostgresTable, TableData};
-use crate::schema_reader::SchemaReader;
 
 /// A copy source for Postgres that works well single-threaded workloads.
 #[derive(Clone)]
@@ -47,7 +50,6 @@ impl<'a> CopySource for SequentialSafePostgresInstanceCopySourceStorage<'a> {
     ) -> crate::Result<TableData<Self::DataStream, Self::Cleanup>> {
         let copy_command = table.get_copy_out_command(schema, data_format, &self.identifier_quoter);
 
-
         let copy_out_stream = self.connection.copy_out(&copy_command).await?;
 
         let stream = copy_out_stream.map_err(
@@ -57,11 +59,10 @@ impl<'a> CopySource for SequentialSafePostgresInstanceCopySourceStorage<'a> {
         Ok(TableData {
             data_format: data_format.clone(),
             data: stream,
-            cleanup: ()
+            cleanup: (),
         })
     }
 }
-
 
 fn tokio_postgres_error_to_crate_error(e: tokio_postgres::Error) -> ElefantToolsError {
     e.into()

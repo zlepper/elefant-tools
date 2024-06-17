@@ -1,14 +1,14 @@
 use crate::pg_interval::Interval;
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct ContinuousAggregateResult {
-    pub hypertable_schema: String,
-    pub hypertable_name: String,
+    // pub hypertable_schema: String,
+    // pub hypertable_name: String,
     pub view_schema: String,
     pub view_name: String,
-    pub materialized_only: bool,
+    // pub materialized_only: bool,
     pub view_definition: String,
     pub refresh_interval: Option<Interval>,
     pub refresh_start_offset: Option<Interval>,
@@ -28,11 +28,11 @@ pub struct ContinuousAggregateResult {
 impl FromRow for ContinuousAggregateResult {
     fn from_row(row: Row) -> crate::Result<Self> {
         Ok(ContinuousAggregateResult {
-            hypertable_schema: row.try_get(0)?,
-            hypertable_name: row.try_get(1)?,
+            // hypertable_schema: row.try_get(0)?,
+            // hypertable_name: row.try_get(1)?,
             view_schema: row.try_get(2)?,
             view_name: row.try_get(3)?,
-            materialized_only: row.try_get(4)?,
+            // materialized_only: row.try_get(4)?,
             view_definition: row.try_get(5)?,
             refresh_interval: row.try_get(6)?,
             refresh_start_offset: row.try_get(7)?,
@@ -52,7 +52,10 @@ impl FromRow for ContinuousAggregateResult {
 }
 
 //language=postgresql
-define_working_query!(get_continuous_aggregates, ContinuousAggregateResult, r#"
+define_working_query!(
+    get_continuous_aggregates,
+    ContinuousAggregateResult,
+    r#"
 
 SELECT ht.schema_name                                       AS hypertable_schema,
        ht.table_name                                        AS hypertable_name,
@@ -92,4 +95,5 @@ FROM _timescaledb_catalog.continuous_agg cagg
          left join _timescaledb_catalog.compression_settings cs
                    on cs.relid = (mat_ht.schema_name || '.' || mat_ht.table_name)::regclass
 left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = mat_ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
-"#);
+"#
+);

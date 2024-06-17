@@ -1,11 +1,18 @@
-use ordered_float::NotNan;
 use crate::pg_interval::Interval;
-use elefant_test_macros::pg_test;
-use crate::{default, FunctionKind, HypertableCompression, HypertableCompressionOrderedColumn, HypertableDimension, HypertableRetention, PostgresColumn, PostgresDatabase, PostgresFunction, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable, PostgresView, PostgresViewColumn, TableTypeDetails, TimescaleContinuousAggregateRefreshOptions, TimescaleDbUserDefinedJob, TimescaleSupport, ViewOptions};
 use crate::schema_reader::tests::test_introspection;
-use crate::TableTypeDetails::TimescaleHypertable;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::TableTypeDetails::TimescaleHypertable;
+use crate::{
+    default, FunctionKind, HypertableCompression, HypertableCompressionOrderedColumn,
+    HypertableDimension, HypertableRetention, PostgresColumn, PostgresDatabase, PostgresFunction,
+    PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder,
+    PostgresIndexType, PostgresSchema, PostgresTable, PostgresView, PostgresViewColumn,
+    TableTypeDetails, TimescaleContinuousAggregateRefreshOptions, TimescaleDbUserDefinedJob,
+    TimescaleSupport, ViewOptions,
+};
+use elefant_test_macros::pg_test;
+use ordered_float::NotNan;
 
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
@@ -190,26 +197,21 @@ select add_compression_policy('stocks_real_time', interval '7 days');
                     ],
                     indices: vec![PostgresIndex {
                         name: "stocks_real_time_time_idx".to_string(),
-                        key_columns: vec![
-                            PostgresIndexKeyColumn {
-                                name: "\"time\"".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First),
-                            }
-                        ],
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "\"time\"".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Descending),
+                            nulls_order: Some(PostgresIndexNullsOrder::First),
+                        }],
                         index_type: "btree".to_string(),
                         index_constraint_type: PostgresIndexType::Index,
                         ..default()
-                    }
-                    ],
+                    }],
                     table_type: TableTypeDetails::TimescaleHypertable {
-                        dimensions: vec![
-                            HypertableDimension::Time {
-                                column_name: "time".to_string(),
-                                time_interval: Interval::new(0, 7, 0),
-                            },
-                        ],
+                        dimensions: vec![HypertableDimension::Time {
+                            column_name: "time".to_string(),
+                            time_interval: Interval::new(0, 7, 0),
+                        }],
                         compression: Some(HypertableCompression {
                             enabled: true,
                             segment_by_columns: Some(vec!["symbol".to_string()]),
@@ -244,9 +246,8 @@ select add_compression_policy('stocks_real_time', interval '7 days');
             ..default()
         },
     )
-        .await;
+    .await;
 }
-
 
 #[pg_test(arg(timescale_db = 15))]
 async fn inspect_continuous_aggregates_15(helper: &TestHelper) {
@@ -323,95 +324,89 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                     ],
                     indices: vec![PostgresIndex {
                         name: "stocks_real_time_time_idx".to_string(),
-                        key_columns: vec![
-                            PostgresIndexKeyColumn {
-                                name: "\"time\"".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First),
-                            }
-                        ],
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "\"time\"".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Descending),
+                            nulls_order: Some(PostgresIndexNullsOrder::First),
+                        }],
                         index_type: "btree".to_string(),
                         index_constraint_type: PostgresIndexType::Index,
                         ..default()
-                    }
-                    ],
+                    }],
                     table_type: TimescaleHypertable {
-                        dimensions: vec![
-                            HypertableDimension::Time {
-                                column_name: "time".to_string(),
-                                time_interval: Interval::new(0, 7, 0),
-                            },
-                        ],
+                        dimensions: vec![HypertableDimension::Time {
+                            column_name: "time".to_string(),
+                            time_interval: Interval::new(0, 7, 0),
+                        }],
                         compression: None,
                         retention: None,
                     },
                     ..default()
                 }],
-                views: vec![
-                    PostgresView {
-                        name: "stock_candlestick_daily".to_string(),
-                        columns: vec![
-                            PostgresViewColumn {
-                                name: "day".to_string(),
-                                ordinal_position: 1,
-                            },
-                            PostgresViewColumn {
-                                name: "symbol".to_string(),
-                                ordinal_position: 2,
-                            },
-                            PostgresViewColumn {
-                                name: "high".to_string(),
-                                ordinal_position: 3,
-                            },
-                            PostgresViewColumn {
-                                name: "open".to_string(),
-                                ordinal_position: 4,
-                            },
-                            PostgresViewColumn {
-                                name: "close".to_string(),
-                                ordinal_position: 5,
-                            },
-                            PostgresViewColumn {
-                                name: "low".to_string(),
-                                ordinal_position: 6,
-                            },
-                        ],
-                        is_materialized: true,
-                        definition: r#"SELECT time_bucket('1 day'::interval, srt."time") AS day,
+                views: vec![PostgresView {
+                    name: "stock_candlestick_daily".to_string(),
+                    columns: vec![
+                        PostgresViewColumn {
+                            name: "day".to_string(),
+                            ordinal_position: 1,
+                        },
+                        PostgresViewColumn {
+                            name: "symbol".to_string(),
+                            ordinal_position: 2,
+                        },
+                        PostgresViewColumn {
+                            name: "high".to_string(),
+                            ordinal_position: 3,
+                        },
+                        PostgresViewColumn {
+                            name: "open".to_string(),
+                            ordinal_position: 4,
+                        },
+                        PostgresViewColumn {
+                            name: "close".to_string(),
+                            ordinal_position: 5,
+                        },
+                        PostgresViewColumn {
+                            name: "low".to_string(),
+                            ordinal_position: 6,
+                        },
+                    ],
+                    is_materialized: true,
+                    definition: r#"SELECT time_bucket('1 day'::interval, srt."time") AS day,
     srt.symbol,
     max(srt.price) AS high,
     first(srt.price, srt."time") AS open,
     last(srt.price, srt."time") AS close,
     min(srt.price) AS low
    FROM stocks_real_time srt
-  GROUP BY (time_bucket('1 day'::interval, srt."time")), srt.symbol;"#.into(),
-                        view_options: ViewOptions::TimescaleContinuousAggregate {
-                            refresh: Some(TimescaleContinuousAggregateRefreshOptions {
-                                start_offset: Interval::new(6, 0, 0),
-                                end_offset: Interval::new(0, 1, 0),
-                                interval: Interval::new(0, 0, 3600000000),
-                            }),
-                            compression: Some(HypertableCompression {
-                                enabled: true,
-                                segment_by_columns: Some(vec!["symbol".to_string()]),
-                                order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
-                                    column_name: "day".to_string(),
-                                    nulls_first: false,
-                                    descending: false,
-                                }]),
-                                chunk_time_interval: None,
-                                compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
-                                compress_after: Some(Interval::new(0, 360, 0)),
-                            }),
-                            retention: Some(HypertableRetention {
-                                schedule_interval: Interval::new(0, 1, 0),
-                                drop_after: Interval::new(24, 0, 0),
-                            }),
-                        },
-                        ..default()
-                    }
-                ],
+  GROUP BY (time_bucket('1 day'::interval, srt."time")), srt.symbol;"#
+                        .into(),
+                    view_options: ViewOptions::TimescaleContinuousAggregate {
+                        refresh: Some(TimescaleContinuousAggregateRefreshOptions {
+                            start_offset: Interval::new(6, 0, 0),
+                            end_offset: Interval::new(0, 1, 0),
+                            interval: Interval::new(0, 0, 3600000000),
+                        }),
+                        compression: Some(HypertableCompression {
+                            enabled: true,
+                            segment_by_columns: Some(vec!["symbol".to_string()]),
+                            order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
+                                column_name: "day".to_string(),
+                                nulls_first: false,
+                                descending: false,
+                            }]),
+                            chunk_time_interval: None,
+                            compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
+                            compress_after: Some(Interval::new(0, 360, 0)),
+                        }),
+                        retention: Some(HypertableRetention {
+                            schedule_interval: Interval::new(0, 1, 0),
+                            drop_after: Interval::new(24, 0, 0),
+                        }),
+                    },
+                    ..default()
+                }],
                 ..default()
             }],
             timescale_support: TimescaleSupport {
@@ -422,7 +417,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(timescale_db = 16))]
@@ -500,95 +495,89 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                     ],
                     indices: vec![PostgresIndex {
                         name: "stocks_real_time_time_idx".to_string(),
-                        key_columns: vec![
-                            PostgresIndexKeyColumn {
-                                name: "\"time\"".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First),
-                            }
-                        ],
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "\"time\"".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Descending),
+                            nulls_order: Some(PostgresIndexNullsOrder::First),
+                        }],
                         index_type: "btree".to_string(),
                         index_constraint_type: PostgresIndexType::Index,
                         ..default()
-                    }
-                    ],
+                    }],
                     table_type: TimescaleHypertable {
-                        dimensions: vec![
-                            HypertableDimension::Time {
-                                column_name: "time".to_string(),
-                                time_interval: Interval::new(0, 7, 0),
-                            },
-                        ],
+                        dimensions: vec![HypertableDimension::Time {
+                            column_name: "time".to_string(),
+                            time_interval: Interval::new(0, 7, 0),
+                        }],
                         compression: None,
                         retention: None,
                     },
                     ..default()
                 }],
-                views: vec![
-                    PostgresView {
-                        name: "stock_candlestick_daily".to_string(),
-                        columns: vec![
-                            PostgresViewColumn {
-                                name: "day".to_string(),
-                                ordinal_position: 1,
-                            },
-                            PostgresViewColumn {
-                                name: "symbol".to_string(),
-                                ordinal_position: 2,
-                            },
-                            PostgresViewColumn {
-                                name: "high".to_string(),
-                                ordinal_position: 3,
-                            },
-                            PostgresViewColumn {
-                                name: "open".to_string(),
-                                ordinal_position: 4,
-                            },
-                            PostgresViewColumn {
-                                name: "close".to_string(),
-                                ordinal_position: 5,
-                            },
-                            PostgresViewColumn {
-                                name: "low".to_string(),
-                                ordinal_position: 6,
-                            },
-                        ],
-                        is_materialized: true,
-                        definition: r#"SELECT time_bucket('1 day'::interval, "time") AS day,
+                views: vec![PostgresView {
+                    name: "stock_candlestick_daily".to_string(),
+                    columns: vec![
+                        PostgresViewColumn {
+                            name: "day".to_string(),
+                            ordinal_position: 1,
+                        },
+                        PostgresViewColumn {
+                            name: "symbol".to_string(),
+                            ordinal_position: 2,
+                        },
+                        PostgresViewColumn {
+                            name: "high".to_string(),
+                            ordinal_position: 3,
+                        },
+                        PostgresViewColumn {
+                            name: "open".to_string(),
+                            ordinal_position: 4,
+                        },
+                        PostgresViewColumn {
+                            name: "close".to_string(),
+                            ordinal_position: 5,
+                        },
+                        PostgresViewColumn {
+                            name: "low".to_string(),
+                            ordinal_position: 6,
+                        },
+                    ],
+                    is_materialized: true,
+                    definition: r#"SELECT time_bucket('1 day'::interval, "time") AS day,
     symbol,
     max(price) AS high,
     first(price, "time") AS open,
     last(price, "time") AS close,
     min(price) AS low
    FROM stocks_real_time srt
-  GROUP BY (time_bucket('1 day'::interval, "time")), symbol;"#.into(),
-                        view_options: ViewOptions::TimescaleContinuousAggregate {
-                            refresh: Some(TimescaleContinuousAggregateRefreshOptions {
-                                start_offset: Interval::new(6, 0, 0),
-                                end_offset: Interval::new(0, 1, 0),
-                                interval: Interval::new(0, 0, 3600000000),
-                            }),
-                            compression: Some(HypertableCompression {
-                                enabled: true,
-                                segment_by_columns: Some(vec!["symbol".to_string()]),
-                                order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
-                                    column_name: "day".to_string(),
-                                    nulls_first: false,
-                                    descending: false,
-                                }]),
-                                chunk_time_interval: None,
-                                compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
-                                compress_after: Some(Interval::new(0, 360, 0)),
-                            }),
-                            retention: Some(HypertableRetention {
-                                schedule_interval: Interval::new(0, 1, 0),
-                                drop_after: Interval::new(24, 0, 0),
-                            }),
-                        },
-                        ..default()
-                    }
-                ],
+  GROUP BY (time_bucket('1 day'::interval, "time")), symbol;"#
+                        .into(),
+                    view_options: ViewOptions::TimescaleContinuousAggregate {
+                        refresh: Some(TimescaleContinuousAggregateRefreshOptions {
+                            start_offset: Interval::new(6, 0, 0),
+                            end_offset: Interval::new(0, 1, 0),
+                            interval: Interval::new(0, 0, 3600000000),
+                        }),
+                        compression: Some(HypertableCompression {
+                            enabled: true,
+                            segment_by_columns: Some(vec!["symbol".to_string()]),
+                            order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
+                                column_name: "day".to_string(),
+                                nulls_first: false,
+                                descending: false,
+                            }]),
+                            chunk_time_interval: None,
+                            compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
+                            compress_after: Some(Interval::new(0, 360, 0)),
+                        }),
+                        retention: Some(HypertableRetention {
+                            schedule_interval: Interval::new(0, 1, 0),
+                            drop_after: Interval::new(24, 0, 0),
+                        }),
+                    },
+                    ..default()
+                }],
                 ..default()
             }],
             timescale_support: TimescaleSupport {
@@ -599,9 +588,8 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
             ..default()
         },
     )
-        .await;
+    .await;
 }
-
 
 #[pg_test(arg(timescale_db = 15))]
 async fn inspect_retention_policies(helper: &TestHelper) {
@@ -620,37 +608,30 @@ SELECT add_retention_policy('conditions', INTERVAL '24 hours');
                 name: "public".to_string(),
                 tables: vec![PostgresTable {
                     name: "conditions".to_string(),
-                    columns: vec![
-                        PostgresColumn {
-                            name: "time".to_string(),
-                            ordinal_position: 1,
-                            is_nullable: false,
-                            data_type: "timestamptz".to_string(),
-                            ..default()
-                        },
-                    ],
+                    columns: vec![PostgresColumn {
+                        name: "time".to_string(),
+                        ordinal_position: 1,
+                        is_nullable: false,
+                        data_type: "timestamptz".to_string(),
+                        ..default()
+                    }],
                     indices: vec![PostgresIndex {
                         name: "conditions_time_idx".to_string(),
-                        key_columns: vec![
-                            PostgresIndexKeyColumn {
-                                name: "\"time\"".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Descending),
-                                nulls_order: Some(PostgresIndexNullsOrder::First),
-                            }
-                        ],
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "\"time\"".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Descending),
+                            nulls_order: Some(PostgresIndexNullsOrder::First),
+                        }],
                         index_type: "btree".to_string(),
                         index_constraint_type: PostgresIndexType::Index,
                         ..default()
-                    }
-                    ],
+                    }],
                     table_type: TableTypeDetails::TimescaleHypertable {
-                        dimensions: vec![
-                            HypertableDimension::Time {
-                                column_name: "time".to_string(),
-                                time_interval: Interval::new(0, 0, 3600000000),
-                            },
-                        ],
+                        dimensions: vec![HypertableDimension::Time {
+                            column_name: "time".to_string(),
+                            time_interval: Interval::new(0, 0, 3600000000),
+                        }],
                         compression: None,
                         retention: Some(HypertableRetention {
                             drop_after: Interval::new(0, 0, 86400000000),
@@ -669,7 +650,7 @@ SELECT add_retention_policy('conditions', INTERVAL '24 hours');
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(timescale_db = 15))]
@@ -695,7 +676,8 @@ SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}'
                     language: "plpgsql".to_string(),
                     sql_body: r#"BEGIN
                         RAISE NOTICE 'Executing job % with config %', job_id, config;
-                    END"#.into(),
+                    END"#
+                        .into(),
                     arguments: "IN job_id integer, IN config jsonb".to_string(),
                     estimated_cost: NotNan::new(100.0).unwrap(),
                     kind: FunctionKind::Procedure,
@@ -716,10 +698,10 @@ SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}'
                     check_config_schema: None,
                     fixed_schedule: true,
                     ..default()
-                }]
+                }],
             },
             ..default()
         },
     )
-        .await;
+    .await;
 }

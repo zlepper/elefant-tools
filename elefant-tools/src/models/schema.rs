@@ -1,12 +1,12 @@
-use serde::{Deserialize, Serialize};
+use crate::models::enumeration::PostgresEnum;
 use crate::models::sequence::PostgresSequence;
 use crate::models::table::PostgresTable;
 use crate::models::view::PostgresView;
-use crate::{PostgresAggregateFunction, PostgresDomain, PostgresFunction, PostgresTrigger};
-use crate::models::enumeration::PostgresEnum;
 use crate::object_id::ObjectId;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::{PostgresAggregateFunction, PostgresDomain, PostgresFunction, PostgresTrigger};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresSchema {
@@ -25,8 +25,11 @@ pub struct PostgresSchema {
 
 impl PostgresSchema {
     pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut sql = format!("create schema if not exists {};", self.name.quote(identifier_quoter, ColumnName));
-        
+        let mut sql = format!(
+            "create schema if not exists {};",
+            self.name.quote(identifier_quoter, ColumnName)
+        );
+
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on schema ");
             sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
@@ -34,10 +37,10 @@ impl PostgresSchema {
             sql.push_str(&quote_value_string(comment));
             sql.push(';');
         }
-        
+
         sql
     }
-    
+
     pub(crate) fn try_get_table(&self, table_name: &str) -> Option<&PostgresTable> {
         self.tables.iter().find(|t| t.name == table_name)
     }

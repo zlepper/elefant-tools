@@ -1,12 +1,12 @@
-use std::cmp::Ordering;
-use std::str::FromStr;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
 use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
-use crate::quoting::{IdentifierQuoter, Quotable, QuotableIter, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable, QuotableIter};
+use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
+use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresForeignKey {
@@ -38,11 +38,22 @@ impl Default for PostgresForeignKey {
 }
 
 impl PostgresForeignKey {
-    pub fn get_create_statement(&self, table: &PostgresTable, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut sql = format!("alter table {}.{} add constraint {} foreign key (",
-                              schema.name.quote(identifier_quoter, ColumnName), table.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+    pub fn get_create_statement(
+        &self,
+        table: &PostgresTable,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
+        let mut sql = format!(
+            "alter table {}.{} add constraint {} foreign key (",
+            schema.name.quote(identifier_quoter, ColumnName),
+            table.name.quote(identifier_quoter, ColumnName),
+            self.name.quote(identifier_quoter, ColumnName)
+        );
 
-        let columns = self.columns.iter()
+        let columns = self
+            .columns
+            .iter()
             .sorted_by_key(|c| c.ordinal_position)
             .map(|c| c.name.as_str())
             .quote(identifier_quoter, ColumnName)
@@ -56,7 +67,9 @@ impl PostgresForeignKey {
         sql.push_str(&self.referenced_table.quote(identifier_quoter, ColumnName));
         sql.push_str(" (");
 
-        let referenced_columns = self.referenced_columns.iter()
+        let referenced_columns = self
+            .referenced_columns
+            .iter()
             .sorted_by_key(|c| c.ordinal_position)
             .map(|c| c.name.as_str())
             .quote(identifier_quoter, ColumnName)
@@ -64,7 +77,6 @@ impl PostgresForeignKey {
 
         sql.push_str(&referenced_columns);
         sql.push(')');
-
 
         if self.update_action != ReferenceAction::NoAction {
             sql.push_str(" on update ");
@@ -88,8 +100,11 @@ impl PostgresForeignKey {
             });
         }
 
-        if self.columns.iter().any(|c| !c.affected_by_delete_action)  {
-            let affected_columns = self.columns.iter().filter(|c| c.affected_by_delete_action)
+        if self.columns.iter().any(|c| !c.affected_by_delete_action) {
+            let affected_columns = self
+                .columns
+                .iter()
+                .filter(|c| c.affected_by_delete_action)
                 .map(|c| c.name.as_str())
                 .quote(identifier_quoter, ColumnName)
                 .join(", ");
@@ -112,7 +127,6 @@ impl PostgresForeignKey {
             sql.push_str(&quote_value_string(comment));
             sql.push(';');
         }
-
 
         sql
     }
@@ -181,12 +195,14 @@ impl FromStr for ReferenceAction {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "a"|"NO ACTION" => Ok(ReferenceAction::NoAction),
-            "r"|"RESTRICT" => Ok(ReferenceAction::Restrict),
-            "c"|"CASCADE" => Ok(ReferenceAction::Cascade),
-            "n"|"SET NULL" => Ok(ReferenceAction::SetNull),
-            "d"|"SET DEFAULT" => Ok(ReferenceAction::SetDefault),
-            _ => Err(crate::ElefantToolsError::UnknownForeignKeyAction(s.to_string())),
+            "a" | "NO ACTION" => Ok(ReferenceAction::NoAction),
+            "r" | "RESTRICT" => Ok(ReferenceAction::Restrict),
+            "c" | "CASCADE" => Ok(ReferenceAction::Cascade),
+            "n" | "SET NULL" => Ok(ReferenceAction::SetNull),
+            "d" | "SET DEFAULT" => Ok(ReferenceAction::SetDefault),
+            _ => Err(crate::ElefantToolsError::UnknownForeignKeyAction(
+                s.to_string(),
+            )),
         }
     }
 }

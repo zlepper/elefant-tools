@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct UniqueConstraintResult {
@@ -24,7 +24,10 @@ impl FromRow for UniqueConstraintResult {
 }
 
 //language=postgresql
-define_working_query!(get_unique_constraints, UniqueConstraintResult, r#"
+define_working_query!(
+    get_unique_constraints,
+    UniqueConstraintResult,
+    r#"
 select ns.nspname                                     as table_schema,
        cl.relname                                     as table_name,
        con.conname                                     as constraint_name,
@@ -41,4 +44,5 @@ where con.oid > 16384
   and con.contype = 'u'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, con.conname;
-"#);
+"#
+);

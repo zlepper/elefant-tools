@@ -1,34 +1,41 @@
-use indoc::indoc;
-use crate::storage::sql_file::*;
-use crate::test_helpers::*;
-use tokio::test;
 use crate::copy_data::{copy_data, CopyDataOptions};
 use crate::schema_reader::tests::introspect_schema;
-use crate::{default, PostgresInstanceStorage, storage};
+use crate::storage::sql_file::*;
 use crate::storage::tests::validate_copy_state;
+use crate::test_helpers::*;
+use crate::{default, storage, PostgresInstanceStorage};
+use indoc::indoc;
+use tokio::test;
 
 async fn export_to_string(source: &TestHelper, sql_file_options: SqlFileOptions) -> String {
     let mut result_file = Vec::<u8>::new();
 
-
     {
         let quoter = IdentifierQuoter::empty();
 
-        let mut sql_file = SqlFile::new(&mut result_file, Arc::new(quoter), SqlFileOptions {
-            chunk_separator: "test_chunk_separator".to_string(),
-            max_commands_per_chunk: 5,
-            ..sql_file_options
-        }).await.unwrap();
+        let mut sql_file = SqlFile::new(
+            &mut result_file,
+            Arc::new(quoter),
+            SqlFileOptions {
+                chunk_separator: "test_chunk_separator".to_string(),
+                max_commands_per_chunk: 5,
+                ..sql_file_options
+            },
+        )
+        .await
+        .unwrap();
 
-        let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
+        let source = PostgresInstanceStorage::new(source.get_conn())
+            .await
+            .unwrap();
 
-
-        copy_data(&source, &mut sql_file, CopyDataOptions::default()).await.unwrap();
+        copy_data(&source, &mut sql_file, CopyDataOptions::default())
+            .await
+            .unwrap();
     }
 
     String::from_utf8(result_file).unwrap()
 }
-
 
 #[test]
 async fn exports_to_fake_file_15() {
@@ -38,12 +45,17 @@ async fn exports_to_fake_file_15() {
     }
 
     //language=postgresql
-    source.execute_not_query(storage::tests::get_copy_source_database_create_script(source.get_conn().version())).await;
-
+    source
+        .execute_not_query(storage::tests::get_copy_source_database_create_script(
+            source.get_conn().version(),
+        ))
+        .await;
 
     let result_file = export_to_string(&source, default()).await;
 
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -221,10 +233,13 @@ async fn exports_to_fake_file_15() {
             alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
             
             -- chunk-separator-test_chunk_separator --
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#});
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#}
+    );
 
     let destination = get_test_helper_on_port("destination", 5415).await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 
     let source_schema = introspect_schema(&source).await;
     let destination_schema = introspect_schema(&destination).await;
@@ -242,12 +257,17 @@ async fn exports_to_fake_file_14() {
     }
 
     //language=postgresql
-    source.execute_not_query(storage::tests::get_copy_source_database_create_script(source.get_conn().version())).await;
-
+    source
+        .execute_not_query(storage::tests::get_copy_source_database_create_script(
+            source.get_conn().version(),
+        ))
+        .await;
 
     let result_file = export_to_string(&source, default()).await;
 
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -425,11 +445,13 @@ async fn exports_to_fake_file_14() {
             alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
             
             -- chunk-separator-test_chunk_separator --
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#});
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#}
+    );
 
     let destination = get_test_helper_on_port("destination", 5414).await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
-
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 
     let source_schema = introspect_schema(&source).await;
     let destination_schema = introspect_schema(&destination).await;
@@ -439,13 +461,14 @@ async fn exports_to_fake_file_14() {
     validate_copy_state(&destination).await;
 }
 
-
 #[test]
 async fn edge_case_values_floats() {
     let source = get_test_helper("source").await;
 
     //language=postgresql
-    source.execute_not_query(r#"
+    source
+        .execute_not_query(
+            r#"
         create table edge_case_values(
             r4 float4,
             r8 float8
@@ -457,11 +480,15 @@ async fn edge_case_values_floats() {
                ('Infinity', 'Infinity'),
                ('-Infinity', '-Infinity'),
                (null, null);
-        "#).await;
+        "#,
+        )
+        .await;
 
     let result_file = export_to_string(&source, default()).await;
 
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -484,13 +511,17 @@ async fn edge_case_values_floats() {
             ('Infinity', 'Infinity'),
             ('-Infinity', '-Infinity'),
             (null, null);
-            "#});
+            "#}
+    );
 
     let destination = get_test_helper("destination").await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 
-
-    let items = destination.get_results::<(Option<f32>, Option<f64>)>("select r4, r8 from edge_case_values;").await;
+    let items = destination
+        .get_results::<(Option<f32>, Option<f64>)>("select r4, r8 from edge_case_values;")
+        .await;
 
     assert_eq!(items.len(), 5);
     assert_eq!(items[0], (Some(1.0), Some(1.0)));
@@ -509,7 +540,9 @@ async fn copy_array_values() {
     let source = get_test_helper("source").await;
 
     //language=postgresql
-    source.execute_not_query(r#"
+    source
+        .execute_not_query(
+            r#"
         create table array_values(
             values int4[]
         );
@@ -517,11 +550,15 @@ async fn copy_array_values() {
         insert into array_values(values)
         values (array[1, 2, 3]),
                (array[4, 5, 6]);
-        "#).await;
+        "#,
+        )
+        .await;
 
     let result_file = export_to_string(&source, default()).await;
 
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -540,13 +577,17 @@ async fn copy_array_values() {
             insert into public.array_values (values) values
             (E'{1,2,3}'),
             (E'{4,5,6}');
-            "#});
+            "#}
+    );
 
     let destination = get_test_helper("destination").await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 
-
-    let items = destination.get_results::<(Vec<i32>, )>("select values from array_values;").await;
+    let items = destination
+        .get_results::<(Vec<i32>,)>("select values from array_values;")
+        .await;
 
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].0, vec![1, 2, 3]);
@@ -558,7 +599,9 @@ async fn export_as_copy_statements() {
     let source = get_test_helper("source").await;
 
     //language=postgresql
-    source.execute_not_query(r#"
+    source
+        .execute_not_query(
+            r#"
         create table test_table(
             value int4 not null
         );
@@ -586,14 +629,22 @@ async fn export_as_copy_statements() {
             value int4 not null
         );
 
-        "#).await;
+        "#,
+        )
+        .await;
 
-    let result_file = export_to_string(&source, SqlFileOptions {
-        data_mode: SqlDataMode::CopyStatements,
-        ..default()
-    }).await;
+    let result_file = export_to_string(
+        &source,
+        SqlFileOptions {
+            data_mode: SqlDataMode::CopyStatements,
+            ..default()
+        },
+    )
+    .await;
 
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -636,16 +687,22 @@ async fn export_as_copy_statements() {
             -- chunk-separator-test_chunk_separator --
             create index test_table_value_idx on public.test_table using btree (value asc nulls last);
 
-            create index test_table_2_value_idx on public.test_table_2 using btree (value asc nulls last);"#});
+            create index test_table_2_value_idx on public.test_table_2 using btree (value asc nulls last);"#}
+    );
 
     let destination = get_test_helper("destination").await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 
-
-    let items = destination.get_single_results::<i32>("select value from test_table;").await;
+    let items = destination
+        .get_single_results::<i32>("select value from test_table;")
+        .await;
 
     assert_eq!(items, vec![1, 2, 3]);
-    let items = destination.get_single_results::<i32>("select value from test_table_2;").await;
+    let items = destination
+        .get_single_results::<i32>("select value from test_table_2;")
+        .await;
 
     assert_eq!(items, vec![4, 5, 6]);
 }
@@ -655,7 +712,9 @@ async fn round_trip_functions_referencing_tables() {
     let source = get_test_helper("source").await;
 
     //language=postgresql
-    source.execute_not_query(r#"
+    source
+        .execute_not_query(
+            r#"
 create table my_table(
     value int not null
 );
@@ -664,38 +723,53 @@ create function my_function() returns bigint as $$
     select sum(value) from my_table
 $$ language sql;
 
-"#).await;
+"#,
+        )
+        .await;
 
-    let result_file = export_to_string(&source, SqlFileOptions {
-        data_mode: SqlDataMode::InsertStatements,
-        ..default()
-    }).await;
+    let result_file = export_to_string(
+        &source,
+        SqlFileOptions {
+            data_mode: SqlDataMode::InsertStatements,
+            ..default()
+        },
+    )
+    .await;
 
     // assert_eq!(result_file, "foo");
 
     let destination = get_test_helper("destination").await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 }
 
 #[test]
 async fn materialized_views_with_dependencies() {
-
     let source = get_test_helper("source").await;
 
-    source.execute_not_query(r#"
+    source
+        .execute_not_query(
+            r#"
         create materialized view b_view as select 1 as value;
 
         create materialized view a_view as select * from b_view;
-    "#).await;
+    "#,
+        )
+        .await;
 
+    let result_file = export_to_string(
+        &source,
+        SqlFileOptions {
+            data_mode: SqlDataMode::InsertStatements,
+            ..default()
+        },
+    )
+    .await;
 
-    let result_file = export_to_string(&source, SqlFileOptions {
-        data_mode: SqlDataMode::InsertStatements,
-        ..default()
-    }).await;
-
-
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -713,11 +787,13 @@ async fn materialized_views_with_dependencies() {
 
             refresh materialized view public.b_view;
 
-            refresh materialized view public.a_view;"#});
+            refresh materialized view public.a_view;"#}
+    );
 
     let destination = get_test_helper("destination").await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
-
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 }
 
 #[test]
@@ -725,7 +801,9 @@ async fn generated_columns_are_not_exported() {
     let source = get_test_helper("source").await;
 
     //language=postgresql
-    source.execute_not_query(r#"
+    source
+        .execute_not_query(
+            r#"
 create table my_table (
     id serial primary key,
     value text not null,
@@ -737,11 +815,15 @@ insert into my_table (value, active_interval) values
 ('foo', E'["2024-03-27 10:23:26.531284+00",)'),
 ('foo', E'["2024-03-27 10:23:26.531284+00",)');
 
-        "#).await;
+        "#,
+        )
+        .await;
 
     let result_file = export_to_string(&source, default()).await;
 
-    similar_asserts::assert_eq!(result_file, indoc! {r#"
+    similar_asserts::assert_eq!(
+        result_file,
+        indoc! {r#"
             -- chunk-separator-test_chunk_separator --
             SET statement_timeout = 0;
             SET lock_timeout = 0;
@@ -771,8 +853,11 @@ insert into my_table (value, active_interval) values
 
             select pg_catalog.setval('public.my_table_id_seq', 2, true);
 
-            alter table public.my_table alter column id set default nextval('my_table_id_seq'::regclass);"#});
+            alter table public.my_table alter column id set default nextval('my_table_id_seq'::regclass);"#}
+    );
 
     let destination = get_test_helper("destination").await;
-    apply_sql_string(&result_file, destination.get_conn()).await.unwrap();
+    apply_sql_string(&result_file, destination.get_conn())
+        .await
+        .unwrap();
 }

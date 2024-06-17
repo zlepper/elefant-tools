@@ -1,8 +1,11 @@
-use elefant_test_macros::pg_test;
-use crate::{default, PostgresColumn, PostgresDatabase, PostgresDomain, PostgresDomainConstraint, PostgresEnum, PostgresSchema, PostgresTable, TimescaleSupport};
 use crate::schema_reader::tests;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{
+    default, PostgresColumn, PostgresDatabase, PostgresDomain, PostgresDomainConstraint,
+    PostgresEnum, PostgresSchema, PostgresTable, TimescaleSupport,
+};
+use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]
@@ -64,7 +67,7 @@ async fn enums(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -145,7 +148,9 @@ create table movie
                         object_id: 5.into(),
                         constraint: Some(PostgresDomainConstraint {
                             name: "twenties_check".to_string(),
-                            definition: "((((VALUE)::integer >= 1920) AND ((VALUE)::integer <= 1929)))".to_string(),
+                            definition:
+                                "((((VALUE)::integer >= 1920) AND ((VALUE)::integer <= 1929)))"
+                                    .to_string(),
                         }),
                         depends_on: vec![7.into()],
                         ..default()
@@ -175,5 +180,5 @@ create table movie
             ..default()
         },
     )
-        .await;
+    .await;
 }

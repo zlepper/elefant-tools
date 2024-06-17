@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::pg_interval::Interval;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct HypertableRetention {

@@ -1,7 +1,7 @@
 use crate::pg_interval::Interval;
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct TimescaleHypertableDimensionResult {
     pub table_schema: String,
@@ -28,7 +28,10 @@ impl FromRow for TimescaleHypertableDimensionResult {
 }
 
 //language=postgresql
-define_working_query!(get_hypertable_dimensions, TimescaleHypertableDimensionResult, r#"
+define_working_query!(
+    get_hypertable_dimensions,
+    TimescaleHypertableDimensionResult,
+    r#"
 select h.hypertable_schema,
        h.hypertable_name,
        h.dimension_number,
@@ -38,4 +41,5 @@ select h.hypertable_schema,
        h.num_partitions
 from timescaledb_information.dimensions h
 order by h.hypertable_schema, h.hypertable_name, h.dimension_number
-"#);
+"#
+);

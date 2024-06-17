@@ -1,8 +1,11 @@
-use elefant_test_macros::pg_test;
-use crate::{default, PartitionedTableColumns, PostgresColumn, PostgresDatabase, PostgresSchema, PostgresTable, TablePartitionStrategy, TableTypeDetails, TimescaleSupport};
 use crate::schema_reader::tests::test_introspection;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{
+    default, PartitionedTableColumns, PostgresColumn, PostgresDatabase, PostgresSchema,
+    PostgresTable, TablePartitionStrategy, TableTypeDetails, TimescaleSupport,
+};
+use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]
@@ -89,7 +92,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         name: "sales_february".to_string(),
                         table_type: TableTypeDetails::PartitionedChildTable {
                             partition_expression:
-                            "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
+                                "FOR VALUES FROM ('2023-02-01') TO ('2023-03-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
                         depends_on: vec![2.into()],
@@ -136,7 +139,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         name: "sales_january".to_string(),
                         table_type: TableTypeDetails::PartitionedChildTable {
                             partition_expression:
-                            "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
+                                "FOR VALUES FROM ('2023-01-01') TO ('2023-02-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
                         depends_on: vec![2.into()],
@@ -183,7 +186,7 @@ CREATE TABLE sales_march PARTITION OF sales
                         name: "sales_march".to_string(),
                         table_type: TableTypeDetails::PartitionedChildTable {
                             partition_expression:
-                            "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
+                                "FOR VALUES FROM ('2023-03-01') TO ('2023-04-01')".to_string(),
                             parent_table: "sales".to_string(),
                         },
                         depends_on: vec![2.into()],
@@ -233,7 +236,7 @@ CREATE TABLE sales_march PARTITION OF sales
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -433,7 +436,7 @@ CREATE TABLE furniture PARTITION OF products
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -636,5 +639,5 @@ CREATE TABLE orders_3 PARTITION OF orders
             ..default()
         },
     )
-        .await;
+    .await;
 }

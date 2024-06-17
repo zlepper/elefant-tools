@@ -1,9 +1,8 @@
-use proc_macro::{Span, TokenStream};
 use darling::ast::NestedMeta;
 use darling::FromMeta;
+use proc_macro::{Span, TokenStream};
 use quote::quote;
-use syn::{ItemFn, parse_macro_input};
-
+use syn::{parse_macro_input, ItemFn};
 
 #[derive(Debug, FromMeta)]
 enum TestArgsArg {
@@ -28,7 +27,9 @@ impl TestArgsArg {
             TestArgsArg::Postgres(16) => Ok(5416),
             TestArgsArg::TimescaleDb(15) => Ok(5515),
             TestArgsArg::TimescaleDb(16) => Ok(5516),
-            _ => Err(darling::Error::custom("Unknown postgres implementation / version"))
+            _ => Err(darling::Error::custom(
+                "Unknown postgres implementation / version",
+            )),
         }
     }
 }
@@ -63,16 +64,27 @@ pub fn pg_test(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let attr_args = match NestedMeta::parse_meta_list(args.into()) {
         Ok(v) => v,
-        Err(e) => { return TokenStream::from(darling::Error::from(e).write_errors()); }
+        Err(e) => {
+            return TokenStream::from(darling::Error::from(e).write_errors());
+        }
     };
 
     let args = match TestArgs::from_list(&attr_args) {
         Ok(v) => v,
-        Err(e) => { return TokenStream::from(e.write_errors()); }
+        Err(e) => {
+            return TokenStream::from(e.write_errors());
+        }
     };
 
     if input.sig.inputs.len() != args.args.len() {
-        return TokenStream::from(darling::Error::custom(format!("Function is declared to have {} args, however attribute defines {} args", input.sig.inputs.len(), args.args.len())).write_errors());
+        return TokenStream::from(
+            darling::Error::custom(format!(
+                "Function is declared to have {} args, however attribute defines {} args",
+                input.sig.inputs.len(),
+                args.args.len()
+            ))
+            .write_errors(),
+        );
     }
 
     let module_name = syn::Ident::new(&args.get_module_name(), Span::call_site().into());
@@ -81,19 +93,34 @@ pub fn pg_test(args: TokenStream, item: TokenStream) -> TokenStream {
     let mut test_helpers_stop = Vec::with_capacity(args.args.len());
     let mut arg_idents = Vec::with_capacity(args.args.len());
 
-
     for (arg, input) in args.args.iter().zip(input.sig.inputs.iter()) {
-        let port = match arg.get_port(){
+        let port = match arg.get_port() {
             Ok(p) => p,
-            Err(e) => { return TokenStream::from(e.write_errors()); }
+            Err(e) => {
+                return TokenStream::from(e.write_errors());
+            }
         };
 
         let arg_ident = match &input {
             syn::FnArg::Typed(t) => match &*t.pat {
                 syn::Pat::Ident(i) => &i.ident,
-                _ => { return TokenStream::from(darling::Error::custom("Only simple identifiers are supported as function arguments").write_errors()); }
+                _ => {
+                    return TokenStream::from(
+                        darling::Error::custom(
+                            "Only simple identifiers are supported as function arguments",
+                        )
+                        .write_errors(),
+                    );
+                }
             },
-            _ => { return TokenStream::from(darling::Error::custom("Only simple identifiers are supported as function arguments").write_errors()); }
+            _ => {
+                return TokenStream::from(
+                    darling::Error::custom(
+                        "Only simple identifiers are supported as function arguments",
+                    )
+                    .write_errors(),
+                );
+            }
         };
         arg_idents.push(arg_ident.clone());
 
@@ -109,7 +136,6 @@ pub fn pg_test(args: TokenStream, item: TokenStream) -> TokenStream {
     test_helpers_stop.reverse();
 
     let actual_test_function_name = quote::format_ident!("{module_name}_{function_name}");
-
 
     let invoke_actual_function = if input.sig.asyncness.is_some() {
         quote! {
@@ -127,17 +153,17 @@ pub fn pg_test(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let test_function = quote! {
 
-            #input
+        #input
 
-            #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-            async fn #actual_test_function_name() {
-                #(#test_helpers_create)*
+        #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+        async fn #actual_test_function_name() {
+            #(#test_helpers_create)*
 
-                #invoke_actual_function
+            #invoke_actual_function
 
-                #(#test_helpers_stop)*
-            }
-        };
+            #(#test_helpers_stop)*
+        }
+    };
 
     TokenStream::from(test_function)
 }

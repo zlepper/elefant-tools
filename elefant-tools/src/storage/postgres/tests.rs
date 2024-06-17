@@ -1,16 +1,22 @@
+use crate::chunk_reader::StringChunkReader;
 use crate::copy_data::{copy_data, CopyDataOptions};
+use crate::helpers::StringExt;
+use crate::quoting::{AttemptedKeywordUsage, Quotable};
 use crate::schema_reader::tests::introspect_schema;
+use crate::schema_reader::SchemaReader;
 use crate::storage::tests::validate_copy_state;
+use crate::test_helpers;
 use crate::test_helpers::*;
+use crate::{
+    apply_sql_string, default, storage, DataFormat, IdentifierQuoter, PostgresColumn,
+    PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn,
+    PostgresIndexNullsOrder, PostgresIndexType, PostgresInstanceStorage, PostgresSchema,
+    PostgresSequence, PostgresTable, SqlDataMode, SqlFile, SqlFileOptions,
+};
 use elefant_test_macros::pg_test;
+use itertools::Itertools;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use itertools::Itertools;
-use crate::{apply_sql_string, DataFormat, default, IdentifierQuoter, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresInstanceStorage, PostgresSchema, PostgresSequence, PostgresTable, SqlDataMode, SqlFile, SqlFileOptions, storage};
-use crate::chunk_reader::StringChunkReader;
-use crate::helpers::StringExt;
-use crate::schema_reader::SchemaReader;
-use crate::test_helpers;
 
 async fn test_copy(data_format: DataFormat, source: &TestHelper, destination: &TestHelper) {
     source
@@ -37,8 +43,8 @@ async fn test_copy(data_format: DataFormat, source: &TestHelper, destination: &T
             ..default()
         },
     )
-        .await
-        .expect("Failed to copy data");
+    .await
+    .expect("Failed to copy data");
 
     let destination_schema = introspect_schema(destination).await;
 
@@ -56,7 +62,7 @@ async fn copies_between_databases_binary_format(source: &TestHelper, destination
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 15), arg(postgres = 15))]
@@ -66,8 +72,6 @@ async fn copies_between_databases_text_format(source: &TestHelper, destination: 
 
 async fn test_round_trip(sql: &str, source: &TestHelper, destination: &TestHelper) {
     apply_sql_string(sql, source.get_conn()).await.unwrap();
-
-    // source.execute_not_query(sql).await;
 
     let source_schema = introspect_schema(source).await;
     let source = PostgresInstanceStorage::new(source.get_conn())
@@ -87,8 +91,8 @@ async fn test_round_trip(sql: &str, source: &TestHelper, destination: &TestHelpe
             ..default()
         },
     )
-        .await
-        .expect("Failed to copy data");
+    .await
+    .expect("Failed to copy data");
 
     let destination_schema = introspect_schema(destination).await;
 
@@ -96,21 +100,36 @@ async fn test_round_trip(sql: &str, source: &TestHelper, destination: &TestHelpe
 }
 
 macro_rules! test_round_trip {
-        ($name:ident, $sql:literal) => {
+    ($name:ident, $sql:literal) => {
+        mod $name {
+            use super::*;
+
+            const SQL: &str = $sql;
+
             #[pg_test(arg(postgres = 12), arg(postgres = 12))]
             #[pg_test(arg(postgres = 13), arg(postgres = 13))]
             #[pg_test(arg(postgres = 14), arg(postgres = 14))]
             #[pg_test(arg(postgres = 15), arg(postgres = 15))]
             #[pg_test(arg(postgres = 16), arg(postgres = 16))]
-            async fn $name(source: &TestHelper, destination: &TestHelper) {
-                test_round_trip($sql, source, destination).await;
+            async fn non_differential(source: &TestHelper, destination: &TestHelper) {
+                test_round_trip(SQL, source, destination).await;
             }
-        };
-    }
+
+            #[pg_test(arg(postgres = 12))]
+            #[pg_test(arg(postgres = 13))]
+            #[pg_test(arg(postgres = 14))]
+            #[pg_test(arg(postgres = 15))]
+            #[pg_test(arg(postgres = 16))]
+            async fn differential(source: &TestHelper) {
+                test_differential_copy_generic(source, SQL).await;
+            }
+        }
+    };
+}
 
 test_round_trip!(
-        foreign_key_actions_are_preserved,
-        r#"
+    foreign_key_actions_are_preserved,
+    r#"
         CREATE TABLE products (
             product_no integer PRIMARY KEY,
             name text,
@@ -129,7 +148,7 @@ test_round_trip!(
             PRIMARY KEY (product_no, order_id)
         );
     "#
-    );
+);
 
 #[pg_test(arg(postgres = 15), arg(postgres = 15))]
 #[pg_test(arg(postgres = 16), arg(postgres = 16))]
@@ -157,22 +176,22 @@ async fn filtered_foreign_key_set_null(source: &TestHelper, destination: &TestHe
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 test_round_trip!(
-        generated_columns,
-        r#"
+    generated_columns,
+    r#"
     CREATE TABLE people (
         height_cm numeric,
         height_in numeric GENERATED ALWAYS AS (height_cm / 2.54) STORED
     );
     "#
-    );
+);
 
 test_round_trip!(
-        functions,
-        r#"
+    functions,
+    r#"
 
     create function add(a integer, b integer) returns integer as $$
         begin
@@ -194,11 +213,11 @@ test_round_trip!(
 
         $$ language plpgsql;
     "#
-    );
+);
 
 test_round_trip!(
-        qouted_identifier_name,
-        r#"
+    qouted_identifier_name,
+    r#"
         create table "MyTable" (
             "MyColumn" int,
             "MyTextColumn" text
@@ -206,12 +225,12 @@ test_round_trip!(
 
         create index "MyIndex" on "MyTable" (lower("MyTextColumn"));
     "#
-    );
+);
 
 //language=postgresql
 test_round_trip!(
-        ddl_dependencies_1,
-        r#"
+    ddl_dependencies_1,
+    r#"
         create function a_is_odd(a integer) returns boolean as $$
         begin
             return a % 2 = 1;
@@ -224,12 +243,12 @@ test_round_trip!(
         end;
         $$ language plpgsql;
     "#
-    );
+);
 
 //language=postgresql
 test_round_trip!(
-        ddl_dependencies_2,
-        r#"
+    ddl_dependencies_2,
+    r#"
         create function b_is_odd(a integer) returns boolean as $$
         begin
             return a % 2 = 1;
@@ -242,12 +261,12 @@ test_round_trip!(
         end;
         $$ language plpgsql;
     "#
-    );
+);
 
 //language=postgresql
 test_round_trip!(
-        ddl_dependencies_1_1,
-        r#"
+    ddl_dependencies_1_1,
+    r#"
         create function b_is_even(a integer) returns boolean as $$
         begin
             return a_is_odd(a) = false;
@@ -260,12 +279,12 @@ test_round_trip!(
         end;
         $$ language plpgsql;
     "#
-    );
+);
 
 //language=postgresql
 test_round_trip!(
-        ddl_dependencies_2_2,
-        r#"
+    ddl_dependencies_2_2,
+    r#"
         create function a_is_even(a integer) returns boolean as $$
         begin
             return b_is_odd(a) = false;
@@ -278,11 +297,11 @@ test_round_trip!(
         end;
         $$ language plpgsql;
     "#
-    );
+);
 
 test_round_trip!(
-        ddl_dependencies_3,
-        r#"
+    ddl_dependencies_3,
+    r#"
         create function is_odd(a integer) returns boolean as $$
         begin
             return a % 2 = 1;
@@ -293,46 +312,47 @@ test_round_trip!(
             value int not null check (is_odd(value))
         );
     "#
-    );
+);
 
 test_round_trip!(
-        ddl_dependencies_4,
-        r#"
+    ddl_dependencies_4,
+    r#"
         create view a_view as select 1 as value;
 
         create view b_view as select * from a_view;
     "#
-    );
+);
 
 test_round_trip!(
-        ddl_dependencies_4_opposite,
-        r#"
+    ddl_dependencies_4_opposite,
+    r#"
         create view b_view as select 1 as value;
 
         create view a_view as select * from b_view;
     "#
-    );
+);
 
 test_round_trip!(
-        ddl_dependencies_5,
-        r#"
+    ddl_dependencies_5,
+    r#"
         create materialized view a_view as select 1 as value;
 
         create materialized view b_view as select * from a_view;
     "#
-    );
+);
 
 test_round_trip!(
-        ddl_dependencies_5_opposite,
-        r#"
+    ddl_dependencies_5_opposite,
+    r#"
         create materialized view b_view as select 1 as value;
 
         create materialized view a_view as select * from b_view;
     "#
-    );
+);
 
-
-test_round_trip!(functions_reading_from_tables_in_pure_sql, r#"
+test_round_trip!(
+    functions_reading_from_tables_in_pure_sql,
+    r#"
 create table my_table(
     value int not null
 );
@@ -340,11 +360,12 @@ create table my_table(
 create function my_function() returns bigint as $$
     select sum(value) from my_table
 $$ language sql;
-"#);
+"#
+);
 
 test_round_trip!(
-        comments_on_stuff,
-        r#"
+    comments_on_stuff,
+    r#"
         create table my_table(
             value serial not null,
             another_value int not null unique
@@ -374,21 +395,21 @@ test_round_trip!(
         comment on constraint my_table_another_value_key on my_table is 'This is a unique constraint';
 
     "#
-    );
+);
 
 test_round_trip!(
-        array_columns,
-        r#"
+    array_columns,
+    r#"
         create table my_table(
             id serial primary key,
             names text[]
         );
     "#
-    );
+);
 
 test_round_trip!(
-        materialized_views,
-        r#"
+    materialized_views,
+    r#"
         create table my_table(
             id serial primary key,
             name text
@@ -400,11 +421,11 @@ test_round_trip!(
 
         comment on materialized view my_materialized_view is 'This is a materialized view';
     "#
-    );
+);
 
 test_round_trip!(
-        triggers,
-        r#"
+    triggers,
+    r#"
 
         create table my_table(
             value int
@@ -428,11 +449,11 @@ test_round_trip!(
 
         create trigger updt_insert_trigger before update or insert on my_table for each row execute procedure my_parametised_trigger_function(42, 'foo');
     "#
-    );
+);
 
 test_round_trip!(
-        enumerations,
-        r#"
+    enumerations,
+    r#"
     create type mood as enum ('sad', 'ok', 'happy');
     create table person (
         name text,
@@ -441,11 +462,11 @@ test_round_trip!(
 
     alter type mood add value 'mehh' before 'ok';
     "#
-    );
+);
 
 test_round_trip!(
-        range_partitions,
-        r#"
+    range_partitions,
+    r#"
     CREATE TABLE sales (
                        sale_id INT,
                        sale_date DATE,
@@ -463,11 +484,11 @@ CREATE TABLE sales_february PARTITION OF sales
 CREATE TABLE sales_march PARTITION OF sales
     FOR VALUES FROM ('2023-03-01') TO ('2023-04-01');
     "#
-    );
+);
 
 test_round_trip!(
-        list_partitions,
-        r#"
+    list_partitions,
+    r#"
 CREATE TABLE products (
     product_id int,
     category TEXT,
@@ -484,11 +505,11 @@ CREATE TABLE clothing PARTITION OF products
 CREATE TABLE furniture PARTITION OF products
     FOR VALUES IN ('Furniture');
     "#
-    );
+);
 
 test_round_trip!(
-        hash_partitions,
-        r#"
+    hash_partitions,
+    r#"
 CREATE TABLE orders (
     order_id int,
     order_date DATE,
@@ -505,11 +526,11 @@ CREATE TABLE orders_2 PARTITION OF orders
 CREATE TABLE orders_3 PARTITION OF orders
     FOR VALUES WITH (MODULUS 3, REMAINDER 2);
     "#
-    );
+);
 
 test_round_trip!(
-        inheritance,
-        r#"
+    inheritance,
+    r#"
 create table pets (
     id serial primary key,
     name text not null check(length(name) > 1)
@@ -523,11 +544,11 @@ create table cats(
     color text not null
 ) inherits (pets);
     "#
-    );
+);
 
 test_round_trip!(
-        multiple_inheritance,
-        r#"
+    multiple_inheritance,
+    r#"
 create table animal(
     breed text not null
 );
@@ -538,18 +559,22 @@ create table human(
 
 create table animorph() inherits (animal, human);
 "#
-    );
+);
 
-
-test_round_trip!(functions_returning_custom_table, r#"
+test_round_trip!(
+    functions_returning_custom_table,
+    r#"
 create function my_function() returns table(id int, name text) as $$
 begin
     return query select 1, 'foo';
 end;
 $$ language plpgsql;
-"#);
+"#
+);
 
-test_round_trip!(functions_returning_table_type, r#"
+test_round_trip!(
+    functions_returning_table_type,
+    r#"
 
 create table my_table(id int, name text);
 
@@ -558,7 +583,8 @@ begin
     return query select 1, 'foo';
 end;
 $$ language plpgsql;
-"#);
+"#
+);
 
 #[pg_test(arg(postgres = 13), arg(postgres = 13))]
 #[pg_test(arg(postgres = 14), arg(postgres = 14))]
@@ -574,7 +600,7 @@ async fn storage_parameters(source: &TestHelper, destination: &TestHelper) {
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12), arg(postgres = 12))]
@@ -588,15 +614,12 @@ async fn storage_parameters_pg_12(source: &TestHelper, destination: &TestHelper)
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
-async fn timescale_hypertable_time_single_dimension(
-    source: &TestHelper,
-    destination: &TestHelper,
-) {
+async fn timescale_hypertable_time_single_dimension(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(r#"
 
 CREATE TABLE stocks_real_time (
@@ -650,7 +673,7 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
@@ -681,7 +704,7 @@ select add_compression_policy('stocks_real_time', interval '7 days');
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
@@ -757,7 +780,7 @@ SELECT add_retention_policy('conditions', INTERVAL '24 hours');
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
@@ -778,7 +801,7 @@ SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}'
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 // This is quite slow, so we only test against 1 postgres instance
@@ -851,8 +874,8 @@ from generate_series(1, 1000) s(i);
             ..default()
         },
     )
-        .await
-        .unwrap();
+    .await
+    .unwrap();
 
     let destination_schema = SchemaReader::new(&destination)
         .introspect_database()
@@ -873,9 +896,7 @@ from generate_series(1, 1000) s(i);
                             data_type: "int4".to_string(),
                             is_nullable: false,
                             ordinal_position: 1,
-                            default_value: Some(
-                                "nextval('my_table_id_seq'::regclass)".to_string()
-                            ),
+                            default_value: Some("nextval('my_table_id_seq'::regclass)".to_string()),
                             ..default()
                         },
                         PostgresColumn {
@@ -913,16 +934,22 @@ from generate_series(1, 1000) s(i);
         }
     );
 
-
-    let items = source.get_results::<(i32, String)>("select id, name from my_table;").await.unwrap();
+    let items = source
+        .get_results::<(i32, String)>("select id, name from my_table;")
+        .await
+        .unwrap();
     assert_eq!(items.len(), 1000);
 
-
-    let items = destination.get_results::<(i32, String)>("select id, name from my_table;").await.unwrap();
+    let items = destination
+        .get_results::<(i32, String)>("select id, name from my_table;")
+        .await
+        .unwrap();
     assert_eq!(items.len(), 1000);
 }
 
-test_round_trip!(two_way_references, r#"
+test_round_trip!(
+    two_way_references,
+    r#"
 create table assets(
     asset_id serial primary key,
     asset_digiupload_id int
@@ -934,18 +961,23 @@ create table asset_digiuploads(
 );
 
 alter table assets add constraint fk_asset_digiupload_id foreign key (asset_digiupload_id) references asset_digiuploads(asset_digiupload_id);
-"#);
+"#
+);
 
-
-test_round_trip!(multiple_unique_constraints_on_same_table, r#"
+test_round_trip!(
+    multiple_unique_constraints_on_same_table,
+    r#"
 create table users(
     id serial primary key,
     username text not null unique,
     email text not null unique
 );
-"#);
+"#
+);
 
-test_round_trip!(domains, r#"
+test_round_trip!(
+    domains,
+    r#"
 create domain public.year as integer
     constraint year_check check (((value >= 1901) and (value <= 2155)));
 
@@ -965,20 +997,25 @@ create table movie
     name text not null,
     year year not null
 );
-"#);
+"#
+);
 
-test_round_trip!(limited_length_columns, r#"
+test_round_trip!(
+    limited_length_columns,
+    r#"
 create table my_table(
     name varchar(200) not null,
     var_char_array varchar(666)[] not null
 );
-"#);
-
-
+"#
+);
 
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
-async fn timescale_foreign_keys_on_compressed_tables(source: &TestHelper, destination: &TestHelper) {
+async fn timescale_foreign_keys_on_compressed_tables(
+    source: &TestHelper,
+    destination: &TestHelper,
+) {
     test_round_trip(
         r#"
 create table user_files(
@@ -1004,66 +1041,45 @@ select add_compression_policy('user_file_downloads', interval '7 days');
         source,
         destination,
     )
-        .await;
+    .await;
 }
 
 async fn export_to_string(source: &TestHelper) -> String {
     let mut result_file = Vec::<u8>::new();
 
-
     {
         let quoter = IdentifierQuoter::empty();
 
-        let mut sql_file = SqlFile::new(&mut result_file, Arc::new(quoter), SqlFileOptions {
-            chunk_separator: "test_chunk_separator".to_string(),
-            max_commands_per_chunk: 1,
-            data_mode: SqlDataMode::InsertStatements,
-            ..default()
-        }).await.unwrap();
+        let mut sql_file = SqlFile::new(
+            &mut result_file,
+            Arc::new(quoter),
+            SqlFileOptions {
+                chunk_separator: "test_chunk_separator".to_string(),
+                max_commands_per_chunk: 1,
+                data_mode: SqlDataMode::InsertStatements,
+                ..default()
+            },
+        )
+        .await
+        .unwrap();
 
-        let source = PostgresInstanceStorage::new(source.get_conn()).await.unwrap();
+        let source = PostgresInstanceStorage::new(source.get_conn())
+            .await
+            .unwrap();
 
-
-        copy_data(&source, &mut sql_file, CopyDataOptions::default()).await.unwrap();
+        copy_data(&source, &mut sql_file, CopyDataOptions::default())
+            .await
+            .unwrap();
     }
 
     String::from_utf8(result_file).unwrap()
 }
 const SEPARATOR_LINE: &str = "-- chunk-separator-test_chunk_separator --\n";
 
-#[pg_test(arg(postgres = 15))]
-async fn test_differential_copy(source: &TestHelper) {
-
-    source.execute_not_query(r#"
-
-        CREATE TABLE products (
-            product_no integer PRIMARY KEY,
-            name text,
-            price numeric
-        );
-        
-        insert into products(product_no, name, price) values (1, 'foo', 1.0), (2, 'bar', 2.0), (3, 'baz', 3.0);
-
-        CREATE TABLE orders (
-            order_id integer PRIMARY KEY,
-            shipping_address text
-        );
-        
-        insert into orders(order_id, shipping_address) values (1, 'foo'), (2, 'bar'), (3, 'baz');
-
-        CREATE TABLE order_items (
-            product_no integer REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
-            order_id integer REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
-            quantity integer,
-            PRIMARY KEY (product_no, order_id)
-        );
-        
-        insert into order_items(product_no, order_id, quantity) values (1, 1, 1), (2, 2, 2), (3, 3, 3);
-    "#).await;
+pub async fn test_differential_copy_generic(source: &TestHelper, setup_query: &str) {
+    source.execute_not_query(setup_query).await;
 
     let source_schema = introspect_schema(source).await;
-
-    assert_eq!(source_schema.schemas[0].tables.len(), 3);
 
     let sql = export_to_string(source).await;
 
@@ -1071,7 +1087,11 @@ async fn test_differential_copy(source: &TestHelper) {
         .await
         .unwrap();
 
-    let commands = sql.as_bytes().read_lines_until_separator_line_to_vec(SEPARATOR_LINE).await.unwrap();
+    let commands = sql
+        .as_bytes()
+        .read_lines_until_separator_line_to_vec(SEPARATOR_LINE)
+        .await
+        .unwrap();
 
     for i in 0..commands.len() {
         let to_execute = commands.iter().take(i);
@@ -1096,12 +1116,11 @@ async fn test_differential_copy(source: &TestHelper) {
                 ..default()
             },
         )
-            .await
-            .expect("Failed to copy data");
+        .await
+        .expect("Failed to copy data");
 
         let destination_schema = introspect_schema(&destination).await;
 
-        assert_eq!(destination_schema.schemas[0].tables.len(), 3);
         assert_eq!(source_schema, destination_schema);
 
         let destination_raw_connection = destination.get_conn().underlying_connection();
@@ -1110,33 +1129,101 @@ async fn test_differential_copy(source: &TestHelper) {
         for schema in &source_schema.schemas {
             for table in &schema.tables {
                 let mut query = "select ".to_string();
-                
-                query.push_join(", ", &table.columns.iter().filter(|c| c.generated.is_none()).map(|c| format!("{}::text", c.name)).collect_vec());
-                
+
+                query.push_join(
+                    ", ",
+                    &table
+                        .columns
+                        .iter()
+                        .filter(|c| c.generated.is_none())
+                        .map(|c| {
+                            format!(
+                                "{}::text",
+                                c.name.quote(
+                                    &source_storage.identifier_quoter,
+                                    AttemptedKeywordUsage::ColumnName
+                                )
+                            )
+                        })
+                        .collect_vec(),
+                );
+
                 query.push_str(" from ");
-                query.push_str(&schema.name);
+                query.push_str(&schema.name.quote(
+                    &source_storage.identifier_quoter,
+                    AttemptedKeywordUsage::Other,
+                ));
                 query.push('.');
-                query.push_str(&table.name);
-                
-                
+                query.push_str(&table.name.quote(
+                    &source_storage.identifier_quoter,
+                    AttemptedKeywordUsage::TypeOrFunctionName,
+                ));
+
                 let from_source = source_raw_connection.query(&query, &[]).await.unwrap();
                 let from_destination = destination_raw_connection.query(&query, &[]).await.unwrap();
-                
-                assert_eq!(from_source.len(), from_destination.len(), "Table: {}.{}. Expected {}, got {}", schema.name, table.name, from_source.len(), from_destination.len());
 
-                for (row_index, (source_row, destination_row)) in from_source.iter().zip(from_destination).enumerate() {
+                assert_eq!(
+                    from_source.len(),
+                    from_destination.len(),
+                    "Table: {}.{}. Expected {}, got {}",
+                    schema.name,
+                    table.name,
+                    from_source.len(),
+                    from_destination.len()
+                );
+
+                for (row_index, (source_row, destination_row)) in
+                    from_source.iter().zip(from_destination).enumerate()
+                {
                     for (idx, col) in source_row.columns().iter().enumerate() {
                         let source_value: String = source_row.get(idx);
                         let destination_value: String = destination_row.get(idx);
-                        assert_eq!(source_value, destination_value, "Table: {}.{}. Row: {}. Column: {}. Expected {:?}, got {:?}", schema.name, table.name, row_index, col.name(), source_value, destination_value);
+                        assert_eq!(
+                            source_value,
+                            destination_value,
+                            "Table: {}.{}. Row: {}. Column: {}. Expected {:?}, got {:?}",
+                            schema.name,
+                            table.name,
+                            row_index,
+                            col.name(),
+                            source_value,
+                            destination_value
+                        );
                     }
                 }
             }
         }
 
         destination.stop().await;
-
-
     }
+}
 
+#[pg_test(arg(postgres = 15))]
+async fn test_differential_copy(source: &TestHelper) {
+    test_differential_copy_generic(source, r#"
+
+        CREATE TABLE products (
+            product_no integer PRIMARY KEY,
+            name text,
+            price numeric
+        );
+
+        insert into products(product_no, name, price) values (1, 'foo', 1.0), (2, 'bar', 2.0), (3, 'baz', 3.0);
+
+        CREATE TABLE orders (
+            order_id integer PRIMARY KEY,
+            shipping_address text
+        );
+
+        insert into orders(order_id, shipping_address) values (1, 'foo'), (2, 'bar'), (3, 'baz');
+
+        CREATE TABLE order_items (
+            product_no integer REFERENCES products ON DELETE RESTRICT ON UPDATE CASCADE,
+            order_id integer REFERENCES orders ON DELETE CASCADE ON UPDATE RESTRICT,
+            quantity integer,
+            PRIMARY KEY (product_no, order_id)
+        );
+
+        insert into order_items(product_no, order_id, quantity) values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+    "#).await;
 }

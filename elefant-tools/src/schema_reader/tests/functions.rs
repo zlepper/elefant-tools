@@ -1,10 +1,10 @@
 use crate::schema_reader::tests;
-use crate::{PostgresColumn, PostgresTable, test_helpers};
 use crate::test_helpers::TestHelper;
 use crate::{
     default, FunctionKind, Parallel, PostgresAggregateFunction, PostgresDatabase, PostgresFunction,
     PostgresSchema, TimescaleSupport, Volatility,
 };
+use crate::{test_helpers, PostgresColumn, PostgresTable};
 use elefant_test_macros::pg_test;
 use ordered_float::NotNan;
 
@@ -155,8 +155,9 @@ async fn test_functions(helper: &TestHelper) {
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 async fn functions_returning_tables(helper: &TestHelper) {
-    tests::test_introspection(helper,
-                              r#"
+    tests::test_introspection(
+        helper,
+        r#"
 
 create table my_table(id int, name text);
 
@@ -166,59 +167,57 @@ begin
 end;
 $$ language plpgsql;
     "#,
-      PostgresDatabase {
-          schemas: vec![PostgresSchema {
-              name: "public".to_string(),
-              object_id: 1.into(),
-              tables: vec![
-                  PostgresTable {
-                      name: "my_table".to_string(),
-                      object_id: 2.into(),
-                      columns: vec![
-                          PostgresColumn {
-                              name: "id".to_string(),
-                              data_type: "int4".to_string(),
-                              ordinal_position: 1,
-                              ..default()
-                          },
-                          PostgresColumn {
-                              name: "name".to_string(),
-                              data_type: "text".to_string(),
-                              ordinal_position: 2,
-                              ..default()
-                          }
-                      ],
-                      ..default()
-                  }
-              ],
-              functions: vec![
-                  PostgresFunction {
-                      function_name: "my_function".to_string(),
-                      language: "plpgsql".to_string(),
-                      estimated_cost: NotNan::new(100.0).unwrap(),
-                      estimated_rows: NotNan::new(1000.0).unwrap(),
-                      support_function: None,
-                      kind: FunctionKind::Function,
-                      security_definer: false,
-                      leak_proof: false,
-                      strict: false,
-                      returns_set: true,
-                      volatility: Volatility::Volatile,
-                      parallel: Parallel::Unsafe,
-                      sql_body: r#"begin
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                object_id: 1.into(),
+                tables: vec![PostgresTable {
+                    name: "my_table".to_string(),
+                    object_id: 2.into(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "id".to_string(),
+                            data_type: "int4".to_string(),
+                            ordinal_position: 1,
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            data_type: "text".to_string(),
+                            ordinal_position: 2,
+                            ..default()
+                        },
+                    ],
+                    ..default()
+                }],
+                functions: vec![PostgresFunction {
+                    function_name: "my_function".to_string(),
+                    language: "plpgsql".to_string(),
+                    estimated_cost: NotNan::new(100.0).unwrap(),
+                    estimated_rows: NotNan::new(1000.0).unwrap(),
+                    support_function: None,
+                    kind: FunctionKind::Function,
+                    security_definer: false,
+                    leak_proof: false,
+                    strict: false,
+                    returns_set: true,
+                    volatility: Volatility::Volatile,
+                    parallel: Parallel::Unsafe,
+                    sql_body: r#"begin
                             return query select 1, 'foo';
-                        end;"#.into(),
-                      arguments: "".to_string(),
-                      result: Some("SETOF my_table".to_string()),
-                      object_id: 3.into(),
-                      depends_on: vec![2.into()],
-                      ..default()
-                  },
-              ],
-              ..default()
-          }],
-          timescale_support: TimescaleSupport::from_test_helper(helper),
-          ..default()
-      },
-    ).await;
+                        end;"#
+                        .into(),
+                    arguments: "".to_string(),
+                    result: Some("SETOF my_table".to_string()),
+                    object_id: 3.into(),
+                    depends_on: vec![2.into()],
+                    ..default()
+                }],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+    .await;
 }

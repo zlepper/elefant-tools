@@ -1,12 +1,12 @@
-use std::fmt::Display;
-use crate::{ElefantToolsError, PostgresSchema};
+use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
+use crate::quoting::AttemptedKeywordUsage::TypeOrFunctionName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
+use crate::{ElefantToolsError, PostgresSchema};
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use crate::object_id::ObjectId;
-use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
-use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
+use std::fmt::Display;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub enum FunctionKind {
@@ -24,7 +24,7 @@ impl FromPgChar for FunctionKind {
             'p' => Ok(FunctionKind::Procedure),
             'a' => Ok(FunctionKind::Aggregate),
             'w' => Ok(FunctionKind::Window),
-            _ => Err(ElefantToolsError::UnknownFunctionKind(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownFunctionKind(c.to_string())),
         }
     }
 }
@@ -43,7 +43,7 @@ impl FromPgChar for Volatility {
             'i' => Ok(Volatility::Immutable),
             's' => Ok(Volatility::Stable),
             'v' => Ok(Volatility::Volatile),
-            _ => Err(ElefantToolsError::UnknownVolatility(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownVolatility(c.to_string())),
         }
     }
 }
@@ -62,7 +62,7 @@ impl FromPgChar for Parallel {
             's' => Ok(Parallel::Safe),
             'r' => Ok(Parallel::Restricted),
             'u' => Ok(Parallel::Unsafe),
-            _ => Err(ElefantToolsError::UnknownParallel(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownParallel(c.to_string())),
         }
     }
 }
@@ -91,8 +91,18 @@ pub struct PostgresFunction {
 }
 
 impl PostgresFunction {
-    pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let fn_name = format!("{}.{}", schema.name.quote(identifier_quoter, TypeOrFunctionName), &self.function_name.quote(identifier_quoter, TypeOrFunctionName));
+    pub fn get_create_statement(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
+        let fn_name = format!(
+            "{}.{}",
+            schema.name.quote(identifier_quoter, TypeOrFunctionName),
+            &self
+                .function_name
+                .quote(identifier_quoter, TypeOrFunctionName)
+        );
 
         let function_keyword = if self.kind == FunctionKind::Procedure {
             "procedure"
@@ -100,7 +110,10 @@ impl PostgresFunction {
             "function"
         };
 
-        let mut sql = format!("create {} {} ({})", function_keyword, fn_name, self.arguments);
+        let mut sql = format!(
+            "create {} {} ({})",
+            function_keyword, fn_name, self.arguments
+        );
 
         if let Some(result) = &self.result {
             sql.push_str(" returns ");
@@ -177,11 +190,9 @@ impl PostgresFunction {
             sql.push(';');
         }
 
-
         sql
     }
 }
-
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default, Serialize, Deserialize)]
 pub enum FinalModify {
@@ -197,7 +208,9 @@ impl FromPgChar for FinalModify {
             'r' => Ok(FinalModify::ReadOnly),
             's' => Ok(FinalModify::Shareable),
             'w' => Ok(FinalModify::ReadWrite),
-            _ => Err(ElefantToolsError::UnknownAggregateFinalFunctionModify(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownAggregateFinalFunctionModify(
+                c.to_string(),
+            )),
         }
     }
 }
@@ -212,7 +225,6 @@ impl Display for FinalModify {
         write!(f, "{}", str)
     }
 }
-
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresAggregateFunction {
@@ -243,8 +255,18 @@ pub struct PostgresAggregateFunction {
 }
 
 impl PostgresAggregateFunction {
-    pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let fn_name = format!("{}.{}", schema.name.quote(identifier_quoter, TypeOrFunctionName), &self.function_name.quote(identifier_quoter, TypeOrFunctionName));
+    pub fn get_create_statement(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
+        let fn_name = format!(
+            "{}.{}",
+            schema.name.quote(identifier_quoter, TypeOrFunctionName),
+            &self
+                .function_name
+                .quote(identifier_quoter, TypeOrFunctionName)
+        );
 
         let mut sql = format!("create aggregate {} ({}) (\n", fn_name, self.arguments);
 
@@ -276,7 +298,7 @@ impl PostgresAggregateFunction {
         if let Some(final_function) = &self.final_function {
             sql.push_str(",\n\tfinalfunc=");
             sql.push_str(final_function);
-            
+
             sql.push_str(",\n\tfinalfunc_modify=");
             sql.push_str(&self.final_modify.to_string());
 
@@ -285,13 +307,14 @@ impl PostgresAggregateFunction {
             }
         }
 
-
         if let Some(moving_state_transition_function) = &self.moving_state_transition_function {
             sql.push_str(",\n\tmsfunc=");
             sql.push_str(moving_state_transition_function);
         }
 
-        if let Some(inverse_moving_state_transition_function) = &self.inverse_moving_state_transition_function {
+        if let Some(inverse_moving_state_transition_function) =
+            &self.inverse_moving_state_transition_function
+        {
             sql.push_str(",\n\tminv_sfunc=");
             sql.push_str(inverse_moving_state_transition_function);
         }
@@ -299,15 +322,14 @@ impl PostgresAggregateFunction {
         if let Some(moving_final_function) = &self.moving_final_function {
             sql.push_str(",\n\tmfinalfunc=");
             sql.push_str(moving_final_function);
-            
+
             sql.push_str(",\n\tmfinalfunc_modify=");
             sql.push_str(&self.moving_final_modify.to_string());
-            
+
             if self.moving_final_extra_data {
                 sql.push_str(",\n\tmfinalfunc_extra");
             }
         }
-
 
         if let Some(moving_transition_type) = &self.moving_transition_type {
             sql.push_str(",\n\tmstype=");
@@ -318,7 +340,6 @@ impl PostgresAggregateFunction {
                 sql.push_str(&moving_transition_space.to_string());
             }
         }
-
 
         if let Some(moving_initial_value) = &self.moving_initial_value {
             sql.push_str(",\n\tminitcond=");

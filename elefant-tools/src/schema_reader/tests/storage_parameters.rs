@@ -1,8 +1,12 @@
-use elefant_test_macros::pg_test;
-use crate::{default, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection, PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema, PostgresTable, TimescaleSupport};
 use crate::schema_reader::tests::test_introspection;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{
+    default, PostgresColumn, PostgresDatabase, PostgresIndex, PostgresIndexColumnDirection,
+    PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType, PostgresSchema,
+    PostgresTable, TimescaleSupport,
+};
+use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 13))]
 #[pg_test(arg(postgres = 14))]
@@ -55,7 +59,7 @@ async fn index_storage_parameters(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -100,5 +104,5 @@ async fn index_storage_parameters_pg_12(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }

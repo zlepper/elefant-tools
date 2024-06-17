@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
-use crate::pg_interval::Interval;
 use crate::helpers::StringExt;
+use crate::pg_interval::Interval;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::quoting::{IdentifierQuoter, Quotable};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct HypertableCompression {
@@ -32,15 +32,24 @@ impl Default for HypertableCompressionOrderedColumn {
 }
 
 impl HypertableCompression {
-    pub fn add_compression_settings(&self, sql: &mut String, escaped_relation_name: &str, identifier_quoter: &IdentifierQuoter) {
-
+    pub fn add_compression_settings(
+        &self,
+        sql: &mut String,
+        escaped_relation_name: &str,
+        identifier_quoter: &IdentifierQuoter,
+    ) {
         sql.push_str(escaped_relation_name);
         sql.push_str(" set (\n\ttimescaledb.compress = ");
         sql.push_str(&self.enabled.to_string());
 
         if let Some(segment_by) = &self.segment_by_columns {
             sql.push_str(",\n\ttimescaledb.compress_segmentby = '");
-            sql.push_join(", ", segment_by.iter().map(|c| c.quote(identifier_quoter, ColumnName)));
+            sql.push_join(
+                ", ",
+                segment_by
+                    .iter()
+                    .map(|c| c.quote(identifier_quoter, ColumnName)),
+            );
             sql.push('\'');
         }
 

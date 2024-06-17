@@ -1,7 +1,7 @@
-use std::cmp::Ordering;
-use serde::{Deserialize, Serialize};
 use crate::object_id::ObjectId;
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresCheckConstraint {

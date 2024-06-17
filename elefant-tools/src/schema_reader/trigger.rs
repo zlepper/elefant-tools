@@ -1,6 +1,6 @@
-use crate::{PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming};
-use crate::postgres_client_wrapper::{FromRow};
+use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use crate::{PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming};
 
 pub struct TriggerResult {
     pub schema_name: String,
@@ -20,37 +20,36 @@ pub struct TriggerResult {
 impl FromRow for TriggerResult {
     fn from_row(row: tokio_postgres::Row) -> crate::Result<Self> {
         let trigger_type: i32 = row.try_get(3)?;
-        
+
         let trigger_level = match trigger_type & 1 {
             1 => PostgresTriggerLevel::Row,
             _ => PostgresTriggerLevel::Statement,
         };
-        
+
         let trigger_timing = match trigger_type & 66 {
             2 => PostgresTriggerTiming::Before,
             64 => PostgresTriggerTiming::InsteadOf,
             _ => PostgresTriggerTiming::After,
         };
-        
+
         let mut trigger_events = Vec::with_capacity(1);
-        
+
         if trigger_type & 4 != 0 {
             trigger_events.push(PostgresTriggerEvent::Insert);
         }
-        
+
         if trigger_type & 8 != 0 {
             trigger_events.push(PostgresTriggerEvent::Delete);
         }
-        
+
         if trigger_type & 16 != 0 {
             trigger_events.push(PostgresTriggerEvent::Update);
         }
-        
+
         if trigger_type & 32 != 0 {
             trigger_events.push(PostgresTriggerEvent::Truncate);
         }
-        
-        
+
         Ok(Self {
             schema_name: row.try_get(0)?,
             name: row.try_get(1)?,
@@ -69,7 +68,10 @@ impl FromRow for TriggerResult {
 }
 
 //language=postgresql
-define_working_query!(get_triggers, TriggerResult, r#"
+define_working_query!(
+    get_triggers,
+    TriggerResult,
+    r#"
 SELECT n.nspname     AS trigger_schema,
        t.tgname      AS trigger_name,
        c.relname     AS table_name,
@@ -95,4 +97,5 @@ WHERE
   and (dep.objid is null or dep.deptype <> 'e' )
     and has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE')
 order by trigger_schema, trigger_name;
-"#);
+"#
+);

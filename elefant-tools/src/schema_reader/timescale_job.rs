@@ -1,7 +1,7 @@
 use crate::pg_interval::Interval;
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct TimescaleJobResult {
     pub function_name: String,
@@ -29,9 +29,11 @@ impl FromRow for TimescaleJobResult {
     }
 }
 
-
 //language=postgresql
-define_working_query!(get_timescale_jobs, TimescaleJobResult, r#"
+define_working_query!(
+    get_timescale_jobs,
+    TimescaleJobResult,
+    r#"
 select job.proc_name,
        job.proc_schema,
        job.schedule_interval,
@@ -42,4 +44,5 @@ select job.proc_name,
        job.fixed_schedule
 from _timescaledb_config.bgw_job job
 where job.proc_schema <> '_timescaledb_functions'
-"#);
+"#
+);

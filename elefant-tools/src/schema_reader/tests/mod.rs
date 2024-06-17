@@ -1,23 +1,23 @@
-mod timescale;
-mod inheritance;
-mod storage_parameters;
-mod partitioning;
+mod column_types;
+mod comments;
 mod custom_types;
+mod extensions;
+mod foreign_keys;
+mod functions;
+mod indices;
+mod inheritance;
+mod partitioning;
+mod respects_permissions;
+mod storage_parameters;
+mod timescale;
 mod triggers;
 mod views;
-mod comments;
-mod extensions;
-mod functions;
-mod foreign_keys;
-mod indices;
-mod column_types;
-mod respects_permissions;
 
 use super::*;
 use crate::default;
+use crate::test_helpers;
 use crate::test_helpers::TestHelper;
 use elefant_test_macros::pg_test;
-use crate::test_helpers;
 
 pub async fn introspect_schema(test_helper: &TestHelper) -> PostgresDatabase {
     let conn = test_helper.get_conn();
@@ -172,7 +172,7 @@ async fn reads_simple_schema(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -201,7 +201,7 @@ async fn table_without_columns(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -249,7 +249,7 @@ async fn table_without_primary_key(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -336,7 +336,7 @@ async fn composite_primary_keys(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -386,7 +386,7 @@ async fn generated_column(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -442,5 +442,5 @@ async fn test_quoted_identifier_names(helper: &TestHelper) {
             ..default()
         },
     )
-        .await
+    .await
 }

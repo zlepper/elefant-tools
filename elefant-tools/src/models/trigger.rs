@@ -1,10 +1,10 @@
-use serde::{Deserialize, Serialize};
-use crate::{ElefantToolsError, PostgresSchema};
 use crate::helpers::StringExt;
 use crate::object_id::ObjectId;
 use crate::postgres_client_wrapper::FromPgChar;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::{ColumnName, TypeOrFunctionName};
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::{ElefantToolsError, PostgresSchema};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresTrigger {
@@ -23,7 +23,11 @@ pub struct PostgresTrigger {
 }
 
 impl PostgresTrigger {
-    pub fn get_create_statement(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
+    pub fn get_create_statement(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
         let mut sql = "create trigger ".to_string();
 
         sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
@@ -34,9 +38,9 @@ impl PostgresTrigger {
             PostgresTriggerTiming::InsteadOf => "instead of",
         });
         sql.push(' ');
-        
+
         sql.push_join(" or ", self.events.iter().map(|e| e.get_event_name()));
-        
+
         sql.push_str(" on ");
         sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
         sql.push('.');
@@ -54,13 +58,17 @@ impl PostgresTrigger {
         }
 
         sql.push_str(" execute function ");
-        sql.push_str(&self.function_name.quote(identifier_quoter, TypeOrFunctionName));
+        sql.push_str(
+            &self
+                .function_name
+                .quote(identifier_quoter, TypeOrFunctionName),
+        );
         sql.push('(');
-        
+
         if let Some(args) = &self.arguments {
             sql.push_str(args);
         }
-        
+
         sql.push_str(");");
 
         if let Some(comment) = &self.comment {
@@ -74,7 +82,6 @@ impl PostgresTrigger {
             sql.push_str(&quote_value_string(comment));
             sql.push(';');
         }
-
 
         sql
     }
@@ -96,7 +103,7 @@ impl FromPgChar for PostgresTriggerEvent {
             'u' => Ok(PostgresTriggerEvent::Update),
             'd' => Ok(PostgresTriggerEvent::Delete),
             't' => Ok(PostgresTriggerEvent::Truncate),
-            _ => Err(ElefantToolsError::UnknownTriggerEvent(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownTriggerEvent(c.to_string())),
         }
     }
 }
@@ -126,7 +133,7 @@ impl FromPgChar for PostgresTriggerTiming {
             'b' => Ok(PostgresTriggerTiming::Before),
             'a' => Ok(PostgresTriggerTiming::After),
             'i' => Ok(PostgresTriggerTiming::InsteadOf),
-            _ => Err(ElefantToolsError::UnknownTriggerTiming(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownTriggerTiming(c.to_string())),
         }
     }
 }
@@ -140,11 +147,10 @@ pub enum PostgresTriggerLevel {
 
 impl FromPgChar for PostgresTriggerLevel {
     fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
-
         match c {
             'r' => Ok(PostgresTriggerLevel::Row),
             's' => Ok(PostgresTriggerLevel::Statement),
-            _ => Err(ElefantToolsError::UnknownTriggerLevel(c.to_string()))
+            _ => Err(ElefantToolsError::UnknownTriggerLevel(c.to_string())),
         }
     }
 }

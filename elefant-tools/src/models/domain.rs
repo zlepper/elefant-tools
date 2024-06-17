@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
+use crate::quoting::{quote_value_string, AttemptedKeywordUsage, Quotable};
 use crate::{IdentifierQuoter, ObjectId, PostgresSchema};
-use crate::quoting::{AttemptedKeywordUsage, Quotable, quote_value_string};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct PostgresDomain {
@@ -12,7 +12,7 @@ pub struct PostgresDomain {
     pub not_null: bool,
     pub description: Option<String>,
     pub depends_on: Vec<ObjectId>,
-    pub data_type_length: Option<i32>
+    pub data_type_length: Option<i32>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
@@ -22,9 +22,21 @@ pub struct PostgresDomainConstraint {
 }
 
 impl PostgresDomain {
-    pub fn get_create_sql(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut sql = format!("create domain {}.{} as {}", schema.name.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName), self.name.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName), self.base_type_name);
-        
+    pub fn get_create_sql(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
+        let mut sql = format!(
+            "create domain {}.{} as {}",
+            schema
+                .name
+                .quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName),
+            self.name
+                .quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName),
+            self.base_type_name
+        );
+
         if let Some(length) = self.data_type_length {
             sql.push_str(&format!("({})", length));
         }
@@ -35,14 +47,28 @@ impl PostgresDomain {
             sql.push_str(" not null");
         }
         if let Some(constraint) = &self.constraint {
-            sql.push_str(&format!(" constraint {} check {}", constraint.name.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName), constraint.definition));
+            sql.push_str(&format!(
+                " constraint {} check {}",
+                constraint
+                    .name
+                    .quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName),
+                constraint.definition
+            ));
         }
         sql.push(';');
-        
+
         if let Some(description) = &self.description {
-            sql.push_str(&format!("\ncomment on domain {}.{} is {};", schema.name.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName), self.name.quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName), quote_value_string(description)));
+            sql.push_str(&format!(
+                "\ncomment on domain {}.{} is {};",
+                schema
+                    .name
+                    .quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName),
+                self.name
+                    .quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName),
+                quote_value_string(description)
+            ));
         }
-        
+
         sql
     }
 }

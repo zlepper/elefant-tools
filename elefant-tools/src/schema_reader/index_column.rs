@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct IndexColumnResult {
     pub table_schema: String,
@@ -29,7 +29,10 @@ impl FromRow for IndexColumnResult {
 }
 
 //language=postgresql
-define_working_query!(get_index_columns, IndexColumnResult, r#"
+define_working_query!(
+    get_index_columns,
+    IndexColumnResult,
+    r#"
 select n.nspname                                              as table_schema,
       table_class.relname                                    as table_name,
       index_class.relname                                    as index_name,
@@ -51,4 +54,5 @@ where a.attnum > 0
 and table_class.relkind = 'r'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name, ordinal_position
-"#);
+"#
+);

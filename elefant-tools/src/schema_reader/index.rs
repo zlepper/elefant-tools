@@ -1,7 +1,7 @@
+use crate::postgres_client_wrapper::FromRow;
+use crate::schema_reader::SchemaReader;
 use tokio_postgres::Row;
 use tracing::instrument;
-use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::{SchemaReader};
 
 pub struct IndexResult {
     pub table_schema: String,
@@ -38,8 +38,6 @@ impl FromRow for IndexResult {
 impl SchemaReader<'_> {
     #[instrument(skip_all)]
     pub(in crate::schema_reader) async fn get_indices(&self) -> crate::Result<Vec<IndexResult>> {
-
-
         let query = if self.connection.version() >= 150 {
             //language=postgresql
             r#"

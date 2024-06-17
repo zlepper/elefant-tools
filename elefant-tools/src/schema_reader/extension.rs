@@ -1,13 +1,12 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct ExtensionResult {
     pub extension_name: String,
     pub extension_schema_name: String,
     pub extension_version: String,
     pub extension_relocatable: bool,
-
 }
 
 impl FromRow for ExtensionResult {
@@ -22,7 +21,10 @@ impl FromRow for ExtensionResult {
 }
 
 //language=postgresql
-define_working_query!(get_extensions, ExtensionResult, r#"
+define_working_query!(
+    get_extensions,
+    ExtensionResult,
+    r#"
 select ext.extname        as extension_name,
        ns.nspname   as extension_schema_name,
        ext.extversion     as extension_version,
@@ -30,4 +32,5 @@ select ext.extname        as extension_name,
 from pg_catalog.pg_extension ext
          join pg_namespace ns on ext.extnamespace = ns.oid
         where ext.oid > 16384;
-"#);
+"#
+);

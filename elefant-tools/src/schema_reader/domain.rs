@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct DomainResult {
     pub schema_name: String,
@@ -13,7 +13,7 @@ pub struct DomainResult {
     pub base_type_name: String,
     pub domain_oid: i64,
     pub depends_on: Option<Vec<i64>>,
-    pub data_type_length: Option<i32>
+    pub data_type_length: Option<i32>,
 }
 
 impl FromRow for DomainResult {
@@ -29,13 +29,16 @@ impl FromRow for DomainResult {
             base_type_name: row.try_get(7)?,
             domain_oid: row.try_get(8)?,
             depends_on: row.try_get(9)?,
-            data_type_length: row.try_get(10)?
+            data_type_length: row.try_get(10)?,
         })
     }
 }
 
 //language=postgresql
-define_working_query!(get_domains, DomainResult, r#"
+define_working_query!(
+    get_domains,
+    DomainResult,
+    r#"
 select nsp.nspname                                     as schema_name,
        typ.typname                                     as domain_name,
        con.conname                                     as constraint_name,
@@ -63,4 +66,5 @@ where typ.oid > 16384
   and typ.typtype = 'd'
   and has_type_privilege(typ.oid, 'USAGE')
 order by nsp.nspname, typ.typname, con.conname;
-"#);
+"#
+);

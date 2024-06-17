@@ -1,9 +1,9 @@
-use serde::{Deserialize, Serialize};
-use crate::pg_interval::Interval;
 use crate::object_id::ObjectId;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
-use crate::quoting::AttemptedKeywordUsage::{TypeOrFunctionName};
+use crate::pg_interval::Interval;
+use crate::quoting::AttemptedKeywordUsage::TypeOrFunctionName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TimescaleDbUserDefinedJob {
@@ -37,9 +37,17 @@ impl Default for TimescaleDbUserDefinedJob {
 impl TimescaleDbUserDefinedJob {
     pub fn get_create_sql(&self, identifier_quoter: &IdentifierQuoter) -> String {
         let mut sql = "select add_job('".to_string();
-        sql.push_str(&self.function_schema.quote(identifier_quoter, TypeOrFunctionName));
+        sql.push_str(
+            &self
+                .function_schema
+                .quote(identifier_quoter, TypeOrFunctionName),
+        );
         sql.push('.');
-        sql.push_str(&self.function_name.quote(identifier_quoter, TypeOrFunctionName));
+        sql.push_str(
+            &self
+                .function_name
+                .quote(identifier_quoter, TypeOrFunctionName),
+        );
         sql.push_str("', interval '");
         sql.push_str(&self.schedule_interval.to_postgres());
         sql.push('\'');
@@ -53,7 +61,9 @@ impl TimescaleDbUserDefinedJob {
             sql.push_str(", scheduled => false");
         }
 
-        if let (Some(check_config_name), Some(check_config_schema)) = (&self.check_config_name, &self.check_config_schema) {
+        if let (Some(check_config_name), Some(check_config_schema)) =
+            (&self.check_config_name, &self.check_config_schema)
+        {
             sql.push_str(", check_config => '");
             sql.push_str(&check_config_schema.quote(identifier_quoter, TypeOrFunctionName));
             sql.push('.');
@@ -69,5 +79,4 @@ impl TimescaleDbUserDefinedJob {
 
         sql
     }
-
 }

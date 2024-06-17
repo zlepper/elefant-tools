@@ -3,14 +3,27 @@ use tokio::io::{AsyncBufRead, AsyncBufReadExt};
 /// A trait for reading chunks of strings from a reader until a separator line is encountered.
 pub(crate) trait StringChunkReader {
     // separator should include the newline
-    fn read_lines_until_separator_line(&mut self, separator: &str, s: &mut String) -> impl std::future::Future<Output=std::io::Result<ChunkResult>> + Send;
-    fn read_lines_until_separator_line_to_vec(&mut self, separator: &str) -> impl std::future::Future<Output=std::io::Result<Vec<String>>> + Send;
+    fn read_lines_until_separator_line(
+        &mut self,
+        separator: &str,
+        s: &mut String,
+    ) -> impl std::future::Future<Output = std::io::Result<ChunkResult>> + Send;
+    #[cfg(test)]
+    fn read_lines_until_separator_line_to_vec(
+        &mut self,
+        separator: &str,
+    ) -> impl std::future::Future<Output = std::io::Result<Vec<String>>> + Send;
 }
 
 impl<R> StringChunkReader for R
-    where R: AsyncBufRead + Send + Unpin
+where
+    R: AsyncBufRead + Send + Unpin,
 {
-    async fn read_lines_until_separator_line(&mut self, separator: &str, s: &mut String) -> std::io::Result<ChunkResult> {
+    async fn read_lines_until_separator_line(
+        &mut self,
+        separator: &str,
+        s: &mut String,
+    ) -> std::io::Result<ChunkResult> {
         let mut total_read = 0;
         let separator_length = separator.len();
 
@@ -21,7 +34,6 @@ impl<R> StringChunkReader for R
                 return Ok(ChunkResult::End(total_read));
             }
 
-
             if read == separator_length && s.ends_with(&separator) {
                 s.truncate(s.len() - separator_length);
                 return Ok(ChunkResult::Chunk(total_read));
@@ -31,7 +43,11 @@ impl<R> StringChunkReader for R
         }
     }
 
-    async fn read_lines_until_separator_line_to_vec(&mut self, separator: &str) -> std::io::Result<Vec<String>> {
+    #[cfg(test)]
+    async fn read_lines_until_separator_line_to_vec(
+        &mut self,
+        separator: &str,
+    ) -> std::io::Result<Vec<String>> {
         let mut sql_chunk = String::new();
 
         let mut output = Vec::new();
@@ -39,7 +55,9 @@ impl<R> StringChunkReader for R
         loop {
             sql_chunk.clear();
 
-            let read = self.read_lines_until_separator_line(&separator, &mut sql_chunk).await?;
+            let read = self
+                .read_lines_until_separator_line(&separator, &mut sql_chunk)
+                .await?;
             match read {
                 ChunkResult::Chunk(_) => {
                     output.push(sql_chunk.clone());
@@ -57,7 +75,6 @@ impl<R> StringChunkReader for R
     }
 }
 
-
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub(crate) enum ChunkResult {
     /// A chunk of data was read, however we haven't reached the end of the file yet.
@@ -65,7 +82,6 @@ pub(crate) enum ChunkResult {
     /// A chunk of data was read, and we have reached the end of the file.
     End(usize),
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -132,11 +148,13 @@ mod tests {
 
     #[test]
     async fn read_to_vector() {
-
         let mut bytes = "hello\nworld\n|\nhej\nverden\n".as_bytes();
-        
-        let result = bytes.read_lines_until_separator_line_to_vec("|\n").await.unwrap();
-        
+
+        let result = bytes
+            .read_lines_until_separator_line_to_vec("|\n")
+            .await
+            .unwrap();
+
         assert_eq!(result, vec!["hello\nworld\n", "hej\nverden\n"]);
     }
 }

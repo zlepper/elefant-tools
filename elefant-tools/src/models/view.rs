@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
-use crate::pg_interval::Interval;
-use crate::{HypertableCompression, PostgresSchema};
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::object_id::{HaveDependencies, ObjectId};
-use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::pg_interval::Interval;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
+use crate::{HypertableCompression, PostgresSchema};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresView {
@@ -30,8 +30,16 @@ impl HaveDependencies for &PostgresView {
 }
 
 impl PostgresView {
-    pub fn get_create_view_sql(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> String {
-        let escaped_relation_name = format!("{}.{}", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+    pub fn get_create_view_sql(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> String {
+        let escaped_relation_name = format!(
+            "{}.{}",
+            schema.name.quote(identifier_quoter, ColumnName),
+            self.name.quote(identifier_quoter, ColumnName)
+        );
 
         let mut sql = "create".to_string();
 
@@ -58,7 +66,6 @@ impl PostgresView {
             sql.push_str("with (timescaledb.continuous) ");
         }
 
-
         sql.push_str("as ");
 
         sql.push_str(&self.definition);
@@ -82,8 +89,12 @@ impl PostgresView {
             sql.push(';');
         }
 
-
-        if let ViewOptions::TimescaleContinuousAggregate { refresh, compression, retention } = &self.view_options {
+        if let ViewOptions::TimescaleContinuousAggregate {
+            refresh,
+            compression,
+            retention,
+        } = &self.view_options
+        {
             if let Some(refresh) = refresh {
                 sql.push_str("\nselect add_continuous_aggregate_policy('");
                 sql.push_str(&escaped_relation_name);
@@ -98,9 +109,12 @@ impl PostgresView {
 
             if let Some(compression) = compression {
                 sql.push_str("alter materialized view ");
-                compression.add_compression_settings(&mut sql, &escaped_relation_name, identifier_quoter);
+                compression.add_compression_settings(
+                    &mut sql,
+                    &escaped_relation_name,
+                    identifier_quoter,
+                );
             }
-
 
             if let Some(retention) = retention {
                 sql.push('\n');
@@ -111,12 +125,24 @@ impl PostgresView {
         sql
     }
 
-    pub fn get_refresh_sql(&self, schema: &PostgresSchema, identifier_quoter: &IdentifierQuoter) -> Option<String> {
+    pub fn get_refresh_sql(
+        &self,
+        schema: &PostgresSchema,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> Option<String> {
         if let ViewOptions::TimescaleContinuousAggregate { .. } = &self.view_options {
-            let sql = format!("call refresh_continuous_aggregate('{}.{}', null, null);", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+            let sql = format!(
+                "call refresh_continuous_aggregate('{}.{}', null, null);",
+                schema.name.quote(identifier_quoter, ColumnName),
+                self.name.quote(identifier_quoter, ColumnName)
+            );
             Some(sql)
         } else if self.is_materialized {
-            let sql = format!("refresh materialized view {}.{};", schema.name.quote(identifier_quoter, ColumnName), self.name.quote(identifier_quoter, ColumnName));
+            let sql = format!(
+                "refresh materialized view {}.{};",
+                schema.name.quote(identifier_quoter, ColumnName),
+                self.name.quote(identifier_quoter, ColumnName)
+            );
             Some(sql)
         } else {
             None

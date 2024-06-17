@@ -1,11 +1,11 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
-use crate::ReferenceAction;
 use crate::schema_reader::define_working_query;
+use crate::ReferenceAction;
+use tokio_postgres::Row;
 
 pub struct ForeignKeyResult {
     pub constraint_name: String,
-    pub constraint_schema_name: String,
+    // pub constraint_schema_name: String,
     pub source_table_name: String,
     pub source_table_schema_name: String,
     pub target_table_name: String,
@@ -19,7 +19,7 @@ impl FromRow for ForeignKeyResult {
     fn from_row(row: Row) -> crate::Result<Self> {
         Ok(Self {
             constraint_name: row.try_get(0)?,
-            constraint_schema_name: row.try_get(1)?,
+            // constraint_schema_name: row.try_get(1)?,
             source_table_name: row.try_get(2)?,
             source_table_schema_name: row.try_get(3)?,
             target_table_name: row.try_get(4)?,
@@ -32,7 +32,10 @@ impl FromRow for ForeignKeyResult {
 }
 
 //language=postgresql
-define_working_query!(get_foreign_keys, ForeignKeyResult, r#"
+define_working_query!(
+    get_foreign_keys,
+    ForeignKeyResult,
+    r#"
 select con.conname              as constraint_name,
        con_ns.nspname           as constraint_schema_name,
        tab.relname              as source_table_name,
@@ -53,4 +56,5 @@ from pg_catalog.pg_constraint con
 where con.contype = 'f'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by constraint_schema_name, source_table_name, constraint_name;
-"#);
+"#
+);

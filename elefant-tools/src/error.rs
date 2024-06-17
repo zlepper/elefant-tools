@@ -1,5 +1,5 @@
-use thiserror::Error;
 use crate::storage::DataFormat;
+use thiserror::Error;
 
 /// All the errors that can occur in the elefant-tools library
 #[non_exhaustive]
@@ -15,11 +15,10 @@ pub enum ElefantToolsError {
         source: tokio_postgres::Error,
     },
 
-    #[error("Invalid number of results returned from query. Expected `{expected}`, got `{actual}`")]
-    InvalidNumberOfResults {
-        actual: usize,
-        expected: usize,
-    },
+    #[error(
+        "Invalid number of results returned from query. Expected `{expected}`, got `{actual}`"
+    )]
+    InvalidNumberOfResults { actual: usize, expected: usize },
 
     #[error("Unknown constraint type '{0}'")]
     UnknownConstraintType(String),
@@ -50,7 +49,7 @@ pub enum ElefantToolsError {
 
     #[error("Unknown table type '{0}'")]
     InvalidTableType(String),
-    
+
     #[error("Unknown keyword type '{0}'")]
     InvalidKeywordType(String),
 
@@ -60,11 +59,10 @@ pub enum ElefantToolsError {
     #[error("The table '{0}' is a partitioned table and does not have a parent table")]
     PartitionedTableWithoutParent(String),
 
-    #[error("The table '{table}' is a partitioned table and has multiple parent tables: {parents:?}")]
-    PartitionedTableHasMultipleParent {
-        table: String,
-        parents: Vec<String>,
-    },
+    #[error(
+        "The table '{table}' is a partitioned table and has multiple parent tables: {parents:?}"
+    )]
+    PartitionedTableHasMultipleParent { table: String, parents: Vec<String> },
 
     #[error("The table '{0}' is a partitioned table and does not have a partition expression")]
     PartitionedTableWithoutExpression(String),
@@ -99,10 +97,10 @@ pub enum ElefantToolsError {
 
     #[error("join error: `{0}`")]
     JoinError(#[from] tokio::task::JoinError),
-    
+
     #[error("Aggregate function '{0}' is missing transition type")]
     AggregateFunctionMissingTransitionType(String),
-    
+
     #[error("Aggregate function '{0}' is missing transition function")]
     AggregateFunctionMissingTransitionFunction(String),
 }

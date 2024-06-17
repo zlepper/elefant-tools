@@ -1,7 +1,7 @@
-use tokio_postgres::Row;
+use super::define_working_query;
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
 use crate::{ElefantToolsError, TablePartitionStrategy};
-use super::{define_working_query};
+use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TablesResult {
@@ -21,7 +21,6 @@ pub struct TablesResult {
     pub depends_on: Option<Vec<i64>>,
     pub type_oid: i64,
 }
-
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Default)]
 pub enum TableType {
@@ -62,9 +61,11 @@ impl FromRow for TablesResult {
     }
 }
 
-
 //language=postgresql
-define_working_query!(get_tables, TablesResult, r#"
+define_working_query!(
+    get_tables,
+    TablesResult,
+    r#"
 select
     ns.nspname,
     cl.relname,
@@ -95,4 +96,5 @@ where cl.relkind in ('r', 'p')
   and (dep.objid is null or dep.deptype <> 'e' )
     and has_table_privilege(cl.oid, 'SELECT, INSERT, UPDATE')
 order by ns.nspname, cl.relname;
-"#);
+"#
+);

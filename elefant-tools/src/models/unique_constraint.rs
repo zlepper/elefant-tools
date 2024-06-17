@@ -1,9 +1,9 @@
-use std::cmp::Ordering;
-use serde::{Deserialize, Serialize};
-use crate::{PostgresSchema, PostgresTable};
 use crate::object_id::ObjectId;
-use crate::quoting::{IdentifierQuoter, Quotable, quote_value_string};
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
+use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
+use crate::{PostgresSchema, PostgresTable};
+use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
 pub struct PostgresUniqueConstraint {
@@ -26,9 +26,19 @@ impl Ord for PostgresUniqueConstraint {
 }
 
 impl PostgresUniqueConstraint {
-    pub fn get_create_statement(&self, table: &PostgresTable, schema: &PostgresSchema, quoter: &IdentifierQuoter) -> String {
-
-        let mut sql = format!("alter table {}.{} add constraint {} unique using index {};", schema.name.quote(quoter, ColumnName), table.name.quote(quoter, ColumnName), self.name.quote(quoter, ColumnName), self.unique_index_name.quote(quoter, ColumnName));
+    pub fn get_create_statement(
+        &self,
+        table: &PostgresTable,
+        schema: &PostgresSchema,
+        quoter: &IdentifierQuoter,
+    ) -> String {
+        let mut sql = format!(
+            "alter table {}.{} add constraint {} unique using index {};",
+            schema.name.quote(quoter, ColumnName),
+            table.name.quote(quoter, ColumnName),
+            self.name.quote(quoter, ColumnName),
+            self.unique_index_name.quote(quoter, ColumnName)
+        );
 
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on constraint ");

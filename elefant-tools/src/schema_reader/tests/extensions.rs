@@ -1,8 +1,8 @@
-use elefant_test_macros::pg_test;
-use crate::{default, PostgresDatabase, PostgresExtension, PostgresSchema, TimescaleSupport};
 use crate::schema_reader::tests;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{default, PostgresDatabase, PostgresExtension, PostgresSchema, TimescaleSupport};
+use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]
@@ -33,5 +33,5 @@ async fn test_extensions(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }

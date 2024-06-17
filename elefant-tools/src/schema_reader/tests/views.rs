@@ -1,8 +1,11 @@
-use elefant_test_macros::pg_test;
-use crate::{default, PostgresColumn, PostgresDatabase, PostgresSchema, PostgresTable, PostgresView, PostgresViewColumn, TimescaleSupport};
 use crate::schema_reader::tests;
-use crate::test_helpers::TestHelper;
 use crate::test_helpers;
+use crate::test_helpers::TestHelper;
+use crate::{
+    default, PostgresColumn, PostgresDatabase, PostgresSchema, PostgresTable, PostgresView,
+    PostgresViewColumn, TimescaleSupport,
+};
+use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 12))]
 #[pg_test(arg(postgres = 13))]
@@ -54,7 +57,7 @@ async fn test_views(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 16))]
@@ -104,7 +107,7 @@ async fn test_views_pg_16(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -139,7 +142,7 @@ async fn materialized_view(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -182,7 +185,7 @@ async fn view_depends_15_below(helper: &TestHelper) {
                         is_materialized: true,
                         depends_on: vec![2.into()],
                         ..default()
-                    }
+                    },
                 ],
                 ..default()
             }],
@@ -190,7 +193,7 @@ async fn view_depends_15_below(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 16))]
@@ -230,7 +233,7 @@ async fn view_depends_16(helper: &TestHelper) {
                         is_materialized: true,
                         depends_on: vec![2.into()],
                         ..default()
-                    }
+                    },
                 ],
                 ..default()
             }],
@@ -238,7 +241,7 @@ async fn view_depends_16(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 12))]
@@ -289,7 +292,7 @@ async fn view_depends_15_below_opposite(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }
 
 #[pg_test(arg(postgres = 16))]
@@ -337,5 +340,5 @@ async fn view_depends_16_opposite(helper: &TestHelper) {
             ..default()
         },
     )
-        .await;
+    .await;
 }

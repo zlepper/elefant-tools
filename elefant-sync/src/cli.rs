@@ -1,7 +1,7 @@
-use std::num::NonZeroUsize;
-use std::thread;
 use clap::{Args, Parser, Subcommand};
 use elefant_tools::SqlDataMode;
+use std::num::NonZeroUsize;
+use std::thread;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about)]
@@ -22,7 +22,6 @@ pub struct Cli {
 fn get_default_max_parallelism() -> NonZeroUsize {
     thread::available_parallelism().unwrap_or(NonZeroUsize::new(1).unwrap())
 }
-
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
@@ -48,7 +47,6 @@ pub enum Commands {
 
 #[derive(Args, Debug, Clone)]
 pub struct ExportDbArgs {
-
     /// The host of the source database to export from
     #[arg(long, env)]
     pub source_db_host: String,
@@ -72,7 +70,7 @@ pub struct ExportDbArgs {
     /// The schema to export. If not specified, all schemas will be exported
     #[arg(long, env)]
     pub source_schema: Option<String>,
-    
+
     /// Only the schema will be exported, but not the data
     #[arg(long, env)]
     pub schema_only: bool,
@@ -80,9 +78,16 @@ pub struct ExportDbArgs {
 
 impl ExportDbArgs {
     pub(crate) fn get_connection_string(&self) -> String {
-        format!("host={} port={} user={} password={} dbname={}", self.source_db_host, self.source_db_port, self.source_db_user, self.source_db_password, self.source_db_name)
+        format!(
+            "host={} port={} user={} password={} dbname={}",
+            self.source_db_host,
+            self.source_db_port,
+            self.source_db_user,
+            self.source_db_password,
+            self.source_db_name
+        )
     }
-    
+
     #[cfg(test)]
     pub(crate) fn from_test_helper(helper: &elefant_tools::test_helpers::TestHelper) -> Self {
         Self {
@@ -99,7 +104,6 @@ impl ExportDbArgs {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Storage {
-
     /// Export to a single SQL file. This files can be run directly against postgres without needing the
     /// elefant-sync tool to import it, however no additional processing can be done during import.
     /// This is only recommended for very small databases. For larger databases, use one of the Elefant options.
@@ -107,20 +111,20 @@ pub enum Storage {
         /// The path to the .sql file to import/export
         #[arg(long)]
         path: String,
-        
+
         /// How many rows to generate per insert statement. Only considered on export
         #[arg(long, default_value_t = 1000, env)]
         max_rows_per_insert: usize,
-        
+
         /// How many DDL commands to generate per chunk. Only considered on export
         #[arg(long, default_value_t = 10, env)]
         max_commands_per_chunk: usize,
-        
+
         /// The format to use when exporting. Only considered on export
         #[arg(long, default_value_t = SqlDataMode::CopyStatements, env)]
         format: SqlDataMode,
     },
-    // 
+    //
     // /// Export to a directory of SQL files. This directory can be run directly against postgres without needing the
     // /// elefant-sync tool to import it, however no additional processing can be done during import.
     // /// Filenames are specified so files can be imported in alphabetical order.
@@ -129,14 +133,14 @@ pub enum Storage {
     //     #[arg(long)]
     //     path: String,
     // },
-    // 
+    //
     // /// Export to a single 'Elefant' file. This file can be imported later on using the import command
     // /// and supports advanced processing such as moving between schemas or only importing certain schemas or tables
     // ElefantFile {
     //     #[arg(long)]
     //     path: String,
     // },
-    // 
+    //
     // /// Export to a directory of 'Elefant' files. This directory can be imported later on using the import command
     // /// and supports advanced processing such as moving between schemas or only importing certain schemas or tables.
     // /// The benefit of this over the single file is that it is easier to manage in source control
@@ -152,33 +156,39 @@ pub struct ImportDbArgs {
     /// The host of the target database to import to
     #[arg(long, env)]
     pub target_db_host: String,
-    
+
     /// The port of the target database to import to
     #[arg(long, default_value_t = 5432, env)]
     pub target_db_port: u16,
-    
+
     /// The username to use when connecting to the target database
     #[arg(long, env)]
     pub target_db_user: String,
-    
+
     /// The password to use when connecting to the target database
     #[arg(long, env)]
     pub target_db_password: String,
-    
+
     /// The name of the target database to import to
     #[arg(long, env)]
     pub target_db_name: String,
-    
-    /// The schema to import to. If not specified, the schema will be imported to 
+
+    /// The schema to import to. If not specified, the schema will be imported to
     /// the same schema as it was exported from.
     #[arg(long, env)]
     pub target_schema: Option<String>,
 }
 
-
 impl ImportDbArgs {
     pub(crate) fn get_connection_string(&self) -> String {
-        let mut connection_string = format!("host={} port={} user={} password={} dbname={}", self.target_db_host, self.target_db_port, self.target_db_user, self.target_db_password, self.target_db_name);
+        let mut connection_string = format!(
+            "host={} port={} user={} password={} dbname={}",
+            self.target_db_host,
+            self.target_db_port,
+            self.target_db_user,
+            self.target_db_password,
+            self.target_db_name
+        );
 
         if let Some(schema) = &self.target_schema {
             connection_string.push_str(&format!(" options=--search_path={},public", schema));
@@ -186,7 +196,6 @@ impl ImportDbArgs {
 
         connection_string
     }
-
 
     #[cfg(test)]
     pub(crate) fn from_test_helper(helper: &elefant_tools::test_helpers::TestHelper) -> Self {
@@ -201,15 +210,19 @@ impl ImportDbArgs {
     }
 }
 
-
 #[derive(Args, Debug, Clone)]
 pub struct CopyArgs {
     #[command(flatten)]
     pub source: ExportDbArgs,
     #[command(flatten)]
     pub target: ImportDbArgs,
-}
 
+    /// Only the structures missing in the destination will be copied.
+    /// Data copy is only checked against "empty table" vs "non-empty table".
+    /// This only works with data sources that supports structural inspections, aka
+    /// not sql-files.
+    pub differential: bool,
+}
 
 #[test]
 fn verify_cli() {

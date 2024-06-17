@@ -1,6 +1,6 @@
-use tokio_postgres::Row;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use tokio_postgres::Row;
 
 pub struct ViewResult {
     pub oid: i64,
@@ -28,9 +28,11 @@ impl FromRow for ViewResult {
     }
 }
 
-
 //language=postgresql
-define_working_query!(get_views, ViewResult, r#"
+define_working_query!(
+    get_views,
+    ViewResult,
+    r#"
 select tab.oid::int8,
     tab.relname                   as view_name,
        ns.nspname                    as schema_name,
@@ -52,4 +54,5 @@ where tab.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e' )
   and has_table_privilege(tab.oid, 'SELECT')
 order by schema_name, view_name;
-"#);
+"#
+);

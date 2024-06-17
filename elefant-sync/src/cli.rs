@@ -221,6 +221,7 @@ pub struct CopyArgs {
     /// Data copy is only checked against "empty table" vs "non-empty table".
     /// This only works with data sources that supports structural inspections, aka
     /// not sql-files.
+    #[arg(long, default_value_t = false, env)]
     pub differential: bool,
 }
 

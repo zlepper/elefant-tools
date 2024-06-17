@@ -56,7 +56,7 @@ where
             sql_chunk.clear();
 
             let read = self
-                .read_lines_until_separator_line(&separator, &mut sql_chunk)
+                .read_lines_until_separator_line(separator, &mut sql_chunk)
                 .await?;
             match read {
                 ChunkResult::Chunk(_) => {

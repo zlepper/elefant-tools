@@ -172,3 +172,20 @@ interval at some point and have chunks with different sizes, they will all have 
 
 Continuous aggregates are recreated, which means data that was no longer in the original table will also 
 be missing from the continuous aggregate.
+
+# Installation
+
+Elefant-sync is available on crates.io, and can be installed using cargo:
+```bash
+cargo install elefant-sync
+```
+
+If you don't have the rust compiler installed you can download binaries directly from GitHub actions:
+https://github.com/zlepper/elefant-tools/actions
+
+And lastly there is a docker image available on GitHub packages:
+https://github.com/zlepper/elefant-tools/pkgs/container/elefant-tools
+
+
+
+

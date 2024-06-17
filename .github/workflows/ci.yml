@@ -175,3 +175,36 @@ jobs:
           cat ./benchmarks/results/import-from-sql.md >> $GITHUB_STEP_SUMMARY
           printf "\n\n# Copying between databases\n" >> $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/sync-between-databases.md >> $GITHUB_STEP_SUMMARY
+
+  publish:
+    name: Publish release
+    runs-on: ubuntu-latest
+    if: github.ref_type == 'tag'
+    needs:
+      - build-for-windows
+      - build-for-linux
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        name: Download windows artifact
+        with:
+          name: elefant-sync-windows-amd64
+          path: artifacts
+
+      - uses: actions/download-artifact@v4
+        name: Download linux artifact
+        with:
+          name: elefant-sync-linux-amd64
+          path: artifacts
+
+      - name: Publish release
+        uses: ghalactic/github-release-from-tag@v5
+        with:
+          generateReleaseNotes: "true"
+          assets: |
+            artifacts/elefant-sync-windows-amd64
+            artifacts/elefant-sync-linux-amd64

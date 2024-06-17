@@ -177,6 +177,7 @@ jobs:
     needs:
       - build-for-windows
       - build-for-linux
+      - test
     permissions:
       contents: write
     steps:

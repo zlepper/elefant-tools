@@ -187,15 +187,19 @@ jobs:
         name: Download windows artifact
         with:
           name: elefant-sync-windows-amd64
-          path: artifacts/elefant-sync-windows-amd64
+          path: temp-artifacts/elefant-sync-windows-amd64
 
       - uses: actions/download-artifact@v4
         name: Download linux artifact
         with:
           name: elefant-sync-linux-amd64
-          path: artifacts/elefant-sync-linux-amd64
+          path: temp-artifacts/elefant-sync-linux-amd64
 
-      - run: ls -R artifacts
+      - run: | 
+          ls -R temp-artifacts
+          mkdir artifacts
+          mv temp-artifacts/elefant-sync-windows-amd64/elefant-sync.exe artifacts/elefant-sync-windows-amd64.exe
+          mv temp-artifacts/elefant-sync-linux-amd64/elefant-sync.exe artifacts/elefant-sync-linux-amd64
 
       - name: Publish release
         uses: ghalactic/github-release-from-tag@v5
@@ -203,5 +207,4 @@ jobs:
         with:
           generateReleaseNotes: "true"
           assets: |
-            -  path: artifacts/elefant-sync-windows-amd64/*
-            -  path: artifacts/elefant-sync-linux-amd64/*
+            -  path: artifacts/*

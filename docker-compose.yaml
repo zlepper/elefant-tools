@@ -59,3 +59,27 @@ services:
       - "5516:5432"
     environment: *env
     command: *cmd
+
+  pg_bouncer_backend:
+    image: postgres:15
+    environment: *env
+    command: *cmd
+
+  pg_bouncer:
+    image: edoburu/pgbouncer
+    environment:
+      - DB_USER=postgres
+      - DB_PASSWORD=passw0rd
+      - DB_HOST=pg_bouncer_backend
+      - AUTH_TYPE=scram-sha-256
+      - POOL_MODE=transaction
+      - ADMIN_USERS=postgres,dbuser
+      - MAX_PREPARED_STATEMENTS=100
+#      - IGNORE_STARTUP_PARAMETERS=search_path
+      - TRACK_EXTRA_PARAMETERS=search_path
+    volumes:
+      - ./pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+    ports:
+      - "6415:5432"
+    depends_on:
+      - pg_bouncer_backend

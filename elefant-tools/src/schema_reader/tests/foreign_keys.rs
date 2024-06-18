@@ -17,6 +17,7 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn foreign_keys(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -155,6 +156,7 @@ async fn foreign_keys(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn foreign_key_constraints(helper: &TestHelper) {
     tests::test_introspection(
         helper,

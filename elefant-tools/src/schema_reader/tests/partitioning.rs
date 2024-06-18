@@ -14,6 +14,7 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn range_partitions(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -246,6 +247,7 @@ CREATE TABLE sales_march PARTITION OF sales
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn list_partitions(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -446,6 +448,7 @@ CREATE TABLE furniture PARTITION OF products
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn hash_partitions(helper: &TestHelper) {
     test_introspection(
         helper,

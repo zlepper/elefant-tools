@@ -182,6 +182,7 @@ async fn reads_simple_schema(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn table_without_columns(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -211,6 +212,7 @@ async fn table_without_columns(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn table_without_primary_key(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -259,6 +261,7 @@ async fn table_without_primary_key(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn composite_primary_keys(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -346,6 +349,7 @@ async fn composite_primary_keys(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn generated_column(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -396,6 +400,7 @@ async fn generated_column(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn test_quoted_identifier_names(helper: &TestHelper) {
     test_introspection(
         helper,

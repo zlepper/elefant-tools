@@ -18,6 +18,7 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(timescale_db = 15))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn respects_permissions(helper: &TestHelper) {
     //language=postgresql
     helper
@@ -53,6 +54,7 @@ async fn respects_permissions(helper: &TestHelper) {
     schema_one_connection
         .execute_non_query(
             r#"
+        set search_path to one;
         create table my_table(id int);
 
         insert into my_table values (1);
@@ -75,6 +77,7 @@ async fn respects_permissions(helper: &TestHelper) {
     schema_two_connection
         .execute_non_query(
             r#"
+        set search_path to two;
         create table my_table(id int);
 
         insert into my_table values (2);

@@ -3,7 +3,7 @@ use elefant_tools::PostgresClientWrapper;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516];
+    let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516, 6415];
 
     for port in pg_ports {
         let conn_str = format!(

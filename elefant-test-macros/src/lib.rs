@@ -8,6 +8,7 @@ use syn::{parse_macro_input, ItemFn};
 enum TestArgsArg {
     Postgres(i32),
     TimescaleDb(i32),
+    PgBouncer(i32),
 }
 
 impl TestArgsArg {
@@ -15,6 +16,7 @@ impl TestArgsArg {
         match self {
             TestArgsArg::Postgres(v) => format!("postgres_{}", v),
             TestArgsArg::TimescaleDb(v) => format!("timescale_{}", v),
+            TestArgsArg::PgBouncer(v) => format!("pg_bouncer_{}", v),
         }
     }
 
@@ -27,6 +29,7 @@ impl TestArgsArg {
             TestArgsArg::Postgres(16) => Ok(5416),
             TestArgsArg::TimescaleDb(15) => Ok(5515),
             TestArgsArg::TimescaleDb(16) => Ok(5516),
+            TestArgsArg::PgBouncer(15) => Ok(6415),
             _ => Err(darling::Error::custom(
                 "Unknown postgres implementation / version",
             )),

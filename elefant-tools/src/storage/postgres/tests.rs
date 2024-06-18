@@ -111,6 +111,7 @@ macro_rules! test_round_trip {
             #[pg_test(arg(postgres = 14), arg(postgres = 14))]
             #[pg_test(arg(postgres = 15), arg(postgres = 15))]
             #[pg_test(arg(postgres = 16), arg(postgres = 16))]
+            #[pg_test(arg(pg_bouncer = 15), arg(pg_bouncer = 15))]
             async fn non_differential(source: &TestHelper, destination: &TestHelper) {
                 test_round_trip(SQL, source, destination).await;
             }
@@ -120,6 +121,7 @@ macro_rules! test_round_trip {
             #[pg_test(arg(postgres = 14))]
             #[pg_test(arg(postgres = 15))]
             #[pg_test(arg(postgres = 16))]
+            #[pg_test(arg(pg_bouncer = 15))]
             async fn differential(source: &TestHelper) {
                 test_differential_copy_generic(source, SQL).await;
             }
@@ -808,6 +810,7 @@ SELECT add_job('user_defined_action', '1h', config => '{"hypertable":"metrics"}'
 // We are not really testing postgres, but the internal parallel handling
 // in this program.
 #[pg_test(arg(postgres = 15), arg(postgres = 15))]
+#[pg_test(arg(pg_bouncer = 15), arg(pg_bouncer = 15))]
 async fn ensure_survives_many_tables(source: &TestHelper, destination: &TestHelper) {
     let mut sql = String::new();
 
@@ -839,6 +842,7 @@ from generate_series(1, 1000) s(i);"#,
 }
 
 #[pg_test(arg(postgres = 15))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn copies_between_schemas_in_same_db(helper: &TestHelper) {
     helper
         .execute_not_query("create schema source_schema; create schema destination_schema;")
@@ -850,6 +854,7 @@ async fn copies_between_schemas_in_same_db(helper: &TestHelper) {
     source
         .execute_non_query(
             r#"
+        set search_path to source_schema;
         create table my_table(id serial primary key, name text not null);
         insert into my_table (
     name

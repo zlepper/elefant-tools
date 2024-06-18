@@ -11,6 +11,7 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn test_extensions(helper: &TestHelper) {
     tests::test_introspection(
         helper,

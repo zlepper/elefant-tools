@@ -16,6 +16,7 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn indices(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -119,6 +120,7 @@ async fn indices(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn index_types(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -190,6 +192,7 @@ async fn index_types(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn filtered_index(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -244,6 +247,7 @@ async fn filtered_index(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn index_with_include(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -308,6 +312,7 @@ async fn index_with_include(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn table_with_non_distinct_nulls(helper: &TestHelper) {
     tests::test_introspection(
         helper,

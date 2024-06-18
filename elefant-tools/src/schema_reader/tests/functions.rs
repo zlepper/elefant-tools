@@ -15,6 +15,7 @@ use ordered_float::NotNan;
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn test_functions(helper: &TestHelper) {
     tests::test_introspection(helper,
                               r#"
@@ -154,6 +155,7 @@ async fn test_functions(helper: &TestHelper) {
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(pg_bouncer = 15))]
 async fn functions_returning_tables(helper: &TestHelper) {
     tests::test_introspection(
         helper,

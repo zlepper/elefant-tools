@@ -187,13 +187,13 @@ jobs:
         name: Download windows artifact
         with:
           name: elefant-sync-windows-amd64
-          path: artifacts
+          path: artifacts/elefant-sync-windows-amd64
 
       - uses: actions/download-artifact@v4
         name: Download linux artifact
         with:
           name: elefant-sync-linux-amd64
-          path: artifacts
+          path: artifacts/elefant-sync-linux-amd64
 
       - run: ls -R artifacts
 

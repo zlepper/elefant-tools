@@ -183,6 +183,9 @@ cargo install elefant-sync
 If you don't have the rust compiler installed you can download binaries directly from GitHub actions:
 https://github.com/zlepper/elefant-tools/actions
 
+or GitHub releases:
+https://github.com/zlepper/elefant-tools/releases
+
 And lastly there is a docker image available on GitHub packages:
 https://github.com/zlepper/elefant-tools/pkgs/container/elefant-tools
 

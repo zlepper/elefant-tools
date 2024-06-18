@@ -199,7 +199,7 @@ jobs:
           ls -R temp-artifacts
           mkdir artifacts
           mv temp-artifacts/elefant-sync-windows-amd64/elefant-sync.exe artifacts/elefant-sync-windows-amd64.exe
-          mv temp-artifacts/elefant-sync-linux-amd64/elefant-sync.exe artifacts/elefant-sync-linux-amd64
+          mv temp-artifacts/elefant-sync-linux-amd64/elefant-sync artifacts/elefant-sync-linux-amd64
 
       - name: Publish release
         uses: ghalactic/github-release-from-tag@v5

@@ -191,7 +191,7 @@ impl ImportDbArgs {
         );
 
         if let Some(schema) = &self.target_schema {
-            connection_string.push_str(&format!(" options=--search_path={},public", schema));
+            connection_string.push_str(&format!(" options=\"-c search_path={},public\"", schema));
         }
 
         connection_string

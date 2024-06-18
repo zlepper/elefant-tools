@@ -139,7 +139,7 @@ impl TestHelper {
 
     /// Gets a connection to a specific schema in the database.
     pub async fn get_schema_connection(&self, schema: &str) -> PostgresClientWrapper {
-        let connection_string = format!("host=localhost port={} user=postgres password=passw0rd dbname={} options=--search_path={},public", self.port, self.test_db_name, schema);
+        let connection_string = format!("host=localhost port={} user=postgres password=passw0rd dbname={} options=\"-c search_path={},public\"", self.port, self.test_db_name, schema);
         PostgresClientWrapper::new(&connection_string)
             .await
             .expect("Connection to test database failed. Is postgres running?")
@@ -174,7 +174,7 @@ pub(crate) async fn get_test_connection_full(
     );
 
     if let Some(schema) = schema {
-        connection_string.push_str(&format!(" options=--search_path={}", schema));
+        connection_string.push_str(&format!(" options=\"-c search_path={}\"", schema));
     }
 
     PostgresClientWrapper::new(&connection_string)

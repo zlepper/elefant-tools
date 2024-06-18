@@ -173,7 +173,6 @@ jobs:
   publish:
     name: Publish release
     runs-on: ubuntu-latest
-    if: github.ref_type == 'tag'
     needs:
       - build-for-windows
       - build-for-linux
@@ -196,8 +195,11 @@ jobs:
           name: elefant-sync-linux-amd64
           path: artifacts
 
+      - run: ls -R artifacts
+
       - name: Publish release
         uses: ghalactic/github-release-from-tag@v5
+        if: github.ref_type == 'tag'
         with:
           generateReleaseNotes: "true"
           assets: |

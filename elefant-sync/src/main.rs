@@ -121,7 +121,7 @@ async fn do_copy(copy_args: CopyArgs, max_parallel: NonZeroUsize) -> Result<()> 
         CopyDataOptions {
             data_format: None,
             max_parallel: Some(max_parallel),
-            rename_schema_to: None,
+            rename_schema_to: copy_args.target.target_schema,
             target_schema: copy_args.source.source_schema.clone(),
             schema_only: copy_args.source.schema_only,
             differential: copy_args.differential,
@@ -265,6 +265,42 @@ mod tests {
 
         let rows = destination
             .get_single_results::<i32>("select id from test_table;")
+            .await;
+        assert_eq!(rows, vec![1]);
+    }
+
+    #[pg_test(arg(postgres = 16), arg(postgres = 16))]
+    async fn test_copy_between_schemas(source: &TestHelper, destination: &TestHelper) {
+        source
+            .execute_not_query(
+                r#"
+        create schema source;
+        set search_path = source;
+        create table test_table(id int);
+        insert into test_table(id) values (1);
+        "#,
+            )
+            .await;
+
+        let parameters = cli::Cli {
+            max_parallelism: NonZeroUsize::new(1).unwrap(),
+            command: Commands::Copy(CopyArgs {
+                source: ExportDbArgs {
+                    source_schema: Some("source".to_string()),
+                    ..ExportDbArgs::from_test_helper(source)
+                },
+                target: ImportDbArgs {
+                    target_schema: Some("target".to_string()),
+                    ..ImportDbArgs::from_test_helper(destination)
+                },
+                differential: false,
+            }),
+        };
+
+        run(parameters).await.unwrap();
+
+        let rows = destination
+            .get_single_results::<i32>("select id from target.test_table;")
             .await;
         assert_eq!(rows, vec![1]);
     }

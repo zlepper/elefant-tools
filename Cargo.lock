@@ -330,7 +330,7 @@ checksum = "3dca9240753cf90908d7e4aac30f630662b02aebaa1b58a3cadabdb23385b58b"
 
 [[package]]
 name = "elefant-sync"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "clap",
  "elefant-test-macros",
@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "elefant-tools"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "bytes",
  "elefant-test-macros",

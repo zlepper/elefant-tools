@@ -2,10 +2,11 @@ use crate::Result;
 use bytes::Buf;
 use std::fmt::Display;
 use std::ops::Deref;
+use futures::{pin_mut, TryStreamExt};
 use tokio::task::JoinHandle;
 use tokio_postgres::row::RowIndex;
 use tokio_postgres::types::FromSqlOwned;
-use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
+use tokio_postgres::{Client, CopyInSink, CopyOutStream, GenericClient, NoTls, Row};
 use tracing::instrument;
 
 /// A wrapper around tokio_postgres::Client, which provides a more convenient interface for working with the client.
@@ -126,16 +127,18 @@ impl PostgresClient {
 
     /// Execute a query that returns results.
     pub async fn get_results<T: FromRow>(&self, sql: &str) -> Result<Vec<T>> {
-        let query_results = self.client.query(sql, &[]).await.map_err(|e| {
+        let query_results = self.client.query_raw(sql, Vec::<i32>::new()).await.map_err(|e| {
             crate::ElefantToolsError::PostgresErrorWithQuery {
                 source: e,
                 query: sql.to_string(),
             }
         })?;
 
-        let mut output = Vec::with_capacity(query_results.len());
+        pin_mut!(query_results);
 
-        for row in query_results.into_iter() {
+        let mut output = Vec::new();
+
+        while let Some(row) = query_results.try_next().await? {
             output.push(T::from_row(row)?);
         }
 

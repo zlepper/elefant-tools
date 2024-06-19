@@ -25,20 +25,24 @@ pub struct PostgresSchema {
 
 impl PostgresSchema {
     pub fn get_create_statement(&self, identifier_quoter: &IdentifierQuoter) -> String {
-        let mut sql = format!(
+        format!(
             "create schema if not exists {};",
             self.name.quote(identifier_quoter, ColumnName)
-        );
+        )
+    }
 
+    pub fn get_set_comment_statement(&self, identifier_quoter: &IdentifierQuoter) -> Option<String> {
         if let Some(comment) = &self.comment {
+            let mut sql = String::new();
             sql.push_str("\ncomment on schema ");
             sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
             sql.push_str(" is ");
             sql.push_str(&quote_value_string(comment));
             sql.push(';');
+            Some(sql)
+        } else {
+            None
         }
-
-        sql
     }
 
     pub(crate) fn try_get_table(&self, table_name: &str) -> Option<&PostgresTable> {

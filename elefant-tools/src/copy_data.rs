@@ -259,9 +259,17 @@ async fn apply_pre_copy_structure<D: CopyDestination>(
     let identifier_quoter = destination.get_identifier_quoter();
 
     for schema in &definition.schemas {
-        destination
-            .apply_transactional_statement(&schema.get_create_statement(&identifier_quoter))
-            .await?;
+
+        let target_schema = target_definition.try_get_schema(&schema.name);
+        if target_schema.is_none() {
+            destination
+                .apply_transactional_statement(&schema.get_create_statement(&identifier_quoter))
+                .await?;
+        }
+
+        if let Some(comment_statement) = schema.get_set_comment_statement(&identifier_quoter) {
+            destination.apply_transactional_statement(&comment_statement).await?;
+        }
     }
 
     for ext in &definition.enabled_extensions {

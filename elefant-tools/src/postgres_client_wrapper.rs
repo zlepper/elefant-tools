@@ -6,7 +6,7 @@ use futures::{pin_mut, TryStreamExt};
 use tokio::task::JoinHandle;
 use tokio_postgres::row::RowIndex;
 use tokio_postgres::types::FromSqlOwned;
-use tokio_postgres::{Client, CopyInSink, CopyOutStream, GenericClient, NoTls, Row};
+use tokio_postgres::{Client, CopyInSink, CopyOutStream, NoTls, Row};
 use tracing::instrument;
 
 /// A wrapper around tokio_postgres::Client, which provides a more convenient interface for working with the client.

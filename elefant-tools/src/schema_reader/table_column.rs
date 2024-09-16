@@ -1,6 +1,6 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::define_working_query;
-use crate::PostgresColumn;
+use crate::{ColumnIdentity, PostgresColumn};
 use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -16,6 +16,10 @@ pub struct TableColumnsResult {
     pub comment: Option<String>,
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
+    pub identity: Option<ColumnIdentity>,
+    pub sequence_start: Option<i64>,
+    pub sequence_increment: Option<i64>,
+    pub sequence_last_value: Option<i64>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -35,6 +39,10 @@ impl FromRow for TableColumnsResult {
                 Err(_) => row.try_get::<_, i16>(9)? as i32,
             },
             data_type_length: row.try_get(10)?,
+            identity: row.try_get_opt_enum_value(11)?,
+            sequence_start: row.try_get(12)?,
+            sequence_increment: row.try_get(13)?,
+            sequence_last_value: row.try_get(14)?,
         })
     }
 }
@@ -51,6 +59,10 @@ impl TableColumnsResult {
             comment: self.comment.clone(),
             array_dimensions: self.array_dimensions,
             data_type_length: self.data_type_length,
+            identity: self.identity,
+            sequence_increment: self.sequence_increment,
+            sequence_start: self.sequence_start,
+            sequence_last_value: self.sequence_last_value,
         }
     }
 }
@@ -64,19 +76,26 @@ select ns.nspname,
        cl.relname,
        attr.attname,
        attr.attnum,
-       (attr.attnotnull OR t.typtype = 'd'::"char" AND t.typnotnull) = false as is_nullable,
+       (attr.attnotnull OR t.typtype = 'd'::"char" AND t.typnotnull) = false                       as is_nullable,
        coalesce(non_array_type.typname, t.typname),
        CASE
            WHEN attr.attgenerated = ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
-           END::text                           AS column_default,
+           END::text                                                                               AS column_default,
        CASE
            WHEN attr.attgenerated <> ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
-           END::text                           AS generation_expression,
-         des.description,
-         attr.attndims as array_dimensions,
-       information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length
+           END::text                                                                               AS generation_expression,
+       des.description,
+       attr.attndims                                                                               as array_dimensions,
+       information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length,
+       attidentity,
+       seq.seqstart,
+       seq.seqincrement,
+       CASE
+           WHEN has_sequence_privilege(seq.seqrelid, 'SELECT,USAGE'::text) THEN pg_sequence_last_value(seq.seqrelid::regclass)
+           ELSE NULL::bigint
+           END        AS last_value
 from pg_attribute attr
          join pg_class cl on attr.attrelid = cl.oid
          join pg_type t on attr.atttypid = t.oid
@@ -85,10 +104,13 @@ from pg_attribute attr
          left join pg_description des on des.objoid = cl.oid and des.objsubid = attr.attnum
          left join pg_type non_array_type on non_array_type.oid = t.typelem and non_array_type.typarray = t.oid
          left join pg_depend dep on dep.objid = ns.oid
+         left join pg_depend table_dep
+         join pg_sequence seq on table_dep.objid = seq.seqrelid
+              on table_dep.refobjid = attrelid and table_dep.refobjsubid = attr.attnum and table_dep.deptype = 'i'
 where cl.relkind in ('r', 'p')
   and cl.oid > 16384
   and attr.attnum > 0
-  and (dep.objid is null or dep.deptype <> 'e' )
+  and (dep.objid is null or dep.deptype <> 'e')
 order by ns.nspname, cl.relname, attr.attnum;
 "#
 );

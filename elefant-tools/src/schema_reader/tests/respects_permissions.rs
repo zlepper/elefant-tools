@@ -262,6 +262,7 @@ async fn hypertable_permissions(helper: &TestHelper) {
                                 comment: None,
                                 array_dimensions: 0,
                                 data_type_length: None,
+                                ..default()
                             },
                             PostgresColumn {
                                 name: "id".to_string(),
@@ -273,6 +274,7 @@ async fn hypertable_permissions(helper: &TestHelper) {
                                 comment: None,
                                 array_dimensions: 0,
                                 data_type_length: None,
+                                ..default()
                             }
                         ],
                         constraints: vec![],

@@ -47,6 +47,9 @@ pub enum ElefantToolsError {
     #[error("Unknown trigger event '{0}'")]
     UnknownTriggerEvent(String),
 
+    #[error("Unknown column identity '{0}'")]
+    UnknownColumnIdentity(String),
+
     #[error("Unknown table type '{0}'")]
     InvalidTableType(String),
 

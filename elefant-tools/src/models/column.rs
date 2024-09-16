@@ -1,7 +1,8 @@
 use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
-use crate::{PostgresSchema, PostgresTable};
+use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
 use serde::{Deserialize, Serialize};
 use AttemptedKeywordUsage::Other;
+use crate::postgres_client_wrapper::FromPgChar;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresColumn {
@@ -14,6 +15,10 @@ pub struct PostgresColumn {
     pub comment: Option<String>,
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
+    pub identity: Option<ColumnIdentity>,
+    pub sequence_start: Option<i64>,
+    pub sequence_increment: Option<i64>,
+    pub sequence_last_value: Option<i64>,
 }
 
 impl PostgresColumn {
@@ -60,6 +65,10 @@ impl Default for PostgresColumn {
             comment: None,
             array_dimensions: 0,
             data_type_length: None,
+            identity: None,
+            sequence_increment: None,
+            sequence_start: None,
+            sequence_last_value: None,
         }
     }
 }
@@ -69,4 +78,20 @@ pub enum SimplifiedDataType {
     Number,
     Text,
     Bool,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub enum ColumnIdentity {
+    GeneratedAlways,
+    GeneratedByDefault
+}
+
+impl FromPgChar for ColumnIdentity {
+    fn from_pg_char(c: char) -> Result<Self, ElefantToolsError> {
+        match c {
+            'a' => Ok(ColumnIdentity::GeneratedAlways),
+            'd' => Ok(ColumnIdentity::GeneratedByDefault),
+            _ => Err(ElefantToolsError::UnknownColumnIdentity(c.to_string())),
+        }
+    }
 }

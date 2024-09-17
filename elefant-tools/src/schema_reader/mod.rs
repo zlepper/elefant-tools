@@ -180,6 +180,7 @@ impl SchemaReader<'_> {
                 cycle: sequence.cycle,
                 last_value: sequence.last_value,
                 comment: sequence.comment,
+                is_internally_created: sequence.is_internally_created,
                 object_id: object_id_generator.next(),
             };
 

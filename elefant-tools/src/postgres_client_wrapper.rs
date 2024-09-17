@@ -302,6 +302,7 @@ impl RowEnumExt for Row {
     ) -> Result<Option<T>> {
         let value: Option<i8> = self.try_get(idx)?;
         match value {
+            Some(0) => Ok(None),
             Some(value) => {
                 let c = value as u8 as char;
                 Ok(Some(T::from_pg_char(c)?))

@@ -18,6 +18,7 @@ pub struct PostgresSequence {
     pub last_value: Option<i64>,
     pub comment: Option<String>,
     pub object_id: ObjectId,
+    pub is_internally_created: bool,
 }
 
 impl Default for PostgresSequence {
@@ -34,6 +35,7 @@ impl Default for PostgresSequence {
             last_value: None,
             comment: None,
             object_id: ObjectId::default(),
+            is_internally_created: false,
         }
     }
 }
@@ -44,17 +46,29 @@ impl PostgresSequence {
         schema: &PostgresSchema,
         identifier_quoter: &IdentifierQuoter,
     ) -> String {
-        let mut sql = format!(
-            "create sequence {}.{} as {} increment by {} minvalue {} maxvalue {} start {} cache {}",
-            schema.name.quote(identifier_quoter, ColumnName),
-            self.name.quote(identifier_quoter, ColumnName),
-            self.data_type,
-            self.increment,
-            self.min_value,
-            self.max_value,
-            self.start_value,
-            self.cache_size
-        );
+
+        let mut sql = String::new();
+        if self.is_internally_created {
+            sql.push_str("alter sequence ")
+        } else {
+            sql.push_str("create sequence ");
+        }
+
+        sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+        sql.push('.');
+        sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
+        sql.push_str(" as ");
+        sql.push_str(&self.data_type);
+        sql.push_str(" increment by ");
+        sql.push_str(&self.increment.to_string());
+        sql.push_str(" minvalue ");
+        sql.push_str(&self.min_value.to_string());
+        sql.push_str(" maxvalue ");
+        sql.push_str(&self.max_value.to_string());
+        sql.push_str(" start ");
+        sql.push_str(&self.start_value.to_string());
+        sql.push_str(" cache ");
+        sql.push_str(&self.cache_size.to_string());
 
         if self.cycle {
             sql.push_str(" cycle");

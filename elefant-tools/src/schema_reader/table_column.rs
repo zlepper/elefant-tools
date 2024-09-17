@@ -1,6 +1,6 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::define_working_query;
-use crate::PostgresColumn;
+use crate::{ColumnIdentity, PostgresColumn};
 use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -16,6 +16,7 @@ pub struct TableColumnsResult {
     pub comment: Option<String>,
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
+    pub identity: Option<ColumnIdentity>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -35,6 +36,7 @@ impl FromRow for TableColumnsResult {
                 Err(_) => row.try_get::<_, i16>(9)? as i32,
             },
             data_type_length: row.try_get(10)?,
+            identity: row.try_get_opt_enum_value(11)?,
         })
     }
 }
@@ -51,6 +53,7 @@ impl TableColumnsResult {
             comment: self.comment.clone(),
             array_dimensions: self.array_dimensions,
             data_type_length: self.data_type_length,
+            identity: self.identity,
         }
     }
 }
@@ -64,19 +67,20 @@ select ns.nspname,
        cl.relname,
        attr.attname,
        attr.attnum,
-       (attr.attnotnull OR t.typtype = 'd'::"char" AND t.typnotnull) = false as is_nullable,
+       (attr.attnotnull OR t.typtype = 'd'::"char" AND t.typnotnull) = false                       as is_nullable,
        coalesce(non_array_type.typname, t.typname),
        CASE
            WHEN attr.attgenerated = ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
-           END::text                           AS column_default,
+           END::text                                                                               AS column_default,
        CASE
            WHEN attr.attgenerated <> ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
-           END::text                           AS generation_expression,
-         des.description,
-         attr.attndims as array_dimensions,
-       information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length
+           END::text                                                                               AS generation_expression,
+       des.description,
+       attr.attndims                                                                               as array_dimensions,
+       information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length,
+       attidentity
 from pg_attribute attr
          join pg_class cl on attr.attrelid = cl.oid
          join pg_type t on attr.atttypid = t.oid
@@ -88,7 +92,7 @@ from pg_attribute attr
 where cl.relkind in ('r', 'p')
   and cl.oid > 16384
   and attr.attnum > 0
-  and (dep.objid is null or dep.deptype <> 'e' )
+  and (dep.objid is null or dep.deptype <> 'e')
 order by ns.nspname, cl.relname, attr.attnum;
 "#
 );

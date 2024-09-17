@@ -467,7 +467,7 @@ fn get_post_apply_statement_groups(
             let existing_sequence = existing_schema
                 .and_then(|s| s.sequences.iter().find(|seq| seq.name == sequence.name));
 
-            if existing_sequence.is_none() {
+            if existing_sequence.is_none() || sequence.is_internally_created {
                 group_1.push(sequence.get_create_statement(schema, identifier_quoter));
             } else {
                 debug!("Sequence {} already exists in destination", sequence.name);

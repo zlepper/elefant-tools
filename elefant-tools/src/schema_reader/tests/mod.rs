@@ -204,9 +204,6 @@ async fn identity_column_always_generated(helper: &TestHelper) {
                             is_nullable: false,
                             data_type: "int4".to_string(),
                             identity: Some(ColumnIdentity::GeneratedAlways),
-                            sequence_start: Some(1),
-                            sequence_increment: Some(1),
-                            sequence_last_value: Some(2),
                             ..default()
                         },
                         PostgresColumn {
@@ -235,6 +232,18 @@ async fn identity_column_always_generated(helper: &TestHelper) {
                     ],
                     ..default()
                 }],
+                sequences: vec![
+                    PostgresSequence {
+                        name: "my_table_id_seq".to_string(),
+                        data_type: "int4".to_string(),
+                        start_value: 1,
+                        increment: 1,
+                        cycle: false,
+                        last_value: Some(2),
+                        is_internally_created: true,
+                        ..default()
+                    }
+                ],
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),
@@ -274,9 +283,6 @@ async fn identity_column_by_default(helper: &TestHelper) {
                             is_nullable: false,
                             data_type: "int4".to_string(),
                             identity: Some(ColumnIdentity::GeneratedByDefault),
-                            sequence_start: Some(1),
-                            sequence_increment: Some(1),
-                            sequence_last_value: Some(2),
                             ..default()
                         },
                         PostgresColumn {
@@ -305,6 +311,18 @@ async fn identity_column_by_default(helper: &TestHelper) {
                     ],
                     ..default()
                 }],
+                sequences: vec![
+                    PostgresSequence {
+                        name: "my_table_id_seq".to_string(),
+                        data_type: "int4".to_string(),
+                        start_value: 1,
+                        increment: 1,
+                        cycle: false,
+                        last_value: Some(2),
+                        is_internally_created: true,
+                        ..default()
+                    }
+                ],
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),
@@ -344,9 +362,6 @@ async fn identity_column_custom_sequence(helper: &TestHelper) {
                             is_nullable: false,
                             data_type: "int4".to_string(),
                             identity: Some(ColumnIdentity::GeneratedByDefault),
-                            sequence_increment: Some(10),
-                            sequence_start: Some(10),
-                            sequence_last_value: Some(20),
                             ..default()
                         },
                         PostgresColumn {
@@ -375,6 +390,18 @@ async fn identity_column_custom_sequence(helper: &TestHelper) {
                     ],
                     ..default()
                 }],
+                sequences: vec![
+                    PostgresSequence {
+                        name: "my_table_id_seq".to_string(),
+                        data_type: "int4".to_string(),
+                        start_value: 10,
+                        increment: 10,
+                        cycle: false,
+                        last_value: Some(20),
+                        is_internally_created: true,
+                        ..default()
+                    }
+                ],
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),

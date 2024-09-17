@@ -17,9 +17,6 @@ pub struct TableColumnsResult {
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
     pub identity: Option<ColumnIdentity>,
-    pub sequence_start: Option<i64>,
-    pub sequence_increment: Option<i64>,
-    pub sequence_last_value: Option<i64>,
 }
 
 impl FromRow for TableColumnsResult {
@@ -40,9 +37,6 @@ impl FromRow for TableColumnsResult {
             },
             data_type_length: row.try_get(10)?,
             identity: row.try_get_opt_enum_value(11)?,
-            sequence_start: row.try_get(12)?,
-            sequence_increment: row.try_get(13)?,
-            sequence_last_value: row.try_get(14)?,
         })
     }
 }
@@ -60,9 +54,6 @@ impl TableColumnsResult {
             array_dimensions: self.array_dimensions,
             data_type_length: self.data_type_length,
             identity: self.identity,
-            sequence_increment: self.sequence_increment,
-            sequence_start: self.sequence_start,
-            sequence_last_value: self.sequence_last_value,
         }
     }
 }
@@ -89,13 +80,7 @@ select ns.nspname,
        des.description,
        attr.attndims                                                                               as array_dimensions,
        information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length,
-       attidentity,
-       seq.seqstart,
-       seq.seqincrement,
-       CASE
-           WHEN has_sequence_privilege(seq.seqrelid, 'SELECT,USAGE'::text) THEN pg_sequence_last_value(seq.seqrelid::regclass)
-           ELSE NULL::bigint
-           END        AS last_value
+       attidentity
 from pg_attribute attr
          join pg_class cl on attr.attrelid = cl.oid
          join pg_type t on attr.atttypid = t.oid
@@ -104,9 +89,6 @@ from pg_attribute attr
          left join pg_description des on des.objoid = cl.oid and des.objsubid = attr.attnum
          left join pg_type non_array_type on non_array_type.oid = t.typelem and non_array_type.typarray = t.oid
          left join pg_depend dep on dep.objid = ns.oid
-         left join pg_depend table_dep
-         join pg_sequence seq on table_dep.objid = seq.seqrelid
-              on table_dep.refobjid = attrelid and table_dep.refobjsubid = attr.attnum and table_dep.deptype = 'i'
 where cl.relkind in ('r', 'p')
   and cl.oid > 16384
   and attr.attnum > 0

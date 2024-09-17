@@ -16,9 +16,6 @@ pub struct PostgresColumn {
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
     pub identity: Option<ColumnIdentity>,
-    pub sequence_start: Option<i64>,
-    pub sequence_increment: Option<i64>,
-    pub sequence_last_value: Option<i64>,
 }
 
 impl PostgresColumn {
@@ -66,9 +63,6 @@ impl Default for PostgresColumn {
             array_dimensions: 0,
             data_type_length: None,
             identity: None,
-            sequence_increment: None,
-            sequence_start: None,
-            sequence_last_value: None,
         }
     }
 }

@@ -1132,7 +1132,7 @@ pub async fn test_differential_copy_generic(source: &TestHelper, setup_query: &s
 
                 query.push_join(
                     ", ",
-                    &table
+                    table
                         .columns
                         .iter()
                         .filter(|c| c.generated.is_none())

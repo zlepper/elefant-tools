@@ -1,6 +1,6 @@
 # Elefant Tools
 Elefant Tools is a library + binary for interfacing with the PostgreSQL database in the same
-way as `pg_dump` and `pg_restore`. In addition Elefant Tools can do direct copies between two databases
+way as `pg_dump` and `pg_restore`. In addition, Elefant Tools can do direct copies between two databases
 without the need to write to disk. This is useful for example when you want to copy a database from one
 server to another, or when you want to copy a database from a server to a local development environment.
 

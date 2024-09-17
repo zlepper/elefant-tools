@@ -17,9 +17,9 @@ tokio = { version = "1", features = ["rt", "fs"], default-features = false }
 tokio-postgres = "0.7"
 thiserror = "1.0"
 itertools = "0.13"
-bytes = "1.6"
+bytes = "1.7"
 futures = "0.3"
-uuid = { version = "1.8", features = ["v4"] }
+uuid = { version = "1.10", features = ["v4"] }
 tar = "0.4"
 ordered-float = { version = "4.2", features = ["serde"] }
 tracing = { version = "0.1" , features = ["attributes"]}
@@ -27,9 +27,9 @@ serde = { version = "1.0", features = ["derive"] }
 
 [dev-dependencies]
 indoc = "2"
-uuid = { version = "1.8", features = ["fast-rng", "v4"] }
+uuid = { version = "1.10", features = ["fast-rng", "v4"] }
 tokio = { version = "1", features = [ "macros", "rt-multi-thread"], default-features = false }
-similar-asserts = "1.5"
+similar-asserts = "1.6"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 elefant-test-macros = { path = "../elefant-test-macros" }
 

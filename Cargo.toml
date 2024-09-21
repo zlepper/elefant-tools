@@ -4,8 +4,10 @@ members = [
     "elefant-tools",
     "elefant-sync",
     "elefant-test-macros",
-    "drop-all-test-databases"
-, "benchmark-import-prepare"]
+    "drop-all-test-databases",
+    "benchmark-import-prepare",
+    "elefant-client"
+]
 
 
 [profile.dev]

@@ -12,6 +12,7 @@ async fn main() -> Result<()> {
         .await?;
     conn.execute_non_query("create database dvdrental_import;")
         .await?;
+    conn.execute_non_query("checkpoint;").await?;
 
     Ok(())
 }

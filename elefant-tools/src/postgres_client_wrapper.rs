@@ -31,9 +31,9 @@ impl PostgresClientWrapper {
         let version = match &client
             .client
             .simple_query("SHOW server_version_num;")
-            .await?[0]
+            .await?.get(1)
         {
-            tokio_postgres::SimpleQueryMessage::Row(row) => {
+            Some(tokio_postgres::SimpleQueryMessage::Row(row)) => {
                 let version: i32 = row
                     .get(0)
                     .expect("failed to get version from row")

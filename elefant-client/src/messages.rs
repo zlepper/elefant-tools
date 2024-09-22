@@ -15,6 +15,7 @@ pub enum BackendMessage {
     AuthenticationGSSContinue(AuthenticationGSSContinue),
     AuthenticationSSPI,
     AuthenticationSASL(AuthenticationSASL),
+    AuthenticationSASLContinue(AuthenticationSASLContinue)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -30,6 +31,11 @@ pub struct AuthenticationGSSContinue {
 #[derive(Debug, PartialEq, Eq)]
 pub struct AuthenticationSASL {
     pub mechanisms: Vec<String>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct AuthenticationSASLContinue {
+    pub data: Vec<u8>
 }
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -107,7 +113,15 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(BackendMessage::AuthenticationSASL(AuthenticationSASL {
                     mechanisms,
                 }))
-            }
+            },
+            (_, 11) => {
+                let remaining = (length - 8) as usize;
+                let mut data = vec![0; remaining];
+                reader.read_exact(&mut data).await?;
+                Ok(BackendMessage::AuthenticationSASLContinue(
+                    AuthenticationSASLContinue { data },
+                ))
+            },
             _ => Err(PostgresMessageParseError::UnknownSubMessage {
                 message_type,
                 length,

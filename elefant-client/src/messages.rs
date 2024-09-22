@@ -13,6 +13,7 @@ pub enum BackendMessage<'a> {
     AuthenticationSASLContinue(AuthenticationSASLContinue<'a>),
     AuthenticationSASLFinal(AuthenticationSASLFinal<'a>),
     BackendKeyData(BackendKeyData),
+    BindComplete,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -49,6 +50,7 @@ pub struct BackendKeyData {
 #[derive(Debug, PartialEq, Eq)]
 pub enum FrontendMessage<'a> {
     Bind(Bind<'a>),
+    CancelRequest(CancelRequest),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -70,4 +72,10 @@ pub enum BindParameterFormat {
 pub enum ResultColumnFormat {
     Text,
     Binary,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CancelRequest {
+    pub process_id: i32,
+    pub secret_key: i32,
 }

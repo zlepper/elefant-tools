@@ -1,9 +1,7 @@
-use std::borrow::Cow;
-use std::io::Cursor;
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, FrontendMessage, ResultColumnFormat};
-use futures::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, FrontendMessage, ResultColumnFormat};
+use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
     reader: R,
@@ -28,7 +26,20 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         match message_type {
             b'R' => self.parse_authentication_message(message_type).await,
             b'K' => self.parse_backend_key_data().await,
+            b'2' => self.parse_bind_completed(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
+        }
+    }
+
+    async fn parse_bind_completed(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len != 4 {
+            Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            })
+        } else {
+            Ok(BackendMessage::BindComplete)
         }
     }
 
@@ -137,7 +148,27 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
 
         match message_type {
             b'B' => self.parse_bind_message().await,
-            _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
+            _ => {
+                
+                let more = self.reader.read_bytes::<3>().await?;
+                let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);
+                
+                if length == 16 {
+                    let code = self.reader.read_i32().await?;
+                    if code == 80877102 {
+                        let process_id = self.reader.read_i32().await?;
+                        let secret_key = self.reader.read_i32().await?;
+                        
+                        return Ok(FrontendMessage::CancelRequest(CancelRequest {
+                            process_id,
+                            secret_key,
+                        }));
+                    }
+                }
+                
+                
+                Err(PostgresMessageParseError::UnknownMessage(message_type))
+            },
         }
     }
 
@@ -149,7 +180,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             .await?;
 
         let mut reader = ByteSliceReader::new(&self.read_buffer);
-        
+
         let portal_name = reader.read_null_terminated_string()?;
         let statement_name = reader.read_null_terminated_string()?;
         let parameter_format_count = reader.read_i16()?;
@@ -164,12 +195,12 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             };
             parameter_formats.push(format);
         }
-        
+
         let parameter_value_count = reader.read_i16()?;
         let mut parameter_values = Vec::with_capacity(parameter_value_count as usize);
         for _ in 0..parameter_value_count {
             let len = reader.read_i32()?;
-            
+
             if len == -1 {
                 parameter_values.push(None);
             } else {
@@ -177,7 +208,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 parameter_values.push(Some(bytes));
             }
         }
-        
+
         let result_format_count = reader.read_i16()?;
         let mut result_formats = Vec::with_capacity(result_format_count as usize);
         for _ in 0..result_format_count {
@@ -189,7 +220,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             };
             result_formats.push(format);
         }
-        
+
         Ok(FrontendMessage::Bind(Bind {
             destination_portal_name: portal_name,
             source_statement_name: statement_name,
@@ -198,7 +229,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             result_column_formats: result_formats,
         }))
     }
-    
+
 
     fn extend_buffer(&mut self, len: usize) {
         if self.read_buffer.len() < len {

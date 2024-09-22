@@ -1,5 +1,6 @@
+use std::io::Error;
 use crate::io_extensions::AsyncWriteExt2;
-use crate::messages::{BackendMessage, FrontendMessage};
+use crate::messages::{BackendMessage, Bind, FrontendMessage};
 use futures::{AsyncWrite, AsyncWriteExt};
 
 pub struct MessageWriter<W: AsyncWrite + Unpin> {
@@ -95,6 +96,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(bkd.process_id).await?;
                 self.writer.write_i32(bkd.secret_key).await?;
                 Ok(())
+            },
+            BackendMessage::BindComplete => {
+                self.writer.write_u8(b'2').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
             }
         }
     }
@@ -104,67 +110,76 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
         message: &FrontendMessage<'_>,
     ) -> Result<(), std::io::Error> {
         match message {
-            FrontendMessage::Bind(bind) => {
-                self.writer.write_u8(b'B').await?;
-                let length = size_of::<i32>()
-                    + bind.destination_portal_name.len() + size_of::<u8>()
-                    + bind.source_statement_name.len() + size_of::<u8>()
-                    + size_of::<i16>() + bind.parameter_formats.len() * size_of::<i16>()
-                    + size_of::<i16>() + bind
-                        .parameter_values
-                        .iter()
-                        .map(|v| v.map(|v| v.len()).unwrap_or(0))
-                        .sum::<usize>()
-                        + bind.parameter_values.len() * size_of::<i32>()
-                    + size_of::<i16>() + bind.result_column_formats.len() * size_of::<i16>();
-                self.writer.write_i32(length as i32).await?;
-                self.writer
-                    .write_all(bind.destination_portal_name.as_bytes())
-                    .await?;
-                self.writer.write_u8(0).await?;
-                self.writer
-                    .write_all(bind.source_statement_name.as_bytes())
-                    .await?;
-                self.writer.write_u8(0).await?;
-                self.writer
-                    .write_i16(bind.parameter_formats.len() as i16)
-                    .await?;
-                for format in &bind.parameter_formats {
-                    self.writer
-                        .write_i16(match format {
-                            crate::messages::BindParameterFormat::Text => 0,
-                            crate::messages::BindParameterFormat::Binary => 1,
-                        })
-                        .await?;
-                }
-                self.writer
-                    .write_i16(bind.parameter_values.len() as i16)
-                    .await?;
-                for value in &bind.parameter_values {
-                    match value {
-                        Some(value) => {
-                            self.writer.write_i32(value.len() as i32).await?;
-                            self.writer.write_all(value).await?;
-                        }
-                        None => {
-                            self.writer.write_i32(-1).await?;
-                        }
-                    }
-                }
-                self.writer
-                    .write_i16(bind.result_column_formats.len() as i16)
-                    .await?;
-                for format in &bind.result_column_formats {
-                    self.writer
-                        .write_i16(match format {
-                            crate::messages::ResultColumnFormat::Text => 0,
-                            crate::messages::ResultColumnFormat::Binary => 1,
-                        })
-                        .await?;
-                }
+            FrontendMessage::Bind(bind) => self.write_bind_message(&bind).await,
+            FrontendMessage::CancelRequest(cr) => {
+                self.writer.write_i32(16).await?;
+                self.writer.write_i32(80877102).await?;
+                self.writer.write_i32(cr.process_id).await?;
+                self.writer.write_i32(cr.secret_key).await?;
                 Ok(())
             }
         }
+    }
+
+    async fn write_bind_message(&mut self, bind: &Bind<'_>) -> Result<(), Error> {
+        self.writer.write_u8(b'B').await?;
+        let length = size_of::<i32>()
+            + bind.destination_portal_name.len() + size_of::<u8>()
+            + bind.source_statement_name.len() + size_of::<u8>()
+            + size_of::<i16>() + bind.parameter_formats.len() * size_of::<i16>()
+            + size_of::<i16>() + bind
+            .parameter_values
+            .iter()
+            .map(|v| v.map(|v| v.len()).unwrap_or(0))
+            .sum::<usize>()
+            + bind.parameter_values.len() * size_of::<i32>()
+            + size_of::<i16>() + bind.result_column_formats.len() * size_of::<i16>();
+        self.writer.write_i32(length as i32).await?;
+        self.writer
+            .write_all(bind.destination_portal_name.as_bytes())
+            .await?;
+        self.writer.write_u8(0).await?;
+        self.writer
+            .write_all(bind.source_statement_name.as_bytes())
+            .await?;
+        self.writer.write_u8(0).await?;
+        self.writer
+            .write_i16(bind.parameter_formats.len() as i16)
+            .await?;
+        for format in &bind.parameter_formats {
+            self.writer
+                .write_i16(match format {
+                    crate::messages::BindParameterFormat::Text => 0,
+                    crate::messages::BindParameterFormat::Binary => 1,
+                })
+                .await?;
+        }
+        self.writer
+            .write_i16(bind.parameter_values.len() as i16)
+            .await?;
+        for value in &bind.parameter_values {
+            match value {
+                Some(value) => {
+                    self.writer.write_i32(value.len() as i32).await?;
+                    self.writer.write_all(value).await?;
+                }
+                None => {
+                    self.writer.write_i32(-1).await?;
+                }
+            }
+        }
+        self.writer
+            .write_i16(bind.result_column_formats.len() as i16)
+            .await?;
+        for format in &bind.result_column_formats {
+            self.writer
+                .write_i16(match format {
+                    crate::messages::ResultColumnFormat::Text => 0,
+                    crate::messages::ResultColumnFormat::Binary => 1,
+                })
+                .await?;
+        }
+        Ok(())
     }
 
     pub async fn flush(&mut self) -> std::io::Result<()> {

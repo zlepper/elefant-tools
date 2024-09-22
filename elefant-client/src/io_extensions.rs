@@ -1,5 +1,4 @@
-use std::ffi::CString;
-use futures::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
+use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 macro_rules! impl_read_integer {
     ($name:ident, $ty:ty) => {
@@ -26,6 +25,33 @@ pub(crate) trait AsyncReadExt2: AsyncRead + Unpin {
 
 impl<R: AsyncRead + Unpin> AsyncReadExt2 for R {}
 
+pub(crate) trait AsyncWriteExt2: AsyncWrite + Unpin {
+    async fn write_i32(&mut self, value: i32) -> Result<(), std::io::Error> {
+        self.write_all(&value.to_be_bytes()).await
+    }
+
+    async fn write_i16(&mut self, value: i16) -> Result<(), std::io::Error> {
+        self.write_all(&value.to_be_bytes()).await
+    }
+
+    async fn write_i8(&mut self, value: i8) -> Result<(), std::io::Error> {
+        self.write_all(&value.to_be_bytes()).await
+    }
+
+    async fn write_u32(&mut self, value: u32) -> Result<(), std::io::Error> {
+        self.write_all(&value.to_be_bytes()).await
+    }
+
+    async fn write_u16(&mut self, value: u16) -> Result<(), std::io::Error> {
+        self.write_all(&value.to_be_bytes()).await
+    }
+
+    async fn write_u8(&mut self, value: u8) -> Result<(), std::io::Error> {
+        self.write_all(&value.to_be_bytes()).await
+    }
+}
+
+impl<W: AsyncWrite + Unpin> AsyncWriteExt2 for W {}
 
 // pub(crate) trait AsyncBufReadExt2: AsyncBufRead + Unpin {
 //     async fn read_null_terminated_string(&mut self) -> Result<(String, usize), std::io::Error> {

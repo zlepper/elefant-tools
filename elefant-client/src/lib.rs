@@ -1,6 +1,10 @@
 mod messages;
 mod error;
 mod io_extensions;
+mod message_writer;
+#[cfg(test)]
+mod message_tests;
+mod message_reader;
 
 pub fn add(left: u64, right: u64) -> u64 {
     left + right

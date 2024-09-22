@@ -1,6 +1,4 @@
 use std::borrow::Cow;
-#[derive(Debug, PartialEq, Eq)]
-pub enum FrontendMessage {}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BackendMessage<'a> {
@@ -48,3 +46,28 @@ pub struct BackendKeyData {
     pub secret_key: i32,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum FrontendMessage<'a> {
+    Bind(Bind<'a>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Bind<'a> {
+    pub destination_portal_name: Cow<'a, str>,
+    pub source_statement_name: Cow<'a, str>,
+    pub parameter_formats: Vec<BindParameterFormat>,
+    pub parameter_values: Vec<Option<&'a [u8]>>,
+    pub result_column_formats: Vec<ResultColumnFormat>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum BindParameterFormat {
+    Text,
+    Binary,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum ResultColumnFormat {
+    Text,
+    Binary,
+}

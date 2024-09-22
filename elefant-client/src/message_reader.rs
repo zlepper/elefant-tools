@@ -1,7 +1,9 @@
-use futures::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
+use std::borrow::Cow;
+use std::io::Cursor;
 use crate::error::PostgresMessageParseError;
-use crate::io_extensions::AsyncReadExt2;
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage};
+use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, FrontendMessage, ResultColumnFormat};
+use futures::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
     reader: R,
@@ -21,8 +23,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
     pub async fn parse_backend_message(
         &mut self,
     ) -> Result<BackendMessage, PostgresMessageParseError> {
-        let reader = &mut self.reader;
-        let message_type = reader.read_u8().await?;
+        let message_type = self.reader.read_u8().await?;
 
         match message_type {
             b'R' => self.parse_authentication_message(message_type).await,
@@ -31,8 +32,10 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         }
     }
 
-    async fn parse_authentication_message(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
-
+    async fn parse_authentication_message(
+        &mut self,
+        message_type: u8,
+    ) -> Result<BackendMessage, PostgresMessageParseError> {
         let length = self.reader.read_i32().await?;
         if length < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
@@ -71,7 +74,8 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 let data = &mut self.read_buffer[..remaining];
                 self.reader.read_exact(data).await?;
 
-                let mechanisms = data.split(|b| *b == b'\0')
+                let mechanisms = data
+                    .split(|b| *b == b'\0')
                     .filter(|b| !b.is_empty())
                     .map(|slice| String::from_utf8_lossy(slice))
                     .collect();
@@ -79,7 +83,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(BackendMessage::AuthenticationSASL(AuthenticationSASL {
                     mechanisms,
                 }))
-            },
+            }
             (_, 11) => {
                 let remaining = (length - 8) as usize;
                 self.extend_buffer(remaining);
@@ -88,7 +92,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(BackendMessage::AuthenticationSASLContinue(
                     AuthenticationSASLContinue { data },
                 ))
-            },
+            }
             (_, 12) => {
                 let remaining = (length - 8) as usize;
                 self.extend_buffer(remaining);
@@ -97,7 +101,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(BackendMessage::AuthenticationSASLFinal(
                     AuthenticationSASLFinal { outcome: data },
                 ))
-            },
+            }
             _ => Err(PostgresMessageParseError::UnknownSubMessage {
                 message_type,
                 length,
@@ -106,7 +110,9 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         }
     }
 
-    async fn parse_backend_key_data(&mut self) -> Result<BackendMessage, PostgresMessageParseError> {
+    async fn parse_backend_key_data(
+        &mut self,
+    ) -> Result<BackendMessage, PostgresMessageParseError> {
         let length = self.reader.read_i32().await?;
 
         if length != 12 {
@@ -124,15 +130,75 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         }
     }
 
-    async fn read_null_terminated_string(&mut self) -> Result<(String, usize), std::io::Error> {
-        self.read_buffer.clear();
-        let bytes_read = self.reader.read_until(b'\0', &mut self.read_buffer).await?;
-        self.read_buffer.pop();
+    pub async fn parse_frontend_message(
+        &mut self,
+    ) -> Result<FrontendMessage, PostgresMessageParseError> {
+        let message_type = self.reader.read_u8().await?;
 
-        String::from_utf8(self.read_buffer.clone())
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-            .map(|s| (s, bytes_read))
+        match message_type {
+            b'B' => self.parse_bind_message().await,
+            _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
+        }
     }
+
+    async fn parse_bind_message(&mut self) -> Result<FrontendMessage, PostgresMessageParseError> {
+        let length = (self.reader.read_i32().await? as usize) - 4;
+        self.read_buffer.resize(length, 0);
+        self.reader
+            .read_exact(&mut self.read_buffer[..length])
+            .await?;
+
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        
+        let portal_name = reader.read_null_terminated_string()?;
+        let statement_name = reader.read_null_terminated_string()?;
+        let parameter_format_count = reader.read_i16()?;
+
+        let mut parameter_formats = Vec::with_capacity(parameter_format_count as usize);
+        for _ in 0..parameter_format_count {
+            let format = reader.read_i16()?;
+            let format = match format {
+                0 => BindParameterFormat::Text,
+                1 => BindParameterFormat::Binary,
+                _ => return Err(PostgresMessageParseError::UnknownBindParameterFormat(format)),
+            };
+            parameter_formats.push(format);
+        }
+        
+        let parameter_value_count = reader.read_i16()?;
+        let mut parameter_values = Vec::with_capacity(parameter_value_count as usize);
+        for _ in 0..parameter_value_count {
+            let len = reader.read_i32()?;
+            
+            if len == -1 {
+                parameter_values.push(None);
+            } else {
+                let bytes = reader.read_bytes(len as usize)?;
+                parameter_values.push(Some(bytes));
+            }
+        }
+        
+        let result_format_count = reader.read_i16()?;
+        let mut result_formats = Vec::with_capacity(result_format_count as usize);
+        for _ in 0..result_format_count {
+            let format = reader.read_i16()?;
+            let format = match format {
+                0 => ResultColumnFormat::Text,
+                1 => ResultColumnFormat::Binary,
+                _ => return Err(PostgresMessageParseError::UnknownResultColumnFormat(format)),
+            };
+            result_formats.push(format);
+        }
+        
+        Ok(FrontendMessage::Bind(Bind {
+            destination_portal_name: portal_name,
+            source_statement_name: statement_name,
+            parameter_formats,
+            parameter_values,
+            result_column_formats: result_formats,
+        }))
+    }
+    
 
     fn extend_buffer(&mut self, len: usize) {
         if self.read_buffer.len() < len {

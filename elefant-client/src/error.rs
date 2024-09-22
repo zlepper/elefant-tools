@@ -10,7 +10,12 @@ pub enum PostgresMessageParseError {
         length: i32,
         sub_message_type: i32,
     },
-    UnexpectedMessageLength { message_type: u8, length: i32 },
+    UnexpectedMessageLength {
+        message_type: u8,
+        length: i32,
+    },
+    UnknownBindParameterFormat(i16),
+    UnknownResultColumnFormat(i16),
 }
 
 impl From<std::io::Error> for PostgresMessageParseError {
@@ -40,6 +45,16 @@ impl Display for PostgresMessageParseError {
                 f,
                 "Unexpected message length: {} for {}",
                 length, message_type
+            ),
+            PostgresMessageParseError::UnknownBindParameterFormat(code) => write!(
+                f,
+                "Unknown bind parameter format: {}. Expected '1' or '2'",
+                code
+            ),
+            PostgresMessageParseError::UnknownResultColumnFormat(code) => write!(
+                f,
+                "Unknown result column format: {}. Expected '1' or '2'",
+                code
             ),
         }
     }

@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::AsyncReadExt2;
 use futures::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
@@ -6,16 +7,16 @@ use futures::{AsyncBufRead, AsyncBufReadExt, AsyncRead, AsyncReadExt};
 pub enum FrontendMessage {}
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum BackendMessage {
+pub enum BackendMessage<'a> {
     AuthenticationOk,
     AuthenticationKerberosV5,
     AuthenticationCleartextPassword,
     AuthenticationMD5Password(AuthenticationMD5Password),
     AuthenticationGSS,
-    AuthenticationGSSContinue(AuthenticationGSSContinue),
+    AuthenticationGSSContinue(AuthenticationGSSContinue<'a>),
     AuthenticationSSPI,
-    AuthenticationSASL(AuthenticationSASL),
-    AuthenticationSASLContinue(AuthenticationSASLContinue)
+    AuthenticationSASL(AuthenticationSASL<'a>),
+    AuthenticationSASLContinue(AuthenticationSASLContinue<'a>)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -24,18 +25,18 @@ pub struct AuthenticationMD5Password {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct AuthenticationGSSContinue {
-    pub data: Vec<u8>,
+pub struct AuthenticationGSSContinue<'a> {
+    pub data: &'a [u8],
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct AuthenticationSASL {
-    pub mechanisms: Vec<String>,
+pub struct AuthenticationSASL<'a> {
+    pub mechanisms: Vec<Cow<'a, str>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct AuthenticationSASLContinue {
-    pub data: Vec<u8>
+pub struct AuthenticationSASLContinue<'a> {
+    pub data: &'a [u8],
 }
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -66,9 +67,8 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
     }
 
     async fn parse_authentication_message(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
-        let reader = &mut self.reader;
 
-        let length = reader.read_i32().await?;
+        let length = self.reader.read_i32().await?;
         if length < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
@@ -76,7 +76,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             });
         }
 
-        let sub_message_type = reader.read_i32().await?;
+        let sub_message_type = self.reader.read_i32().await?;
 
         match (length, sub_message_type) {
             (8, 0) => Ok(BackendMessage::AuthenticationOk),
@@ -84,7 +84,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             (8, 3) => Ok(BackendMessage::AuthenticationCleartextPassword),
             (12, 5) => {
                 let mut salt = [0; 4];
-                reader.read_exact(&mut salt).await?;
+                self.reader.read_exact(&mut salt).await?;
                 Ok(BackendMessage::AuthenticationMD5Password(
                     AuthenticationMD5Password { salt },
                 ))
@@ -92,23 +92,34 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             (8, 7) => Ok(BackendMessage::AuthenticationGSS),
             (_, 8) => {
                 let remaining = (length - 8) as usize;
-                let mut data = vec![0; remaining];
-                reader.read_exact(&mut data).await?;
+                self.extend_buffer(remaining);
+                let mut data = &mut self.read_buffer[..remaining];
+                self.reader.read_exact(data).await?;
                 Ok(BackendMessage::AuthenticationGSSContinue(
                     AuthenticationGSSContinue { data },
                 ))
             }
             (8, 9) => Ok(BackendMessage::AuthenticationSSPI),
             (_, 10) => {
-                let mut remaining = (length - 8) as usize;
-
-                let mut mechanisms = Vec::new();
-                while remaining > 0 {
-                    let (mechanism, bytes_read) =
-                        self.read_null_terminated_string().await?;
-                    remaining -= bytes_read;
-                    mechanisms.push(mechanism);
-                }
+                let remaining = (length - 8) as usize;
+                self.extend_buffer(remaining);
+                let mut data = &mut self.read_buffer[..remaining];
+                self.reader.read_exact(data).await?;
+                
+                let mechanisms = data.split(|b| *b == b'\0')
+                    .filter(|b| !b.is_empty())
+                    .map(|slice| String::from_utf8_lossy(slice))
+                    .collect();
+                // 
+                // let mut remaining = (length - 8) as usize;
+                // 
+                // let mut mechanisms = Vec::new();
+                // while remaining > 0 {
+                //     let (mechanism, bytes_read) =
+                //         self.read_null_terminated_string().await?;
+                //     remaining -= bytes_read;
+                //     mechanisms.push(mechanism);
+                // }
 
                 Ok(BackendMessage::AuthenticationSASL(AuthenticationSASL {
                     mechanisms,
@@ -116,8 +127,9 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             },
             (_, 11) => {
                 let remaining = (length - 8) as usize;
-                let mut data = vec![0; remaining];
-                reader.read_exact(&mut data).await?;
+                self.extend_buffer(remaining);
+                let mut data = &mut self.read_buffer[..remaining];
+                self.reader.read_exact(data).await?;
                 Ok(BackendMessage::AuthenticationSASLContinue(
                     AuthenticationSASLContinue { data },
                 ))
@@ -139,6 +151,12 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
             .map(|s| (s, bytes_read))
     }
+    
+    fn extend_buffer(&mut self, len: usize) {
+        if self.read_buffer.len() < len {
+            self.read_buffer.resize(len, 0);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -148,7 +166,7 @@ mod tests {
     use futures::io::Cursor;
     use tokio::test;
 
-    async fn assert_message_parses_as<By: AsRef<[u8]>>(bytes: By, expected: BackendMessage) {
+    async fn assert_message_parses_as<By: AsRef<[u8]>>(bytes: By, expected: BackendMessage<'_>) {
         let mut cursor = Cursor::new(&bytes);
         let mut reader = MessageReader::new(&mut cursor);
         let result = reader.parse_backend_message().await.unwrap();
@@ -179,7 +197,7 @@ mod tests {
         assert_message_parses_as(
             to_wire_bytes!(b'R', 12i32, 10i32, b"foo\0"),
             BackendMessage::AuthenticationSASL(AuthenticationSASL {
-                mechanisms: vec!["foo".to_string()],
+                mechanisms: vec!["foo".into()],
             }),
         )
         .await;
@@ -189,7 +207,7 @@ mod tests {
         assert_message_parses_as(
             to_wire_bytes!(b'R', 21i32, 10i32, b"foo\0", b"booooooo\0"),
             BackendMessage::AuthenticationSASL(AuthenticationSASL {
-                mechanisms: vec!["foo".to_string(), "booooooo".to_string()],
+                mechanisms: vec!["foo".into(), "booooooo".into()],
             }),
         )
         .await;

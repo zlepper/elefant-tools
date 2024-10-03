@@ -241,6 +241,8 @@ async fn identity_column_always_generated(helper: &TestHelper) {
                         cycle: false,
                         last_value: Some(2),
                         is_internally_created: true,
+                        author_table: Some("my_table".to_string()),
+                        author_table_column_position: Some(1),
                         ..default()
                     }
                 ],
@@ -320,6 +322,8 @@ async fn identity_column_by_default(helper: &TestHelper) {
                         cycle: false,
                         last_value: Some(2),
                         is_internally_created: true,
+                        author_table: Some("my_table".to_string()),
+                        author_table_column_position: Some(1),
                         ..default()
                     }
                 ],
@@ -399,6 +403,8 @@ async fn identity_column_custom_sequence(helper: &TestHelper) {
                         cycle: false,
                         last_value: Some(20),
                         is_internally_created: true,
+                        author_table: Some("my_table".to_string()),
+                        author_table_column_position: Some(1),
                         ..default()
                     }
                 ],

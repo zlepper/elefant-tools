@@ -181,6 +181,8 @@ impl SchemaReader<'_> {
                 last_value: sequence.last_value,
                 comment: sequence.comment,
                 is_internally_created: sequence.is_internally_created,
+                author_table: sequence.author_table.clone(),
+                author_table_column_position: sequence.author_table_column_position,
                 object_id: object_id_generator.next(),
             };
 

@@ -19,6 +19,8 @@ pub struct PostgresSequence {
     pub comment: Option<String>,
     pub object_id: ObjectId,
     pub is_internally_created: bool,
+    pub author_table: Option<String>,
+    pub author_table_column_position: Option<i32>,
 }
 
 impl Default for PostgresSequence {
@@ -36,6 +38,8 @@ impl Default for PostgresSequence {
             comment: None,
             object_id: ObjectId::default(),
             is_internally_created: false,
+            author_table: None,
+            author_table_column_position: None,
         }
     }
 }

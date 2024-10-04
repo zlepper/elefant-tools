@@ -92,3 +92,11 @@ async fn round_trip_bind_message() {
         result_column_formats: vec![],
     })).await;
 }
+
+#[test]
+async fn round_trip_close_message() {
+    assert_frontend_message_round_trip(FrontendMessage::Close(Close {
+        target: CloseType::Portal,
+        name: "foo".into(),
+    })).await;
+}

@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, FrontendMessage, ResultColumnFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, Close, CloseType, FrontendMessage, ResultColumnFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -148,6 +148,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
 
         match message_type {
             b'B' => self.parse_bind_message().await,
+            b'C' => self.parse_close_message().await,
             _ => {
                 
                 let more = self.reader.read_bytes::<3>().await?;
@@ -228,6 +229,25 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             parameter_values,
             result_column_formats: result_formats,
         }))
+    }
+    
+    async fn parse_close_message(&mut self) -> Result<FrontendMessage, PostgresMessageParseError> {
+        let length = (self.reader.read_i32().await? as usize) - 4;
+        self.read_buffer.resize(length, 0);
+        self.reader
+            .read_exact(&mut self.read_buffer[..length])
+            .await?;
+
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        
+        let target = match reader.read_u8()? {
+            b'S' => CloseType::Statement,
+            b'P' => CloseType::Portal,
+            b => return Err(PostgresMessageParseError::UnknownCloseTarget(b)),
+        };
+        let name = reader.read_null_terminated_string()?;
+
+        Ok(FrontendMessage::Close(Close { target, name }))
     }
 
 

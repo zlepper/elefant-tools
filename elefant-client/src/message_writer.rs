@@ -1,6 +1,6 @@
 use std::io::Error;
 use crate::io_extensions::AsyncWriteExt2;
-use crate::messages::{BackendMessage, Bind, FrontendMessage};
+use crate::messages::{BackendMessage, Bind, CloseType, FrontendMessage};
 use futures::{AsyncWrite, AsyncWriteExt};
 
 pub struct MessageWriter<W: AsyncWrite + Unpin> {
@@ -110,12 +110,23 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
         message: &FrontendMessage<'_>,
     ) -> Result<(), std::io::Error> {
         match message {
-            FrontendMessage::Bind(bind) => self.write_bind_message(&bind).await,
+            FrontendMessage::Bind(bind) => self.write_bind_message(bind).await,
             FrontendMessage::CancelRequest(cr) => {
                 self.writer.write_i32(16).await?;
                 self.writer.write_i32(80877102).await?;
                 self.writer.write_i32(cr.process_id).await?;
                 self.writer.write_i32(cr.secret_key).await?;
+                Ok(())
+            },
+            FrontendMessage::Close(close) => {
+                self.writer.write_u8(b'C').await?;
+                self.writer.write_i32(4 + 1 + close.name.len() as i32 + 1).await?;
+                self.writer.write_u8(match close.target {
+                    CloseType::Statement => b'S',
+                    CloseType::Portal => b'P'
+                }).await?;
+                self.writer.write_all(close.name.as_bytes()).await?;
+                self.writer.write_u8(0).await?;
                 Ok(())
             }
         }

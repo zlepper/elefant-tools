@@ -16,6 +16,7 @@ pub enum PostgresMessageParseError {
     },
     UnknownBindParameterFormat(i16),
     UnknownResultColumnFormat(i16),
+    UnknownCloseTarget(u8),
 }
 
 impl From<std::io::Error> for PostgresMessageParseError {
@@ -56,6 +57,9 @@ impl Display for PostgresMessageParseError {
                 "Unknown result column format: {}. Expected '1' or '2'",
                 code
             ),
+            PostgresMessageParseError::UnknownCloseTarget(code) => {
+                write!(f, "Unknown close target: {}. Expected 'S' or 'P'", code)
+            }
         }
     }
 }

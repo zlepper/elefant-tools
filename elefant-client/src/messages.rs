@@ -51,6 +51,7 @@ pub struct BackendKeyData {
 pub enum FrontendMessage<'a> {
     Bind(Bind<'a>),
     CancelRequest(CancelRequest),
+    Close(Close<'a>)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -78,4 +79,16 @@ pub enum ResultColumnFormat {
 pub struct CancelRequest {
     pub process_id: i32,
     pub secret_key: i32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Close<'a> {
+    pub target: CloseType,
+    pub name: Cow<'a, str>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CloseType {
+    Statement,
+    Portal,
 }

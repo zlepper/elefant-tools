@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::io::BufRead;
 use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 macro_rules! impl_read_integer {
@@ -140,6 +139,16 @@ impl<'a> ByteSliceReader<'a> {
             self.bytes[self.cursor + 1],
         ]);
         self.cursor += 2;
+        Ok(result)
+    }
+    
+    pub fn read_u8(&mut self) -> Result<u8, std::io::Error> {
+        if self.bytes.len() < self.cursor + 1 {
+            return Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, "Not enough bytes to read u8"));
+        }
+        
+        let result = self.bytes[self.cursor];
+        self.cursor += 1;
         Ok(result)
     }
     

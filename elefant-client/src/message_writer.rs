@@ -106,6 +106,14 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_u8(b'3').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
+            },
+            BackendMessage::CommandComplete(cc) => {
+                self.writer.write_u8(b'C').await?;
+                let length = 4 + cc.tag.len() + 1;
+                self.writer.write_i32(length as i32).await?;
+                self.writer.write_all(cc.tag.as_bytes()).await?;
+                self.writer.write_u8(0).await?;
+                Ok(())
             }
         }
     }

@@ -15,6 +15,7 @@ pub enum BackendMessage<'a> {
     BackendKeyData(BackendKeyData),
     BindComplete,
     CloseComplete,
+    CommandComplete(CommandComplete<'a>)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -46,6 +47,11 @@ pub struct AuthenticationSASLFinal<'a> {
 pub struct BackendKeyData {
     pub process_id: i32,
     pub secret_key: i32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CommandComplete<'a> {
+    pub tag: Cow<'a, str>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

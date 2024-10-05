@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, Close, CloseType, FrontendMessage, ResultColumnFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, Close, CloseType, CommandComplete, FrontendMessage, ResultColumnFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -28,7 +28,25 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'K' => self.parse_backend_key_data().await,
             b'2' => self.parse_bind_completed(message_type).await,
             b'3' => self.parse_close_complete(message_type).await,
+            b'C' => self.parse_command_complete(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
+        }
+    }
+
+    async fn parse_command_complete(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len < 4 {
+            Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            })
+        } else {
+            let length = len as usize - 4;
+            self.extend_buffer(length);
+            self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+            let tag = String::from_utf8_lossy(&self.read_buffer[..length - 1]);
+
+            Ok(BackendMessage::CommandComplete(CommandComplete { tag }))
         }
     }
 

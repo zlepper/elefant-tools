@@ -118,3 +118,10 @@ async fn round_trip_close_message() {
 async fn round_trip_close_complete() {
     assert_backend_message_round_trip(BackendMessage::CloseComplete).await;
 }
+
+#[test]
+async fn round_trip_command_complete() {
+    assert_backend_message_round_trip(BackendMessage::CommandComplete(CommandComplete {
+        tag: "INSERT 42".into(),
+    })).await;
+}

@@ -27,7 +27,20 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'R' => self.parse_authentication_message(message_type).await,
             b'K' => self.parse_backend_key_data().await,
             b'2' => self.parse_bind_completed(message_type).await,
+            b'3' => self.parse_close_complete(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
+        }
+    }
+
+    async fn parse_close_complete(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len != 4 {
+            Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            })
+        } else {
+            Ok(BackendMessage::CloseComplete)
         }
     }
 

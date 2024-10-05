@@ -19,6 +19,19 @@ async fn assert_backend_message_parses_as<By: AsRef<[u8]>>(bytes: By, expected: 
     assert_eq!(result, bytes.as_ref());
 }
 
+async fn assert_backend_message_round_trip(input: BackendMessage<'_>) {
+    let mut cursor = Cursor::new(Vec::new());
+    let mut writer = MessageWriter::new(&mut cursor);
+    writer.write_backend_message(&input).await.unwrap();
+    writer.flush().await.unwrap();
+    let bytes = cursor.into_inner();
+
+    let mut cursor = Cursor::new(&bytes);
+    let mut reader = MessageReader::new(&mut cursor);
+    let result = reader.parse_backend_message().await.unwrap();
+    assert_eq!(result, input);
+}
+
 async fn assert_frontend_message_round_trip(input: FrontendMessage<'_>) {
     let mut cursor = Cursor::new(Vec::new());
     let mut writer = MessageWriter::new(&mut cursor);
@@ -99,4 +112,9 @@ async fn round_trip_close_message() {
         target: CloseType::Portal,
         name: "foo".into(),
     })).await;
+}
+
+#[test]
+async fn round_trip_close_complete() {
+    assert_backend_message_round_trip(BackendMessage::CloseComplete).await;
 }

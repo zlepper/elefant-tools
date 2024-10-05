@@ -101,6 +101,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_u8(b'2').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
+            },
+            BackendMessage::CloseComplete => {
+                self.writer.write_u8(b'3').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
             }
         }
     }

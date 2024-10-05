@@ -14,6 +14,7 @@ pub enum BackendMessage<'a> {
     AuthenticationSASLFinal(AuthenticationSASLFinal<'a>),
     BackendKeyData(BackendKeyData),
     BindComplete,
+    CloseComplete,
 }
 
 #[derive(Debug, PartialEq, Eq)]

@@ -31,17 +31,22 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'C' => self.parse_command_complete(message_type).await,
             b'd' => Ok(BackendMessage::CopyData(self.parse_copy_data().await?)),
             b'c' => {
-                let len = self.reader.read_i32().await?;
-                if len != 4 {
-                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
-                        message_type,
-                        length: len,
-                    });
-                }
+                self.assert_len_equals(4, message_type).await?;
                 Ok(BackendMessage::CopyDone)
             },
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
+    }
+    
+    async fn assert_len_equals(&mut self, expected: i32, message_type: u8) -> Result<(), PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len != expected {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        Ok(())
     }
     
     async fn parse_copy_data(&mut self) -> Result<CopyData<'_>, PostgresMessageParseError> {
@@ -70,27 +75,13 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
     }
 
     async fn parse_close_complete(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
-        let len = self.reader.read_i32().await?;
-        if len != 4 {
-            Err(PostgresMessageParseError::UnexpectedMessageLength {
-                message_type,
-                length: len,
-            })
-        } else {
-            Ok(BackendMessage::CloseComplete)
-        }
+        self.assert_len_equals(4, message_type).await?;
+        Ok(BackendMessage::CloseComplete)
     }
 
     async fn parse_bind_completed(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
-        let len = self.reader.read_i32().await?;
-        if len != 4 {
-            Err(PostgresMessageParseError::UnexpectedMessageLength {
-                message_type,
-                length: len,
-            })
-        } else {
-            Ok(BackendMessage::BindComplete)
-        }
+        self.assert_len_equals(4, message_type).await?;
+        Ok(BackendMessage::BindComplete)
     }
 
     async fn parse_authentication_message(
@@ -174,21 +165,13 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
     async fn parse_backend_key_data(
         &mut self,
     ) -> Result<BackendMessage, PostgresMessageParseError> {
-        let length = self.reader.read_i32().await?;
-
-        if length != 12 {
-            Err(PostgresMessageParseError::UnexpectedMessageLength {
-                message_type: b'K',
-                length,
-            })
-        } else {
-            let process_id = self.reader.read_i32().await?;
-            let secret_key = self.reader.read_i32().await?;
-            Ok(BackendMessage::BackendKeyData(BackendKeyData {
-                process_id,
-                secret_key,
-            }))
-        }
+        self.assert_len_equals(12, b'K').await?;
+        let process_id = self.reader.read_i32().await?;
+        let secret_key = self.reader.read_i32().await?;
+        Ok(BackendMessage::BackendKeyData(BackendKeyData {
+            process_id,
+            secret_key,
+        }))
     }
 
     pub async fn parse_frontend_message(
@@ -201,13 +184,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'C' => self.parse_close_message().await,
             b'd' => Ok(FrontendMessage::CopyData(self.parse_copy_data().await?)),
             b'c' => {
-                let len = self.reader.read_i32().await?;
-                if len != 4 {
-                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
-                        message_type,
-                        length: len,
-                    });
-                }
+                self.assert_len_equals(4, message_type).await?;
                 Ok(FrontendMessage::CopyDone)
             },
             _ => {

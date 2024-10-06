@@ -126,6 +126,7 @@ async fn round_trip_command_complete() {
     })).await;
 }
 
+#[test]
 async fn round_trip_copy_data() {
     assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
         data: &[1, 2, 3],
@@ -142,4 +143,10 @@ async fn round_trip_copy_data() {
     assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
         data: &[],
     })).await;
+}
+
+#[test]
+async fn round_trip_copy_done() {
+    assert_frontend_message_round_trip(FrontendMessage::CopyDone).await;
+    assert_backend_message_round_trip(BackendMessage::CopyDone).await;
 }

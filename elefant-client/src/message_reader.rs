@@ -30,6 +30,16 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'3' => self.parse_close_complete(message_type).await,
             b'C' => self.parse_command_complete(message_type).await,
             b'd' => Ok(BackendMessage::CopyData(self.parse_copy_data().await?)),
+            b'c' => {
+                let len = self.reader.read_i32().await?;
+                if len != 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                Ok(BackendMessage::CopyDone)
+            },
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -190,6 +200,16 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'B' => self.parse_bind_message().await,
             b'C' => self.parse_close_message().await,
             b'd' => Ok(FrontendMessage::CopyData(self.parse_copy_data().await?)),
+            b'c' => {
+                let len = self.reader.read_i32().await?;
+                if len != 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                Ok(FrontendMessage::CopyDone)
+            },
             _ => {
                 
                 let more = self.reader.read_bytes::<3>().await?;

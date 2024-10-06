@@ -122,6 +122,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_all(cd.data).await?;
                 Ok(())
             },
+            BackendMessage::CopyDone => {
+                self.writer.write_u8(b'c').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
+            },
         }
     }
 
@@ -154,6 +159,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 let length = 4 + cd.data.len() as i32;
                 self.writer.write_i32(length).await?;
                 self.writer.write_all(cd.data).await?;
+                Ok(())
+            },
+            FrontendMessage::CopyDone => {
+                self.writer.write_u8(b'c').await?;
+                self.writer.write_i32(4).await?;
                 Ok(())
             },
         }

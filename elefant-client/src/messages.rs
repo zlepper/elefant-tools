@@ -17,6 +17,7 @@ pub enum BackendMessage<'a> {
     CloseComplete,
     CommandComplete(CommandComplete<'a>),
     CopyData(CopyData<'a>),
+    CopyDone,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -61,6 +62,7 @@ pub enum FrontendMessage<'a> {
     CancelRequest(CancelRequest),
     Close(Close<'a>),
     CopyData(CopyData<'a>),
+    CopyDone,
 }
 
 #[derive(Debug, PartialEq, Eq)]

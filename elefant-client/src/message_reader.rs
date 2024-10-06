@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, Close, CloseType, CommandComplete, CopyData, FrontendMessage, ResultColumnFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, FrontendMessage, ResultColumnFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -186,6 +186,25 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'c' => {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(FrontendMessage::CopyDone)
+            },
+            b'f' => {
+                let len = self.reader.read_i32().await?;
+                if len <= 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                
+                let length = len as usize - 4;
+                self.extend_buffer(length);
+                self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+                let message = String::from_utf8_lossy(&self.read_buffer[..length - 1]);
+                
+                Ok(FrontendMessage::CopyFail(CopyFail {
+                    message,
+                }))
+                
             },
             _ => {
                 

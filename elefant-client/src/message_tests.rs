@@ -150,3 +150,13 @@ async fn round_trip_copy_done() {
     assert_frontend_message_round_trip(FrontendMessage::CopyDone).await;
     assert_backend_message_round_trip(BackendMessage::CopyDone).await;
 }
+
+#[test]
+async fn round_trip_copy_fail() {
+    assert_frontend_message_round_trip(FrontendMessage::CopyFail(CopyFail {
+        message: "foo".into(),
+    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::CopyFail(CopyFail {
+        message: "".into(),
+    })).await;
+}

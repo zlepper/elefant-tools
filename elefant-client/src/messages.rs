@@ -63,6 +63,7 @@ pub enum FrontendMessage<'a> {
     Close(Close<'a>),
     CopyData(CopyData<'a>),
     CopyDone,
+    CopyFail(CopyFail<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -107,4 +108,9 @@ pub enum CloseType {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CopyData<'a> {
     pub data: &'a [u8],
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CopyFail<'a> {
+    pub message: Cow<'a, str>,
 }

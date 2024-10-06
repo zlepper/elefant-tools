@@ -166,6 +166,13 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(4).await?;
                 Ok(())
             },
+            FrontendMessage::CopyFail(cf) => {
+                self.writer.write_u8(b'f').await?;
+                self.writer.write_i32(4 + cf.message.len() as i32 + 1).await?;
+                self.writer.write_all(cf.message.as_bytes()).await?;
+                self.writer.write_u8(0).await?;
+                Ok(())
+            },
         }
     }
 

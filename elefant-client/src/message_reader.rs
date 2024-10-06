@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyInResponse, FrontendMessage, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, FrontendMessage, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -34,12 +34,14 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(BackendMessage::CopyDone)
             },
-            b'G' => self.parse_copy_in_response(message_type).await,
+            b'G' => Ok(BackendMessage::CopyInResponse(self.parse_copy_response(message_type).await?)),
+            b'H' => Ok(BackendMessage::CopyOutResponse(self.parse_copy_response(message_type).await?)),
+            b'W' => Ok(BackendMessage::CopyBothResponse(self.parse_copy_response(message_type).await?)),
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
 
-    async fn parse_copy_in_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+    async fn parse_copy_response(&mut self, message_type: u8) -> Result<CopyResponse, PostgresMessageParseError> {
         let len = self.reader.read_i32().await?;
 
         if len < (4 + 1 + 2) {
@@ -68,10 +70,10 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             column_formats.push(format);
         }
 
-        Ok(BackendMessage::CopyInResponse(CopyInResponse {
+        Ok(CopyResponse {
             format,
             column_formats,
-        }))
+        })
     }
 
     async fn assert_len_equals(

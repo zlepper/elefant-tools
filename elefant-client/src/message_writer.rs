@@ -1,6 +1,6 @@
 use std::io::Error;
 use crate::io_extensions::AsyncWriteExt2;
-use crate::messages::{BackendMessage, Bind, CloseType, FrontendMessage};
+use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, FrontendMessage};
 use futures::{AsyncWrite, AsyncWriteExt};
 
 pub struct MessageWriter<W: AsyncWrite + Unpin> {
@@ -127,29 +127,40 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(4).await?;
                 Ok(())
             },
-            BackendMessage::CopyInResponse(cir) => {
+            BackendMessage::CopyInResponse(cr) => {
                 self.writer.write_u8(b'G').await?;
-                
-                let len = 4 + 1 + 2 + (cir.column_formats.len() * 2) as i32;
-                self.writer.write_i32(len).await?;
-                
-                self.writer.write_u8(match cir.format {
-                    crate::messages::ValueFormat::Text => 0,
-                    crate::messages::ValueFormat::Binary => 1,
-                }).await?;
-                
-                self.writer.write_i16(cir.column_formats.len() as i16).await?;
-                
-                for format in &cir.column_formats {
-                    self.writer.write_i16(match format {
-                        crate::messages::ValueFormat::Text => 0,
-                        crate::messages::ValueFormat::Binary => 1,
-                    }).await?;
-                }
-                
-                Ok(())
-            },
+                self.write_copy_response(cr).await
+            }
+            BackendMessage::CopyOutResponse(cr) => {
+                self.writer.write_u8(b'H').await?;
+                self.write_copy_response(cr).await
+            }
+            BackendMessage::CopyBothResponse(cr) => {
+                self.writer.write_u8(b'W').await?;
+                self.write_copy_response(cr).await
+            }
         }
+    }
+
+    async fn write_copy_response(&mut self, cir: &CopyResponse) -> Result<(), Error> {
+        let len = 4 + 1 + 2 + (cir.column_formats.len() * 2) as i32;
+        self.writer.write_i32(len).await?;
+
+        self.writer.write_u8(match cir.format {
+            crate::messages::ValueFormat::Text => 0,
+            crate::messages::ValueFormat::Binary => 1,
+        }).await?;
+
+        self.writer.write_i16(cir.column_formats.len() as i16).await?;
+
+        for format in &cir.column_formats {
+            self.writer.write_i16(match format {
+                crate::messages::ValueFormat::Text => 0,
+                crate::messages::ValueFormat::Binary => 1,
+            }).await?;
+        }
+
+        Ok(())
     }
 
     pub async fn write_frontend_message(

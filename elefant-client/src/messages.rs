@@ -18,7 +18,10 @@ pub enum BackendMessage<'a> {
     CommandComplete(CommandComplete<'a>),
     CopyData(CopyData<'a>),
     CopyDone,
-    CopyInResponse(CopyInResponse),
+    CopyInResponse(CopyResponse),
+    CopyOutResponse(CopyResponse),
+    CopyBothResponse(CopyResponse),
+    
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -58,10 +61,11 @@ pub struct CommandComplete<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct CopyInResponse {
+pub struct CopyResponse {
     pub format: ValueFormat,
     pub column_formats: Vec<ValueFormat>,
 }
+
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum FrontendMessage<'a> {

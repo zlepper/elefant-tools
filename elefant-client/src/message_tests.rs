@@ -161,17 +161,53 @@ async fn round_trip_copy_fail() {
 
 #[test]
 async fn round_trip_copy_in_response() {
-    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyInResponse {
+    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyResponse {
         format: ValueFormat::Text,
         column_formats: vec![ValueFormat::Text, ValueFormat::Text],
     })).await;
 
-    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyInResponse {
+    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Binary],
     })).await;
 
-    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyInResponse {
+    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyResponse {
+        format: ValueFormat::Binary,
+        column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
+    })).await;
+}
+
+#[test]
+async fn round_trip_copy_out_response() {
+    assert_backend_message_round_trip(BackendMessage::CopyOutResponse(CopyResponse {
+        format: ValueFormat::Text,
+        column_formats: vec![ValueFormat::Text, ValueFormat::Text],
+    })).await;
+
+    assert_backend_message_round_trip(BackendMessage::CopyOutResponse(CopyResponse {
+        format: ValueFormat::Binary,
+        column_formats: vec![ValueFormat::Binary],
+    })).await;
+
+    assert_backend_message_round_trip(BackendMessage::CopyOutResponse(CopyResponse {
+        format: ValueFormat::Binary,
+        column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
+    })).await;
+}
+
+#[test]
+async fn round_trip_copy_both_response() {
+    assert_backend_message_round_trip(BackendMessage::CopyBothResponse(CopyResponse {
+        format: ValueFormat::Text,
+        column_formats: vec![ValueFormat::Text, ValueFormat::Text],
+    })).await;
+
+    assert_backend_message_round_trip(BackendMessage::CopyBothResponse(CopyResponse {
+        format: ValueFormat::Binary,
+        column_formats: vec![ValueFormat::Binary],
+    })).await;
+
+    assert_backend_message_round_trip(BackendMessage::CopyBothResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
     })).await;

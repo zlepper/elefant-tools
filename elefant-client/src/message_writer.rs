@@ -127,6 +127,28 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(4).await?;
                 Ok(())
             },
+            BackendMessage::CopyInResponse(cir) => {
+                self.writer.write_u8(b'G').await?;
+                
+                let len = 4 + 1 + 2 + (cir.column_formats.len() * 2) as i32;
+                self.writer.write_i32(len).await?;
+                
+                self.writer.write_u8(match cir.format {
+                    crate::messages::ValueFormat::Text => 0,
+                    crate::messages::ValueFormat::Binary => 1,
+                }).await?;
+                
+                self.writer.write_i16(cir.column_formats.len() as i16).await?;
+                
+                for format in &cir.column_formats {
+                    self.writer.write_i16(match format {
+                        crate::messages::ValueFormat::Text => 0,
+                        crate::messages::ValueFormat::Binary => 1,
+                    }).await?;
+                }
+                
+                Ok(())
+            },
         }
     }
 
@@ -204,8 +226,8 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
         for format in &bind.parameter_formats {
             self.writer
                 .write_i16(match format {
-                    crate::messages::BindParameterFormat::Text => 0,
-                    crate::messages::BindParameterFormat::Binary => 1,
+                    crate::messages::ValueFormat::Text => 0,
+                    crate::messages::ValueFormat::Binary => 1,
                 })
                 .await?;
         }
@@ -229,8 +251,8 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
         for format in &bind.result_column_formats {
             self.writer
                 .write_i16(match format {
-                    crate::messages::ResultColumnFormat::Text => 0,
-                    crate::messages::ResultColumnFormat::Binary => 1,
+                    crate::messages::ValueFormat::Text => 0,
+                    crate::messages::ValueFormat::Binary => 1,
                 })
                 .await?;
         }

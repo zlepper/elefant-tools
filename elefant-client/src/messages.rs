@@ -18,6 +18,7 @@ pub enum BackendMessage<'a> {
     CommandComplete(CommandComplete<'a>),
     CopyData(CopyData<'a>),
     CopyDone,
+    CopyInResponse(CopyInResponse),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -57,6 +58,12 @@ pub struct CommandComplete<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
+pub struct CopyInResponse {
+    pub format: ValueFormat,
+    pub column_formats: Vec<ValueFormat>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
 pub enum FrontendMessage<'a> {
     Bind(Bind<'a>),
     CancelRequest(CancelRequest),
@@ -70,19 +77,13 @@ pub enum FrontendMessage<'a> {
 pub struct Bind<'a> {
     pub destination_portal_name: Cow<'a, str>,
     pub source_statement_name: Cow<'a, str>,
-    pub parameter_formats: Vec<BindParameterFormat>,
+    pub parameter_formats: Vec<ValueFormat>,
     pub parameter_values: Vec<Option<&'a [u8]>>,
-    pub result_column_formats: Vec<ResultColumnFormat>,
+    pub result_column_formats: Vec<ValueFormat>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum BindParameterFormat {
-    Text,
-    Binary,
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum ResultColumnFormat {
+pub enum ValueFormat {
     Text,
     Binary,
 }

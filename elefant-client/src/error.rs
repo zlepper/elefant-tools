@@ -14,8 +14,7 @@ pub enum PostgresMessageParseError {
         message_type: u8,
         length: i32,
     },
-    UnknownBindParameterFormat(i16),
-    UnknownResultColumnFormat(i16),
+    UnknownValueFormat(i16),
     UnknownCloseTarget(u8),
 }
 
@@ -47,14 +46,9 @@ impl Display for PostgresMessageParseError {
                 "Unexpected message length: {} for {}",
                 length, message_type
             ),
-            PostgresMessageParseError::UnknownBindParameterFormat(code) => write!(
+            PostgresMessageParseError::UnknownValueFormat(code) => write!(
                 f,
-                "Unknown bind parameter format: {}. Expected '1' or '2'",
-                code
-            ),
-            PostgresMessageParseError::UnknownResultColumnFormat(code) => write!(
-                f,
-                "Unknown result column format: {}. Expected '1' or '2'",
+                "Unknown value column format: {}.",
                 code
             ),
             PostgresMessageParseError::UnknownCloseTarget(code) => {

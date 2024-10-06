@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, BindParameterFormat, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, FrontendMessage, ResultColumnFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyInResponse, FrontendMessage, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -34,11 +34,51 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(BackendMessage::CopyDone)
             },
+            b'G' => self.parse_copy_in_response(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
-    
-    async fn assert_len_equals(&mut self, expected: i32, message_type: u8) -> Result<(), PostgresMessageParseError> {
+
+    async fn parse_copy_in_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+
+        if len < (4 + 1 + 2) {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+
+        let format = match self.reader.read_i8().await? {
+            0 => ValueFormat::Text,
+            1 => ValueFormat::Binary,
+            _ => return Err(PostgresMessageParseError::UnknownMessage(message_type)),
+        };
+
+        let column_count = self.reader.read_i16().await?;
+
+        let mut column_formats = Vec::with_capacity(column_count as usize);
+
+        for _ in 0..column_count {
+            let format = match self.reader.read_i16().await? {
+                0 => ValueFormat::Text,
+                1 => ValueFormat::Binary,
+                _ => return Err(PostgresMessageParseError::UnknownMessage(message_type)),
+            };
+            column_formats.push(format);
+        }
+
+        Ok(BackendMessage::CopyInResponse(CopyInResponse {
+            format,
+            column_formats,
+        }))
+    }
+
+    async fn assert_len_equals(
+        &mut self,
+        expected: i32,
+        message_type: u8,
+    ) -> Result<(), PostgresMessageParseError> {
         let len = self.reader.read_i32().await?;
         if len != expected {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
@@ -48,16 +88,21 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         }
         Ok(())
     }
-    
+
     async fn parse_copy_data(&mut self) -> Result<CopyData<'_>, PostgresMessageParseError> {
         let len = self.reader.read_i32().await?;
         let len = len as usize - 4;
         self.extend_buffer(len);
         self.reader.read_exact(&mut self.read_buffer[..len]).await?;
-        Ok(CopyData { data: &self.read_buffer[..len] })
+        Ok(CopyData {
+            data: &self.read_buffer[..len],
+        })
     }
 
-    async fn parse_command_complete(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+    async fn parse_command_complete(
+        &mut self,
+        message_type: u8,
+    ) -> Result<BackendMessage, PostgresMessageParseError> {
         let len = self.reader.read_i32().await?;
         if len < 4 {
             Err(PostgresMessageParseError::UnexpectedMessageLength {
@@ -67,19 +112,27 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         } else {
             let length = len as usize - 4;
             self.extend_buffer(length);
-            self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+            self.reader
+                .read_exact(&mut self.read_buffer[..length])
+                .await?;
             let tag = String::from_utf8_lossy(&self.read_buffer[..length - 1]);
 
             Ok(BackendMessage::CommandComplete(CommandComplete { tag }))
         }
     }
 
-    async fn parse_close_complete(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+    async fn parse_close_complete(
+        &mut self,
+        message_type: u8,
+    ) -> Result<BackendMessage, PostgresMessageParseError> {
         self.assert_len_equals(4, message_type).await?;
         Ok(BackendMessage::CloseComplete)
     }
 
-    async fn parse_bind_completed(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+    async fn parse_bind_completed(
+        &mut self,
+        message_type: u8,
+    ) -> Result<BackendMessage, PostgresMessageParseError> {
         self.assert_len_equals(4, message_type).await?;
         Ok(BackendMessage::BindComplete)
     }
@@ -186,7 +239,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'c' => {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(FrontendMessage::CopyDone)
-            },
+            }
             b'f' => {
                 let len = self.reader.read_i32().await?;
                 if len <= 4 {
@@ -195,38 +248,35 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                         length: len,
                     });
                 }
-                
+
                 let length = len as usize - 4;
                 self.extend_buffer(length);
-                self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+                self.reader
+                    .read_exact(&mut self.read_buffer[..length])
+                    .await?;
                 let message = String::from_utf8_lossy(&self.read_buffer[..length - 1]);
-                
-                Ok(FrontendMessage::CopyFail(CopyFail {
-                    message,
-                }))
-                
-            },
+
+                Ok(FrontendMessage::CopyFail(CopyFail { message }))
+            }
             _ => {
-                
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);
-                
+
                 if length == 16 {
                     let code = self.reader.read_i32().await?;
                     if code == 80877102 {
                         let process_id = self.reader.read_i32().await?;
                         let secret_key = self.reader.read_i32().await?;
-                        
+
                         return Ok(FrontendMessage::CancelRequest(CancelRequest {
                             process_id,
                             secret_key,
                         }));
                     }
                 }
-                
-                
+
                 Err(PostgresMessageParseError::UnknownMessage(message_type))
-            },
+            }
         }
     }
 
@@ -247,9 +297,13 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         for _ in 0..parameter_format_count {
             let format = reader.read_i16()?;
             let format = match format {
-                0 => BindParameterFormat::Text,
-                1 => BindParameterFormat::Binary,
-                _ => return Err(PostgresMessageParseError::UnknownBindParameterFormat(format)),
+                0 => ValueFormat::Text,
+                1 => ValueFormat::Binary,
+                _ => {
+                    return Err(PostgresMessageParseError::UnknownValueFormat(
+                        format,
+                    ))
+                }
             };
             parameter_formats.push(format);
         }
@@ -272,9 +326,9 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         for _ in 0..result_format_count {
             let format = reader.read_i16()?;
             let format = match format {
-                0 => ResultColumnFormat::Text,
-                1 => ResultColumnFormat::Binary,
-                _ => return Err(PostgresMessageParseError::UnknownResultColumnFormat(format)),
+                0 => ValueFormat::Text,
+                1 => ValueFormat::Binary,
+                _ => return Err(PostgresMessageParseError::UnknownValueFormat(format)),
             };
             result_formats.push(format);
         }
@@ -287,7 +341,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             result_column_formats: result_formats,
         }))
     }
-    
+
     async fn parse_close_message(&mut self) -> Result<FrontendMessage, PostgresMessageParseError> {
         let length = (self.reader.read_i32().await? as usize) - 4;
         self.read_buffer.resize(length, 0);
@@ -296,7 +350,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             .await?;
 
         let mut reader = ByteSliceReader::new(&self.read_buffer);
-        
+
         let target = match reader.read_u8()? {
             b'S' => CloseType::Statement,
             b'P' => CloseType::Portal,
@@ -306,7 +360,6 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
 
         Ok(FrontendMessage::Close(Close { target, name }))
     }
-
 
     fn extend_buffer(&mut self, len: usize) {
         if self.read_buffer.len() < len {

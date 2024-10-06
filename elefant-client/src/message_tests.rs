@@ -39,8 +39,6 @@ async fn assert_frontend_message_round_trip(input: FrontendMessage<'_>) {
     writer.flush().await.unwrap();
     let bytes = cursor.into_inner();
     
-    eprintln!("{:?}", bytes);
-
     let mut cursor = Cursor::new(&bytes);
     let mut reader = MessageReader::new(&mut cursor);
     let result = reader.parse_frontend_message().await.unwrap();
@@ -92,9 +90,9 @@ async fn round_trip_bind_message() {
     assert_frontend_message_round_trip(FrontendMessage::Bind(Bind {
         destination_portal_name: "foo".into(),
         source_statement_name: "bar".into(),
-        parameter_formats: vec![BindParameterFormat::Text, BindParameterFormat::Binary],
+        parameter_formats: vec![ValueFormat::Text, ValueFormat::Binary],
         parameter_values: vec![Some(&[1, 2, 3]), None],
-        result_column_formats: vec![ResultColumnFormat::Text],
+        result_column_formats: vec![ValueFormat::Text],
     })).await;
     
     assert_frontend_message_round_trip(FrontendMessage::Bind(Bind {
@@ -131,15 +129,15 @@ async fn round_trip_copy_data() {
     assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
         data: &[1, 2, 3],
     })).await;
-    
+
     assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
         data: &[],
     })).await;
-    
+
     assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
         data: &[1, 2, 3],
     })).await;
-    
+
     assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
         data: &[],
     })).await;
@@ -158,5 +156,23 @@ async fn round_trip_copy_fail() {
     })).await;
     assert_frontend_message_round_trip(FrontendMessage::CopyFail(CopyFail {
         message: "".into(),
+    })).await;
+}
+
+#[test]
+async fn round_trip_copy_in_response() {
+    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyInResponse {
+        format: ValueFormat::Text,
+        column_formats: vec![ValueFormat::Text, ValueFormat::Text],
+    })).await;
+
+    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyInResponse {
+        format: ValueFormat::Binary,
+        column_formats: vec![ValueFormat::Binary],
+    })).await;
+
+    assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyInResponse {
+        format: ValueFormat::Binary,
+        column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
     })).await;
 }

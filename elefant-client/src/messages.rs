@@ -15,7 +15,8 @@ pub enum BackendMessage<'a> {
     BackendKeyData(BackendKeyData),
     BindComplete,
     CloseComplete,
-    CommandComplete(CommandComplete<'a>)
+    CommandComplete(CommandComplete<'a>),
+    CopyData(CopyData<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -58,7 +59,8 @@ pub struct CommandComplete<'a> {
 pub enum FrontendMessage<'a> {
     Bind(Bind<'a>),
     CancelRequest(CancelRequest),
-    Close(Close<'a>)
+    Close(Close<'a>),
+    CopyData(CopyData<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -98,4 +100,9 @@ pub struct Close<'a> {
 pub enum CloseType {
     Statement,
     Portal,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct CopyData<'a> {
+    pub data: &'a [u8],
 }

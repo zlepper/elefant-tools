@@ -125,3 +125,21 @@ async fn round_trip_command_complete() {
         tag: "INSERT 42".into(),
     })).await;
 }
+
+async fn round_trip_copy_data() {
+    assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
+        data: &[1, 2, 3],
+    })).await;
+    
+    assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
+        data: &[],
+    })).await;
+    
+    assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
+        data: &[1, 2, 3],
+    })).await;
+    
+    assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
+        data: &[],
+    })).await;
+}

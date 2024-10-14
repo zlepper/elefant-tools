@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, FrontendMessage, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, FrontendMessage, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -37,6 +37,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'G' => Ok(BackendMessage::CopyInResponse(self.parse_copy_response(message_type).await?)),
             b'H' => Ok(BackendMessage::CopyOutResponse(self.parse_copy_response(message_type).await?)),
             b'W' => Ok(BackendMessage::CopyBothResponse(self.parse_copy_response(message_type).await?)),
+            b'D' => self.parse_data_row(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -121,6 +122,35 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
 
             Ok(BackendMessage::CommandComplete(CommandComplete { tag }))
         }
+    }
+    async fn parse_data_row(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len < 4 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let length = len as usize - 4;
+        self.extend_buffer(length);
+        self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+        
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        let column_count = reader.read_i16()?;
+        
+        let mut columns = Vec::with_capacity(column_count as usize);
+        for _ in 0..column_count {
+            let len = reader.read_i32()?;
+            if len == -1 {
+                columns.push(None);
+            } else {
+                let bytes = reader.read_bytes(len as usize)?;
+                columns.push(Some(bytes));
+            }
+        }
+        
+        Ok(BackendMessage::DataRow(DataRow { values: columns }))
     }
 
     async fn parse_close_complete(

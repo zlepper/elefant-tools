@@ -1,11 +1,14 @@
 use crate::io_extensions::ByteSliceExt;
+use crate::message_reader::MessageReader;
 use crate::message_writer::MessageWriter;
 use crate::messages::*;
 use futures::io::Cursor;
 use tokio::test;
-use crate::message_reader::MessageReader;
 
-async fn assert_backend_message_parses_as<By: AsRef<[u8]>>(bytes: By, expected: BackendMessage<'_>) {
+async fn assert_backend_message_parses_as<By: AsRef<[u8]>>(
+    bytes: By,
+    expected: BackendMessage<'_>,
+) {
     let mut cursor = Cursor::new(&bytes);
     let mut reader = MessageReader::new(&mut cursor);
     let result = reader.parse_backend_message().await.unwrap();
@@ -38,7 +41,7 @@ async fn assert_frontend_message_round_trip(input: FrontendMessage<'_>) {
     writer.write_frontend_message(&input).await.unwrap();
     writer.flush().await.unwrap();
     let bytes = cursor.into_inner();
-    
+
     let mut cursor = Cursor::new(&bytes);
     let mut reader = MessageReader::new(&mut cursor);
     let result = reader.parse_frontend_message().await.unwrap();
@@ -93,15 +96,17 @@ async fn round_trip_bind_message() {
         parameter_formats: vec![ValueFormat::Text, ValueFormat::Binary],
         parameter_values: vec![Some(&[1, 2, 3]), None],
         result_column_formats: vec![ValueFormat::Text],
-    })).await;
-    
+    }))
+    .await;
+
     assert_frontend_message_round_trip(FrontendMessage::Bind(Bind {
         destination_portal_name: "".into(),
         source_statement_name: "".into(),
         parameter_formats: vec![],
         parameter_values: vec![],
         result_column_formats: vec![],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -109,7 +114,8 @@ async fn round_trip_close_message() {
     assert_frontend_message_round_trip(FrontendMessage::Close(Close {
         target: CloseType::Portal,
         name: "foo".into(),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -121,26 +127,21 @@ async fn round_trip_close_complete() {
 async fn round_trip_command_complete() {
     assert_backend_message_round_trip(BackendMessage::CommandComplete(CommandComplete {
         tag: "INSERT 42".into(),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
 async fn round_trip_copy_data() {
-    assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
-        data: &[1, 2, 3],
-    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData { data: &[1, 2, 3] }))
+        .await;
 
-    assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData {
-        data: &[],
-    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::CopyData(CopyData { data: &[] })).await;
 
-    assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
-        data: &[1, 2, 3],
-    })).await;
+    assert_backend_message_round_trip(BackendMessage::CopyData(CopyData { data: &[1, 2, 3] }))
+        .await;
 
-    assert_backend_message_round_trip(BackendMessage::CopyData(CopyData {
-        data: &[],
-    })).await;
+    assert_backend_message_round_trip(BackendMessage::CopyData(CopyData { data: &[] })).await;
 }
 
 #[test]
@@ -153,10 +154,10 @@ async fn round_trip_copy_done() {
 async fn round_trip_copy_fail() {
     assert_frontend_message_round_trip(FrontendMessage::CopyFail(CopyFail {
         message: "foo".into(),
-    })).await;
-    assert_frontend_message_round_trip(FrontendMessage::CopyFail(CopyFail {
-        message: "".into(),
-    })).await;
+    }))
+    .await;
+    assert_frontend_message_round_trip(FrontendMessage::CopyFail(CopyFail { message: "".into() }))
+        .await;
 }
 
 #[test]
@@ -164,17 +165,20 @@ async fn round_trip_copy_in_response() {
     assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyResponse {
         format: ValueFormat::Text,
         column_formats: vec![ValueFormat::Text, ValueFormat::Text],
-    })).await;
+    }))
+    .await;
 
     assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Binary],
-    })).await;
+    }))
+    .await;
 
     assert_backend_message_round_trip(BackendMessage::CopyInResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -182,17 +186,20 @@ async fn round_trip_copy_out_response() {
     assert_backend_message_round_trip(BackendMessage::CopyOutResponse(CopyResponse {
         format: ValueFormat::Text,
         column_formats: vec![ValueFormat::Text, ValueFormat::Text],
-    })).await;
+    }))
+    .await;
 
     assert_backend_message_round_trip(BackendMessage::CopyOutResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Binary],
-    })).await;
+    }))
+    .await;
 
     assert_backend_message_round_trip(BackendMessage::CopyOutResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -200,15 +207,38 @@ async fn round_trip_copy_both_response() {
     assert_backend_message_round_trip(BackendMessage::CopyBothResponse(CopyResponse {
         format: ValueFormat::Text,
         column_formats: vec![ValueFormat::Text, ValueFormat::Text],
-    })).await;
+    }))
+    .await;
 
     assert_backend_message_round_trip(BackendMessage::CopyBothResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Binary],
-    })).await;
+    }))
+    .await;
 
     assert_backend_message_round_trip(BackendMessage::CopyBothResponse(CopyResponse {
         format: ValueFormat::Binary,
         column_formats: vec![ValueFormat::Text, ValueFormat::Binary],
-    })).await;
+    }))
+    .await;
+}
+
+#[test]
+async fn round_trip_data_row() {
+    assert_backend_message_round_trip(BackendMessage::DataRow(DataRow {
+        values: vec![Some(&[1, 2, 3]), None, Some(&[])],
+    }))
+    .await;
+
+    assert_backend_message_round_trip(BackendMessage::DataRow(DataRow {
+        values: vec![None, Some(&[]), Some(&[1, 2, 3])],
+    }))
+    .await;
+
+    assert_backend_message_round_trip(BackendMessage::DataRow(DataRow { values: vec![] })).await;
+
+    assert_backend_message_round_trip(BackendMessage::DataRow(DataRow {
+        values: vec![None, None],
+    }))
+    .await;
 }

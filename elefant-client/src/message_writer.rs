@@ -1,7 +1,7 @@
-use std::io::Error;
 use crate::io_extensions::AsyncWriteExt2;
 use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, FrontendMessage};
 use futures::{AsyncWrite, AsyncWriteExt};
+use std::io::Error;
 
 pub struct MessageWriter<W: AsyncWrite + Unpin> {
     writer: W,
@@ -96,17 +96,17 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(bkd.process_id).await?;
                 self.writer.write_i32(bkd.secret_key).await?;
                 Ok(())
-            },
+            }
             BackendMessage::BindComplete => {
                 self.writer.write_u8(b'2').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
-            },
+            }
             BackendMessage::CloseComplete => {
                 self.writer.write_u8(b'3').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
-            },
+            }
             BackendMessage::CommandComplete(cc) => {
                 self.writer.write_u8(b'C').await?;
                 let length = 4 + cc.tag.len() + 1;
@@ -114,19 +114,19 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_all(cc.tag.as_bytes()).await?;
                 self.writer.write_u8(0).await?;
                 Ok(())
-            },
+            }
             BackendMessage::CopyData(cd) => {
                 self.writer.write_u8(b'd').await?;
                 let length = 4 + cd.data.len() as i32;
                 self.writer.write_i32(length).await?;
                 self.writer.write_all(cd.data).await?;
                 Ok(())
-            },
+            }
             BackendMessage::CopyDone => {
                 self.writer.write_u8(b'c').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
-            },
+            }
             BackendMessage::CopyInResponse(cr) => {
                 self.writer.write_u8(b'G').await?;
                 self.write_copy_response(cr).await
@@ -139,6 +139,32 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_u8(b'W').await?;
                 self.write_copy_response(cr).await
             }
+            BackendMessage::DataRow(dr) => {
+                self.writer.write_u8(b'D').await?;
+                let length = 4
+                    + 2
+                    + dr.values
+                        .iter()
+                        .map(|c| {
+                            if let Some(c) = c {
+                                4 + c.len() as i32
+                            } else {
+                                4
+                            }
+                        })
+                        .sum::<i32>();
+                self.writer.write_i32(length).await?;
+                self.writer.write_i16(dr.values.len() as i16).await?;
+                for column in &dr.values {
+                    if let Some(column) = column {
+                        self.writer.write_i32(column.len() as i32).await?;
+                        self.writer.write_all(column).await?;
+                    } else {
+                        self.writer.write_i32(-1).await?;
+                    }
+                }
+                Ok(())
+            }
         }
     }
 
@@ -146,18 +172,24 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
         let len = 4 + 1 + 2 + (cir.column_formats.len() * 2) as i32;
         self.writer.write_i32(len).await?;
 
-        self.writer.write_u8(match cir.format {
-            crate::messages::ValueFormat::Text => 0,
-            crate::messages::ValueFormat::Binary => 1,
-        }).await?;
-
-        self.writer.write_i16(cir.column_formats.len() as i16).await?;
-
-        for format in &cir.column_formats {
-            self.writer.write_i16(match format {
+        self.writer
+            .write_u8(match cir.format {
                 crate::messages::ValueFormat::Text => 0,
                 crate::messages::ValueFormat::Binary => 1,
-            }).await?;
+            })
+            .await?;
+
+        self.writer
+            .write_i16(cir.column_formats.len() as i16)
+            .await?;
+
+        for format in &cir.column_formats {
+            self.writer
+                .write_i16(match format {
+                    crate::messages::ValueFormat::Text => 0,
+                    crate::messages::ValueFormat::Binary => 1,
+                })
+                .await?;
         }
 
         Ok(())
@@ -175,53 +207,64 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(cr.process_id).await?;
                 self.writer.write_i32(cr.secret_key).await?;
                 Ok(())
-            },
+            }
             FrontendMessage::Close(close) => {
                 self.writer.write_u8(b'C').await?;
-                self.writer.write_i32(4 + 1 + close.name.len() as i32 + 1).await?;
-                self.writer.write_u8(match close.target {
-                    CloseType::Statement => b'S',
-                    CloseType::Portal => b'P'
-                }).await?;
+                self.writer
+                    .write_i32(4 + 1 + close.name.len() as i32 + 1)
+                    .await?;
+                self.writer
+                    .write_u8(match close.target {
+                        CloseType::Statement => b'S',
+                        CloseType::Portal => b'P',
+                    })
+                    .await?;
                 self.writer.write_all(close.name.as_bytes()).await?;
                 self.writer.write_u8(0).await?;
                 Ok(())
-            },
+            }
             FrontendMessage::CopyData(cd) => {
                 self.writer.write_u8(b'd').await?;
                 let length = 4 + cd.data.len() as i32;
                 self.writer.write_i32(length).await?;
                 self.writer.write_all(cd.data).await?;
                 Ok(())
-            },
+            }
             FrontendMessage::CopyDone => {
                 self.writer.write_u8(b'c').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
-            },
+            }
             FrontendMessage::CopyFail(cf) => {
                 self.writer.write_u8(b'f').await?;
-                self.writer.write_i32(4 + cf.message.len() as i32 + 1).await?;
+                self.writer
+                    .write_i32(4 + cf.message.len() as i32 + 1)
+                    .await?;
                 self.writer.write_all(cf.message.as_bytes()).await?;
                 self.writer.write_u8(0).await?;
                 Ok(())
-            },
+            }
         }
     }
 
     async fn write_bind_message(&mut self, bind: &Bind<'_>) -> Result<(), Error> {
         self.writer.write_u8(b'B').await?;
         let length = size_of::<i32>()
-            + bind.destination_portal_name.len() + size_of::<u8>()
-            + bind.source_statement_name.len() + size_of::<u8>()
-            + size_of::<i16>() + bind.parameter_formats.len() * size_of::<i16>()
-            + size_of::<i16>() + bind
-            .parameter_values
-            .iter()
-            .map(|v| v.map(|v| v.len()).unwrap_or(0))
-            .sum::<usize>()
+            + bind.destination_portal_name.len()
+            + size_of::<u8>()
+            + bind.source_statement_name.len()
+            + size_of::<u8>()
+            + size_of::<i16>()
+            + bind.parameter_formats.len() * size_of::<i16>()
+            + size_of::<i16>()
+            + bind
+                .parameter_values
+                .iter()
+                .map(|v| v.map(|v| v.len()).unwrap_or(0))
+                .sum::<usize>()
             + bind.parameter_values.len() * size_of::<i32>()
-            + size_of::<i16>() + bind.result_column_formats.len() * size_of::<i16>();
+            + size_of::<i16>()
+            + bind.result_column_formats.len() * size_of::<i16>();
         self.writer.write_i32(length as i32).await?;
         self.writer
             .write_all(bind.destination_portal_name.as_bytes())

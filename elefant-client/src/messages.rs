@@ -21,7 +21,7 @@ pub enum BackendMessage<'a> {
     CopyInResponse(CopyResponse),
     CopyOutResponse(CopyResponse),
     CopyBothResponse(CopyResponse),
-    
+    DataRow(DataRow<'a>)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -64,6 +64,11 @@ pub struct CommandComplete<'a> {
 pub struct CopyResponse {
     pub format: ValueFormat,
     pub column_formats: Vec<ValueFormat>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct DataRow<'a> {
+    pub values: Vec<Option<&'a [u8]>>
 }
 
 

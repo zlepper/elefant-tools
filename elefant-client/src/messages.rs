@@ -80,6 +80,7 @@ pub enum FrontendMessage<'a> {
     CopyData(CopyData<'a>),
     CopyDone,
     CopyFail(CopyFail<'a>),
+    Describe(Describe<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -123,4 +124,17 @@ pub struct CopyData<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct CopyFail<'a> {
     pub message: Cow<'a, str>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Describe<'a> {
+    pub target: DescribeTarget,
+    pub name: Cow<'a, str>,
+}
+
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum DescribeTarget {
+    Statement,
+    Portal,
 }

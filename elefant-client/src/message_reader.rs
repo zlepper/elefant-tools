@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, FrontendMessage, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, FrontendMessage, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -290,6 +290,33 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
 
                 Ok(FrontendMessage::CopyFail(CopyFail { message }))
             }
+            b'D' => {
+                let len = self.reader.read_i32().await?;
+                if len <= 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                
+                let length = len as usize - 4;
+                self.extend_buffer(length);
+                self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+                let mut reader = ByteSliceReader::new(&self.read_buffer);
+                
+                let typ = match reader.read_u8()? {
+                    b'P' => DescribeTarget::Portal,
+                    b'S' => DescribeTarget::Statement,
+                    b => return Err(PostgresMessageParseError::UnknownDescribeTarget(b)),
+                };
+                
+                let name = reader.read_null_terminated_string()?;
+                
+                Ok(FrontendMessage::Describe(Describe {
+                    target: typ,
+                    name,
+                }))
+            },
             _ => {
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);

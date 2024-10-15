@@ -1,5 +1,5 @@
 use crate::io_extensions::AsyncWriteExt2;
-use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, FrontendMessage};
+use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, FrontendMessage};
 use futures::{AsyncWrite, AsyncWriteExt};
 use std::io::Error;
 
@@ -241,6 +241,17 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                     .write_i32(4 + cf.message.len() as i32 + 1)
                     .await?;
                 self.writer.write_all(cf.message.as_bytes()).await?;
+                self.writer.write_u8(0).await?;
+                Ok(())
+            },
+            FrontendMessage::Describe(d) => {
+                self.writer.write_u8(b'D').await?;
+                self.writer.write_i32(4 + 1 + d.name.len() as i32 + 1).await?;
+                self.writer.write_u8(match d.target {
+                    DescribeTarget::Statement => b'S',
+                    DescribeTarget::Portal => b'P',
+                }).await?;
+                self.writer.write_all(d.name.as_bytes()).await?;
                 self.writer.write_u8(0).await?;
                 Ok(())
             }

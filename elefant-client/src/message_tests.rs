@@ -242,3 +242,23 @@ async fn round_trip_data_row() {
     }))
     .await;
 }
+
+#[test]
+async fn round_trip_describe() {
+    assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
+        target: DescribeTarget::Statement,
+        name: "foo".into(),
+    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
+        target: DescribeTarget::Portal,
+        name: "foo".into(),
+    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
+        target: DescribeTarget::Statement,
+        name: "".into(),
+    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
+        target: DescribeTarget::Portal,
+        name: "".into(),
+    })).await;
+}

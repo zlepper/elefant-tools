@@ -16,6 +16,7 @@ pub enum PostgresMessageParseError {
     },
     UnknownValueFormat(i16),
     UnknownCloseTarget(u8),
+    UnknownDescribeTarget(u8),
 }
 
 impl From<std::io::Error> for PostgresMessageParseError {
@@ -53,7 +54,10 @@ impl Display for PostgresMessageParseError {
             ),
             PostgresMessageParseError::UnknownCloseTarget(code) => {
                 write!(f, "Unknown close target: {}. Expected 'S' or 'P'", code)
-            }
+            },
+            PostgresMessageParseError::UnknownDescribeTarget(code) => {
+                write!(f, "Unknown describe target: {}. Expected 'S' or 'P'", code)
+            },
         }
     }
 }

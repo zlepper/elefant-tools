@@ -262,3 +262,8 @@ async fn round_trip_describe() {
         name: "".into(),
     })).await;
 }
+
+#[test]
+async fn round_trip_empty_query_response() {
+    assert_backend_message_round_trip(BackendMessage::EmptyQueryResponse).await;
+}

@@ -164,6 +164,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                     }
                 }
                 Ok(())
+            },
+            BackendMessage::EmptyQueryResponse => {
+                self.writer.write_u8(b'I').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
             }
         }
     }

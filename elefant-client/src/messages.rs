@@ -21,7 +21,8 @@ pub enum BackendMessage<'a> {
     CopyInResponse(CopyResponse),
     CopyOutResponse(CopyResponse),
     CopyBothResponse(CopyResponse),
-    DataRow(DataRow<'a>)
+    DataRow(DataRow<'a>),
+    EmptyQueryResponse,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -70,6 +71,7 @@ pub struct CopyResponse {
 pub struct DataRow<'a> {
     pub values: Vec<Option<&'a [u8]>>
 }
+
 
 
 #[derive(Debug, PartialEq, Eq)]

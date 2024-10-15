@@ -38,6 +38,10 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'H' => Ok(BackendMessage::CopyOutResponse(self.parse_copy_response(message_type).await?)),
             b'W' => Ok(BackendMessage::CopyBothResponse(self.parse_copy_response(message_type).await?)),
             b'D' => self.parse_data_row(message_type).await,
+            b'I' => {
+                self.assert_len_equals(4, message_type).await?;
+                Ok(BackendMessage::EmptyQueryResponse)
+            },
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }

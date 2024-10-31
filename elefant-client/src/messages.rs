@@ -94,6 +94,7 @@ pub enum FrontendMessage<'a> {
     CopyDone,
     CopyFail(CopyFail<'a>),
     Describe(Describe<'a>),
+    Execute(Execute<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -150,4 +151,10 @@ pub struct Describe<'a> {
 pub enum DescribeTarget {
     Statement,
     Portal,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Execute<'a> {
+    pub portal_name: Cow<'a, str>,
+    pub max_rows: i32,
 }

@@ -276,7 +276,16 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_all(d.name.as_bytes()).await?;
                 self.writer.write_u8(0).await?;
                 Ok(())
-            }
+            },
+            FrontendMessage::Execute(e) => {
+                self.writer.write_u8(b'E').await?;
+                let length = 4 + e.portal_name.len() + 1 + 4;
+                self.writer.write_i32(length as i32).await?;
+                self.writer.write_all(e.portal_name.as_bytes()).await?;
+                self.writer.write_u8(0).await?;
+                self.writer.write_i32(e.max_rows).await?;
+                Ok(())
+            },
         }
     }
 

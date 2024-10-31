@@ -281,3 +281,26 @@ async fn round_trip_error_response() {
     }))
     .await;
 }
+
+#[test]
+async fn round_trip_execute() {
+    assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
+        portal_name: "foo".into(),
+        max_rows: 42,
+    })).await;
+
+    assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
+        portal_name: "".into(),
+        max_rows: 0,
+    })).await;
+
+    assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
+        portal_name: "foo".into(),
+        max_rows: 0,
+    })).await;
+
+    assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
+        portal_name: "".into(),
+        max_rows: 666,
+    })).await;
+}

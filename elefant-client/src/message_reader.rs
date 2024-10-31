@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, FrontendMessage, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -352,6 +352,28 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(FrontendMessage::Describe(Describe {
                     target: typ,
                     name,
+                }))
+            },
+            b'E' => {
+                let len = self.reader.read_i32().await?;
+                if len <= 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                
+                let length = len as usize - 4;
+                self.extend_buffer(length);
+                self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+                let mut reader = ByteSliceReader::new(&self.read_buffer);
+                
+                let portal_name = reader.read_null_terminated_string()?;
+                let max_rows = reader.read_i32()?;
+                
+                Ok(FrontendMessage::Execute(Execute {
+                    portal_name,
+                    max_rows,
                 }))
             },
             _ => {

@@ -169,7 +169,24 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_u8(b'I').await?;
                 self.writer.write_i32(4).await?;
                 Ok(())
-            }
+            },
+            BackendMessage::ErrorResponse(er) => {
+                self.writer.write_u8(b'E').await?;
+                let length = 4
+                    + er.fields
+                        .iter()
+                        .map(|f| 1 + f.value.len() as i32 + 1)
+                        .sum::<i32>()
+                    + 1;
+                self.writer.write_i32(length).await?;
+                for f in &er.fields {
+                    self.writer.write_u8(f.field_type).await?;
+                    self.writer.write_all(f.value.as_bytes()).await?;
+                    self.writer.write_u8(0).await?;
+                }
+                self.writer.write_u8(0).await?;
+                Ok(())
+            },
         }
     }
 

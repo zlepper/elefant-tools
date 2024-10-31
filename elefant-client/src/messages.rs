@@ -23,6 +23,7 @@ pub enum BackendMessage<'a> {
     CopyBothResponse(CopyResponse),
     DataRow(DataRow<'a>),
     EmptyQueryResponse,
+    ErrorResponse(ErrorResponse<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -72,6 +73,16 @@ pub struct DataRow<'a> {
     pub values: Vec<Option<&'a [u8]>>
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct ErrorResponse<'a> {
+    pub fields: Vec<ErrorField<'a>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ErrorField<'a> {
+    pub field_type: u8,
+    pub value: Cow<'a, str>,
+}
 
 
 #[derive(Debug, PartialEq, Eq)]

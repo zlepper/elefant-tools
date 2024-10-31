@@ -267,3 +267,17 @@ async fn round_trip_describe() {
 async fn round_trip_empty_query_response() {
     assert_backend_message_round_trip(BackendMessage::EmptyQueryResponse).await;
 }
+
+#[test]
+async fn round_trip_error_response() {
+    assert_backend_message_round_trip(BackendMessage::ErrorResponse(ErrorResponse {
+        fields: vec![ErrorField {
+            field_type: b'S',
+            value: "PANIC".into(),
+        }, ErrorField {
+            field_type: b'n',
+            value: "my_constraint".into(),
+        }],
+    }))
+    .await;
+}

@@ -102,6 +102,7 @@ pub enum FrontendMessage<'a> {
     Execute(Execute<'a>),
     Flush,
     FunctionCall(FunctionCall<'a>),
+    GSSENCRequest,
 }
 
 #[derive(Debug, PartialEq, Eq)]

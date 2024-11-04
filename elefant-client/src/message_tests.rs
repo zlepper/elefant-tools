@@ -341,3 +341,8 @@ async fn round_trip_function_call_response()  {
         value: Some(&[1, 2, 3]),
     })).await;
 }
+
+#[test]
+async fn round_trip_gssenc_request() {
+    assert_frontend_message_round_trip(FrontendMessage::GSSENCRequest).await;
+}

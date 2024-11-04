@@ -429,6 +429,11 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                             secret_key,
                         }));
                     }
+                } else if length == 8 {
+                    let code = self.reader.read_i32().await?;
+                    if code == 80877104 {
+                        return Ok(FrontendMessage::GSSENCRequest);
+                    }
                 }
 
                 Err(PostgresMessageParseError::UnknownMessage(message_type))

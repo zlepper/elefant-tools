@@ -338,6 +338,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 
                 Ok(())
             },
+            FrontendMessage::GSSENCRequest => {
+                self.writer.write_i32(8).await?;
+                self.writer.write_i32(80877104).await?;
+                Ok(())
+            }
         }
     }
 

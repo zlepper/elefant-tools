@@ -28,6 +28,7 @@ pub enum BackendMessage<'a> {
     NegotiateProtocolVersion(NegotiateProtocolVersion<'a>),
     NoData,
     NoticeResponse(ErrorResponse<'a>),
+    NotificationResponse(NotificationResponse<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -97,6 +98,13 @@ pub struct FunctionCallResponse<'a> {
 pub struct NegotiateProtocolVersion<'a> {
     pub newest_protocol_version: i32,
     pub protocol_options: Vec<Cow<'a, str>>
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct NotificationResponse<'a> {
+    pub process_id: i32,
+    pub channel: Cow<'a, str>,
+    pub payload: Cow<'a, str>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

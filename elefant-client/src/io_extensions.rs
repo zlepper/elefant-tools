@@ -53,6 +53,11 @@ pub(crate) trait AsyncWriteExt2: AsyncWrite + Unpin {
     async fn write_u8(&mut self, value: u8) -> Result<(), std::io::Error> {
         self.write_all(&value.to_be_bytes()).await
     }
+    
+    async fn write_null_terminated_string(&mut self, value: &str) -> Result<(), std::io::Error> {
+        self.write_all(value.as_bytes()).await?;
+        self.write_u8(0).await
+    }
 }
 
 impl<W: AsyncWrite + Unpin> AsyncWriteExt2 for W {}

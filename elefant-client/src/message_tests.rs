@@ -388,3 +388,17 @@ async fn round_trip_negotiate_protocol_version() {
 async fn round_trip_no_data() {
     assert_backend_message_round_trip(BackendMessage::NoData).await;
 }
+
+#[test]
+async fn round_trip_notification_response() {
+    assert_backend_message_round_trip(BackendMessage::NotificationResponse(NotificationResponse {
+        process_id: 42,
+        channel: "foo".into(),
+        payload: "bar".into(),
+    })).await;
+    assert_backend_message_round_trip(BackendMessage::NotificationResponse(NotificationResponse {
+        process_id: 42,
+        channel: "".into(),
+        payload: "".into(),
+    })).await;
+}

@@ -210,6 +210,15 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(4).await?;
                 Ok(())
             },
+            BackendMessage::NotificationResponse(nr) => {
+                self.writer.write_u8(b'A').await?;
+                let length = 4 + 4 + nr.channel.len() + 1 + nr.payload.len() + 1;
+                self.writer.write_i32(length as i32).await?;
+                self.writer.write_i32(nr.process_id).await?;
+                self.writer.write_null_terminated_string(&nr.channel).await?;
+                self.writer.write_null_terminated_string(&nr.payload).await?;
+                Ok(())
+            },
         }
     }
 

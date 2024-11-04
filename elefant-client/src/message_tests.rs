@@ -309,3 +309,25 @@ async fn round_trip_execute() {
 async fn round_trip_flush() {
     assert_frontend_message_round_trip(FrontendMessage::Flush).await;
 }
+
+#[test]
+async fn round_trip_function_call() {
+    assert_frontend_message_round_trip(FrontendMessage::FunctionCall(FunctionCall {
+        object_id: 42,
+        argument_formats: vec![ValueFormat::Text, ValueFormat::Binary],
+        arguments: vec![Some(&[1, 2, 3]), None],
+        result_format: ValueFormat::Text,
+    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::FunctionCall(FunctionCall {
+        object_id: 42,
+        argument_formats: vec![ValueFormat::Text],
+        arguments: vec![None],
+        result_format: ValueFormat::Text,
+    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::FunctionCall(FunctionCall {
+        object_id: 42,
+        argument_formats: vec![],
+        arguments: vec![],
+        result_format: ValueFormat::Text,
+    })).await;
+}

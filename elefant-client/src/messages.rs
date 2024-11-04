@@ -96,6 +96,7 @@ pub enum FrontendMessage<'a> {
     Describe(Describe<'a>),
     Execute(Execute<'a>),
     Flush,
+    FunctionCall(FunctionCall<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -158,4 +159,12 @@ pub enum DescribeTarget {
 pub struct Execute<'a> {
     pub portal_name: Cow<'a, str>,
     pub max_rows: i32,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct FunctionCall<'a> {
+    pub object_id: i32,
+    pub argument_formats: Vec<ValueFormat>,
+    pub arguments: Vec<Option<&'a [u8]>>,
+    pub result_format: ValueFormat,
 }

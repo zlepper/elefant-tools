@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -387,6 +387,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 
                 Ok(FrontendMessage::Flush)
             },
+            b'F' => self.parse_function_call(message_type).await,
             _ => {
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);
@@ -490,6 +491,60 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         Ok(FrontendMessage::Close(Close { target, name }))
     }
 
+    async fn parse_function_call(&mut self, message_type: u8) -> Result<FrontendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len <= 4 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let length = len as usize - 4;
+        self.extend_buffer(length);
+        self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+        
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        let object_id = reader.read_i32()?;
+        let argument_format_count = reader.read_i16()?;
+        let mut argument_formats = Vec::with_capacity(argument_format_count as usize);
+        
+        for _ in 0..argument_format_count {
+            let format = match reader.read_i16()? {
+                0 => ValueFormat::Text,
+                1 => ValueFormat::Binary,
+                format => return Err(PostgresMessageParseError::UnknownValueFormat(format)),
+            };
+            argument_formats.push(format);
+        }
+        
+        let argument_count = reader.read_i16()?;
+        let mut arguments = Vec::with_capacity(argument_count as usize);
+        
+        for _ in 0..argument_count {
+            let len = reader.read_i32()?;
+            if len == -1 {
+                arguments.push(None);
+            } else {
+                let bytes = reader.read_bytes(len as usize)?;
+                arguments.push(Some(bytes));
+            }
+        }
+        
+        let result_format = match reader.read_i16()? {
+            0 => ValueFormat::Text,
+            1 => ValueFormat::Binary,
+            format => return Err(PostgresMessageParseError::UnknownValueFormat(format)),
+        };
+        
+        Ok(FrontendMessage::FunctionCall(FunctionCall {
+            object_id,
+            argument_formats,
+            arguments,
+            result_format,
+        }))
+    }
+    
     fn extend_buffer(&mut self, len: usize) {
         if self.read_buffer.len() < len {
             self.read_buffer.resize(len, 0);

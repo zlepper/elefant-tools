@@ -291,6 +291,41 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(4).await?;
                 Ok(())
             },
+            FrontendMessage::FunctionCall(fc) => {
+                self.writer.write_u8(b'F').await?;
+                let length = 4 + 4 + 2 + (fc.argument_formats.len() as i32 * 2) + 2 + (fc.arguments.iter().map(|a| if let Some(a) = a {
+                    a.len() as i32
+                } else {
+                    0
+                } + 4).sum::<i32>()) + 2;
+                self.writer.write_i32(length).await?;
+                self.writer.write_i32(fc.object_id).await?;
+                self.writer.write_i16(fc.argument_formats.len() as i16).await?;
+                for format in &fc.argument_formats {
+                    self.writer.write_i16(match format {
+                        crate::messages::ValueFormat::Text => 0,
+                        crate::messages::ValueFormat::Binary => 1,
+                    }).await?;
+                }
+                self.writer.write_i16(fc.arguments.len() as i16).await?;
+                for argument in &fc.arguments {
+                    match argument {
+                        Some(argument) => {
+                            self.writer.write_i32(argument.len() as i32).await?;
+                            self.writer.write_all(argument).await?;
+                        },
+                        None => {
+                            self.writer.write_i32(-1).await?;
+                        },
+                    }
+                }
+                self.writer.write_i16(match fc.result_format {
+                    crate::messages::ValueFormat::Text => 0,
+                    crate::messages::ValueFormat::Binary => 1,
+                }).await?;
+                
+                Ok(())
+            },
         }
     }
 

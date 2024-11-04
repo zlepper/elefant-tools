@@ -286,6 +286,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(e.max_rows).await?;
                 Ok(())
             },
+            FrontendMessage::Flush => {
+                self.writer.write_u8(b'H').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
+            },
         }
     }
 

@@ -376,6 +376,17 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                     max_rows,
                 }))
             },
+            b'H' => {
+                let len = self.reader.read_i32().await?;
+                if len != 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                
+                Ok(FrontendMessage::Flush)
+            },
             _ => {
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);

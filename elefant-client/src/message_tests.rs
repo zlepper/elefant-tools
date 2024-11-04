@@ -304,3 +304,8 @@ async fn round_trip_execute() {
         max_rows: 666,
     })).await;
 }
+
+#[test]
+async fn round_trip_flush() {
+    assert_frontend_message_round_trip(FrontendMessage::Flush).await;
+}

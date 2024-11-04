@@ -95,6 +95,7 @@ pub enum FrontendMessage<'a> {
     CopyFail(CopyFail<'a>),
     Describe(Describe<'a>),
     Execute(Execute<'a>),
+    Flush,
 }
 
 #[derive(Debug, PartialEq, Eq)]

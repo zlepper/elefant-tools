@@ -404,6 +404,19 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_all(gr.data).await?;
                 Ok(())
             },
+            FrontendMessage::Parse(p) => {
+                self.writer.write_u8(b'P').await?;
+                let length = 4 + p.destination.len() + 1 + p.query.len() + 1 + 2 + p.parameter_types.len() * 4;
+                self.writer.write_i32(length as i32).await?;
+                self.writer.write_null_terminated_string(&p.destination).await?;
+                self.writer.write_null_terminated_string(&p.query).await?;
+                self.writer.write_i16(p.parameter_types.len() as i16).await?;
+                for ty in &p.parameter_types {
+                    self.writer.write_i32(*ty).await?;
+                }
+                
+                Ok(())
+            }
         }
     }
 

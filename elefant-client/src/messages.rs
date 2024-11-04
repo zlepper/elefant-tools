@@ -133,7 +133,8 @@ pub enum FrontendMessage<'a> {
     Flush,
     FunctionCall(FunctionCall<'a>),
     GSSENCRequest,
-    GSSResponse(GSSResponse<'a>)
+    GSSResponse(GSSResponse<'a>),
+    Parse(Parse<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -209,4 +210,11 @@ pub struct FunctionCall<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct GSSResponse<'a> {
     pub data: &'a [u8],
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Parse<'a> {
+    pub destination: Cow<'a, str>,
+    pub query: Cow<'a, str>,
+    pub parameter_types: Vec<i32>,
 }

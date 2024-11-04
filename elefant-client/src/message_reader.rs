@@ -542,6 +542,36 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                     data: &self.read_buffer[..length],
                 }))
             },
+            b'P' => {
+                let len = self.reader.read_i32().await?;
+                if len < 8 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                
+                let length = len as usize - 4;
+                self.extend_buffer(length);
+                self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+                
+                let mut reader = ByteSliceReader::new(&self.read_buffer);
+                let destination = reader.read_null_terminated_string()?;
+                let query = reader.read_null_terminated_string()?;
+                
+                let parameter_count = reader.read_i16()?;
+                let mut parameter_types = Vec::with_capacity(parameter_count as usize);
+                
+                for _ in 0..parameter_count {
+                    parameter_types.push(reader.read_i32()?);
+                }
+                
+                Ok(FrontendMessage::Parse(Parse {
+                    destination,
+                    query,
+                    parameter_types,
+                }))
+            },
             _ => {
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);

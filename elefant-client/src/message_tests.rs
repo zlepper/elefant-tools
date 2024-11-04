@@ -420,3 +420,12 @@ async fn round_trip_parameter_status() {
         value: "bar".into(),
     })).await;
 }
+
+#[test]
+async fn round_trip_parse() {
+    assert_frontend_message_round_trip(FrontendMessage::Parse(Parse {
+        destination: "foo".into(),
+        query: "SELECT 42".into(),
+        parameter_types: vec![1, 0, 2, 3, 0],
+    })).await;
+}

@@ -429,3 +429,8 @@ async fn round_trip_parse() {
         parameter_types: vec![1, 0, 2, 3, 0],
     })).await;
 }
+
+#[test]
+async fn round_trip_parse_complete() {
+    assert_backend_message_round_trip(BackendMessage::ParseComplete).await;
+}

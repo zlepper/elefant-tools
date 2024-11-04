@@ -237,6 +237,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_null_terminated_string(&ps.value).await?;
                 Ok(())
             },
+            BackendMessage::ParseComplete => {
+                self.writer.write_u8(b'1').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
+            },
         }
     }
 

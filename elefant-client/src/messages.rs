@@ -31,6 +31,7 @@ pub enum BackendMessage<'a> {
     NotificationResponse(NotificationResponse<'a>),
     ParameterDescription(ParameterDescription),
     ParameterStatus(ParameterStatus<'a>),
+    ParseComplete,
 }
 
 #[derive(Debug, PartialEq, Eq)]

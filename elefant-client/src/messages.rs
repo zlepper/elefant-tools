@@ -24,6 +24,7 @@ pub enum BackendMessage<'a> {
     DataRow(DataRow<'a>),
     EmptyQueryResponse,
     ErrorResponse(ErrorResponse<'a>),
+    FunctionCallResponse(FunctionCallResponse<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -84,6 +85,10 @@ pub struct ErrorField<'a> {
     pub value: Cow<'a, str>,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct FunctionCallResponse<'a> {
+    pub value: Option<&'a [u8]>
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum FrontendMessage<'a> {

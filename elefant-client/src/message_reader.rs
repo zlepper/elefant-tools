@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, FunctionCallResponse, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -43,6 +43,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(BackendMessage::EmptyQueryResponse)
             },
             b'E' => self.parse_error_response(message_type).await,
+            b'V' => self.parse_function_call_response(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -80,6 +81,31 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             format,
             column_formats,
         })
+    }
+    
+    async fn parse_function_call_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        
+        if len < 8 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let length = len as usize - 4;
+        self.extend_buffer(length);
+        self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+        
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        let result_value_length = reader.read_i32()?;
+        
+        if result_value_length == -1 {
+            Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse { value: None }))
+        } else {
+            let bytes = reader.read_bytes(result_value_length as usize)?;
+            Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse { value: Some(bytes) }))
+        }
     }
     
     async fn parse_error_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {

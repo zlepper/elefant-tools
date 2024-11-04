@@ -187,6 +187,18 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_u8(0).await?;
                 Ok(())
             },
+            BackendMessage::FunctionCallResponse(fr) => {
+                self.writer.write_u8(b'V').await?;
+                let length = 4 + 4 + fr.value.map(|v| v.len()).unwrap_or(0) as i32;
+                self.writer.write_i32(length).await?;
+                if let Some(value) = &fr.value {
+                    self.writer.write_i32(value.len() as i32).await?;
+                    self.writer.write_all(value).await?;
+                } else {
+                    self.writer.write_i32(-1).await?;
+                }
+                Ok(())
+            },
         }
     }
 

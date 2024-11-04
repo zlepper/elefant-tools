@@ -331,3 +331,13 @@ async fn round_trip_function_call() {
         result_format: ValueFormat::Text,
     })).await;
 }
+
+#[test]
+async fn round_trip_function_call_response()  {
+    assert_backend_message_round_trip(BackendMessage::FunctionCallResponse(FunctionCallResponse {
+        value: None,
+    })).await;
+    assert_backend_message_round_trip(BackendMessage::FunctionCallResponse(FunctionCallResponse {
+        value: Some(&[1, 2, 3]),
+    })).await;
+}

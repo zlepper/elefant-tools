@@ -1,5 +1,5 @@
 use crate::io_extensions::AsyncWriteExt2;
-use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, FrontendMessage};
+use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, ErrorResponse, FrontendMessage};
 use futures::{AsyncWrite, AsyncWriteExt};
 use std::io::Error;
 
@@ -172,19 +172,12 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
             },
             BackendMessage::ErrorResponse(er) => {
                 self.writer.write_u8(b'E').await?;
-                let length = 4
-                    + er.fields
-                        .iter()
-                        .map(|f| 1 + f.value.len() as i32 + 1)
-                        .sum::<i32>()
-                    + 1;
-                self.writer.write_i32(length).await?;
-                for f in &er.fields {
-                    self.writer.write_u8(f.field_type).await?;
-                    self.writer.write_all(f.value.as_bytes()).await?;
-                    self.writer.write_u8(0).await?;
-                }
-                self.writer.write_u8(0).await?;
+                self.write_error_response_body(&er).await?;
+                Ok(())
+            },
+            BackendMessage::NoticeResponse(er) => {
+                self.writer.write_u8(b'N').await?;
+                self.write_error_response_body(&er).await?;
                 Ok(())
             },
             BackendMessage::FunctionCallResponse(fr) => {
@@ -209,7 +202,7 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                     self.writer.write_all(option.as_bytes()).await?;
                     self.writer.write_u8(0).await?;
                 }
-                
+
                 Ok(())
             },
             BackendMessage::NoData => {
@@ -218,6 +211,23 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 Ok(())
             },
         }
+    }
+
+    async fn write_error_response_body(&mut self, er: &ErrorResponse<'_>) -> Result<(), Error> {
+        let length = 4
+            + er.fields
+            .iter()
+            .map(|f| 1 + f.value.len() as i32 + 1)
+            .sum::<i32>()
+            + 1;
+        self.writer.write_i32(length).await?;
+        for f in &er.fields {
+            self.writer.write_u8(f.field_type).await?;
+            self.writer.write_all(f.value.as_bytes()).await?;
+            self.writer.write_u8(0).await?;
+        }
+        self.writer.write_u8(0).await?;
+        Ok(())
     }
 
     async fn write_copy_response(&mut self, cir: &CopyResponse) -> Result<(), Error> {
@@ -353,7 +363,7 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                     crate::messages::ValueFormat::Text => 0,
                     crate::messages::ValueFormat::Binary => 1,
                 }).await?;
-                
+
                 Ok(())
             },
             FrontendMessage::GSSENCRequest => {

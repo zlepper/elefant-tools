@@ -42,7 +42,8 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(BackendMessage::EmptyQueryResponse)
             },
-            b'E' => self.parse_error_response(message_type).await,
+            b'E' => Ok(BackendMessage::ErrorResponse(self.parse_error_response(message_type).await?)),
+            b'N' => Ok(BackendMessage::NoticeResponse(self.parse_error_response(message_type).await?)),
             b'V' => self.parse_function_call_response(message_type).await,
             b'v' => self.parse_negotiate_protocol_version(message_type).await,
             b'n' => {
@@ -142,7 +143,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         }))
     }
     
-    async fn parse_error_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+    async fn parse_error_response(&mut self, message_type: u8) -> Result<ErrorResponse, PostgresMessageParseError> {
         let len = self.reader.read_i32().await?;
         if len < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
@@ -171,7 +172,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             });
         }
         
-        Ok(BackendMessage::ErrorResponse(ErrorResponse { fields }))
+        Ok(ErrorResponse { fields })
     }
 
     async fn assert_len_equals(

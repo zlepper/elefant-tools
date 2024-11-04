@@ -283,6 +283,20 @@ async fn round_trip_error_response() {
 }
 
 #[test]
+async fn round_trip_notice_response() {
+    assert_backend_message_round_trip(BackendMessage::NoticeResponse(ErrorResponse {
+        fields: vec![ErrorField {
+            field_type: b'S',
+            value: "PANIC".into(),
+        }, ErrorField {
+            field_type: b'n',
+            value: "my_constraint".into(),
+        }],
+    }))
+    .await;
+}
+
+#[test]
 async fn round_trip_execute() {
     assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
         portal_name: "foo".into(),

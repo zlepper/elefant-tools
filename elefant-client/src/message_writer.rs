@@ -342,7 +342,13 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(8).await?;
                 self.writer.write_i32(80877104).await?;
                 Ok(())
-            }
+            },
+            FrontendMessage::GSSResponse(gr) => {
+                self.writer.write_u8(b'p').await?;
+                self.writer.write_i32(4 + gr.data.len() as i32).await?;
+                self.writer.write_all(gr.data).await?;
+                Ok(())
+            },
         }
     }
 

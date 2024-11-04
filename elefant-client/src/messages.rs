@@ -103,6 +103,7 @@ pub enum FrontendMessage<'a> {
     Flush,
     FunctionCall(FunctionCall<'a>),
     GSSENCRequest,
+    GSSResponse(GSSResponse<'a>)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -173,4 +174,9 @@ pub struct FunctionCall<'a> {
     pub argument_formats: Vec<ValueFormat>,
     pub arguments: Vec<Option<&'a [u8]>>,
     pub result_format: ValueFormat,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct GSSResponse<'a> {
+    pub data: &'a [u8],
 }

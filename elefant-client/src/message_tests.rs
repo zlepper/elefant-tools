@@ -346,3 +346,10 @@ async fn round_trip_function_call_response()  {
 async fn round_trip_gssenc_request() {
     assert_frontend_message_round_trip(FrontendMessage::GSSENCRequest).await;
 }
+
+#[test]
+async fn round_trip_gss_response() {
+    assert_frontend_message_round_trip(FrontendMessage::GSSResponse(GSSResponse {
+        data: &[1, 2, 3],
+    })).await;
+}

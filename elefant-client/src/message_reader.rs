@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, FunctionCallResponse, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, FunctionCallResponse, GSSResponse, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -414,6 +414,23 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(FrontendMessage::Flush)
             },
             b'F' => self.parse_function_call(message_type).await,
+            b'p' =>  {
+                let len = self.reader.read_i32().await?;
+                if len < 4 {
+                    return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                        message_type,
+                        length: len,
+                    });
+                }
+                
+                let length = len as usize - 4;
+                self.extend_buffer(length);
+                self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+                
+                Ok(FrontendMessage::GSSResponse(GSSResponse {
+                    data: &self.read_buffer[..length],
+                }))
+            },
             _ => {
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);

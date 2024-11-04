@@ -412,3 +412,11 @@ async fn round_trip_parameter_description() {
         types: vec![],
     })).await;
 }
+
+#[test]
+async fn round_trip_parameter_status() {
+    assert_backend_message_round_trip(BackendMessage::ParameterStatus(ParameterStatus {
+        name: "foo".into(),
+        value: "bar".into(),
+    })).await;
+}

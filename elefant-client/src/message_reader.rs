@@ -52,6 +52,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             },
             b'A' => self.parse_notification_response(message_type).await,
             b't' => self.parse_parameter_description(message_type).await,
+            b'S' => self.parse_parameter_status(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -406,6 +407,29 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         
         Ok(BackendMessage::ParameterDescription(ParameterDescription {
             types: parameters,
+        }))
+    }
+    
+    async fn parse_parameter_status(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len < 4 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let length = len as usize - 4;
+        self.extend_buffer(length);
+        self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+        
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        let name = reader.read_null_terminated_string()?;
+        let value = reader.read_null_terminated_string()?;
+        
+        Ok(BackendMessage::ParameterStatus(ParameterStatus {
+            name,
+            value,
         }))
     }
 

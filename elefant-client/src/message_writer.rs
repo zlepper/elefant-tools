@@ -229,6 +229,14 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 }
                 Ok(())  
             },
+            BackendMessage::ParameterStatus(ps) => {
+                self.writer.write_u8(b'S').await?;
+                let length = 4 + ps.name.len() + 1 + ps.value.len() + 1;
+                self.writer.write_i32(length as i32).await?;
+                self.writer.write_null_terminated_string(&ps.name).await?;
+                self.writer.write_null_terminated_string(&ps.value).await?;
+                Ok(())
+            },
         }
     }
 

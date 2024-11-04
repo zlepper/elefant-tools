@@ -45,6 +45,10 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             b'E' => self.parse_error_response(message_type).await,
             b'V' => self.parse_function_call_response(message_type).await,
             b'v' => self.parse_negotiate_protocol_version(message_type).await,
+            b'n' => {
+                self.assert_len_equals(4, message_type).await?;
+                Ok(BackendMessage::NoData)
+            },
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }

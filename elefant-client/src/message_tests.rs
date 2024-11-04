@@ -369,3 +369,8 @@ async fn round_trip_negotiate_protocol_version() {
         protocol_options: vec![],
     })).await;
 }
+
+#[test]
+async fn round_trip_no_data() {
+    assert_backend_message_round_trip(BackendMessage::NoData).await;
+}

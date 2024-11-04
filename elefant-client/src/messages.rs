@@ -26,6 +26,7 @@ pub enum BackendMessage<'a> {
     ErrorResponse(ErrorResponse<'a>),
     FunctionCallResponse(FunctionCallResponse<'a>),
     NegotiateProtocolVersion(NegotiateProtocolVersion<'a>),
+    NoData,
 }
 
 #[derive(Debug, PartialEq, Eq)]

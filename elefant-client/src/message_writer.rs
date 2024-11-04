@@ -211,7 +211,12 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 }
                 
                 Ok(())
-            }
+            },
+            BackendMessage::NoData => {
+                self.writer.write_u8(b'n').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
+            },
         }
     }
 

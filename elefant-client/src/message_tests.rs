@@ -353,3 +353,19 @@ async fn round_trip_gss_response() {
         data: &[1, 2, 3],
     })).await;
 }
+
+#[test]
+async fn round_trip_negotiate_protocol_version() {
+    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
+        newest_protocol_version: 42,
+        protocol_options: vec!["foo".into(), "bar".into()],
+    })).await;
+    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
+        newest_protocol_version: 42,
+        protocol_options: vec!["bar".into()],
+    })).await;
+    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
+        newest_protocol_version: 42,
+        protocol_options: vec![],
+    })).await;
+}

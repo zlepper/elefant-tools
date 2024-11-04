@@ -199,6 +199,19 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 }
                 Ok(())
             },
+            BackendMessage::NegotiateProtocolVersion(npv) => {
+                self.writer.write_u8(b'v').await?;
+                let length = 4 + 4 + 4 + npv.protocol_options.iter().map(|s| s.len() + 1).sum::<usize>() as i32;
+                self.writer.write_i32(length).await?;
+                self.writer.write_i32(npv.newest_protocol_version).await?;
+                self.writer.write_i32(npv.protocol_options.len() as i32).await?;
+                for option in &npv.protocol_options {
+                    self.writer.write_all(option.as_bytes()).await?;
+                    self.writer.write_u8(0).await?;
+                }
+                
+                Ok(())
+            }
         }
     }
 

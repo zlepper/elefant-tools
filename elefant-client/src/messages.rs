@@ -25,6 +25,7 @@ pub enum BackendMessage<'a> {
     EmptyQueryResponse,
     ErrorResponse(ErrorResponse<'a>),
     FunctionCallResponse(FunctionCallResponse<'a>),
+    NegotiateProtocolVersion(NegotiateProtocolVersion<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -88,6 +89,12 @@ pub struct ErrorField<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct FunctionCallResponse<'a> {
     pub value: Option<&'a [u8]>
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct NegotiateProtocolVersion<'a> {
+    pub newest_protocol_version: i32,
+    pub protocol_options: Vec<Cow<'a, str>>
 }
 
 #[derive(Debug, PartialEq, Eq)]

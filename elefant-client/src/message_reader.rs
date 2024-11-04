@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, FunctionCallResponse, GSSResponse, ValueFormat};
+use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, FunctionCallResponse, GSSResponse, NegotiateProtocolVersion, ValueFormat};
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -44,6 +44,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             },
             b'E' => self.parse_error_response(message_type).await,
             b'V' => self.parse_function_call_response(message_type).await,
+            b'v' => self.parse_negotiate_protocol_version(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -106,6 +107,35 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             let bytes = reader.read_bytes(result_value_length as usize)?;
             Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse { value: Some(bytes) }))
         }
+    }
+    
+    async fn parse_negotiate_protocol_version(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        
+        if len < 12 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let length = len as usize - 4;
+        self.extend_buffer(length);
+        self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+        
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        let newest_protocol_version = reader.read_i32()?;
+        let option_count = reader.read_i32()?;
+        
+        let mut options = Vec::with_capacity(option_count as usize);
+        for _ in 0..option_count {
+            options.push(reader.read_null_terminated_string()?);
+        }
+        
+        Ok(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
+            newest_protocol_version,
+            protocol_options: options,
+        }))
     }
     
     async fn parse_error_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {

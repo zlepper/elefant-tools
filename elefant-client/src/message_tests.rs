@@ -402,3 +402,13 @@ async fn round_trip_notification_response() {
         payload: "".into(),
     })).await;
 }
+
+#[test]
+async fn round_trip_parameter_description() {
+    assert_backend_message_round_trip(BackendMessage::ParameterDescription(ParameterDescription {
+        types: vec![1, 2, 3],
+    })).await;
+    assert_backend_message_round_trip(BackendMessage::ParameterDescription(ParameterDescription {
+        types: vec![],
+    })).await;
+}

@@ -29,6 +29,7 @@ pub enum BackendMessage<'a> {
     NoData,
     NoticeResponse(ErrorResponse<'a>),
     NotificationResponse(NotificationResponse<'a>),
+    ParameterDescription(ParameterDescription)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -105,6 +106,11 @@ pub struct NotificationResponse<'a> {
     pub process_id: i32,
     pub channel: Cow<'a, str>,
     pub payload: Cow<'a, str>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ParameterDescription {
+    pub types: Vec<i32>,
 }
 
 #[derive(Debug, PartialEq, Eq)]

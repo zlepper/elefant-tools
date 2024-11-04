@@ -1,6 +1,6 @@
 use crate::error::PostgresMessageParseError;
 use crate::io_extensions::{AsyncReadExt2, ByteSliceReader};
-use crate::messages::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FrontendMessage, FunctionCall, FunctionCallResponse, GSSResponse, NegotiateProtocolVersion, NotificationResponse, ValueFormat};
+use crate::messages::*;
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt};
 
 pub struct MessageReader<R: AsyncRead + AsyncBufRead + Unpin> {
@@ -51,6 +51,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 Ok(BackendMessage::NoData)
             },
             b'A' => self.parse_notification_response(message_type).await,
+            b't' => self.parse_parameter_description(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -384,6 +385,30 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
         }))
     }
 
+
+    async fn parse_parameter_description(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        
+        let len = self.reader.read_i32().await?;
+        if len < 6 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let parameter_count = self.reader.read_i16().await?;
+        
+        let mut parameters = Vec::with_capacity(parameter_count as usize);
+        for _ in 0..parameter_count {
+            let oid = self.reader.read_i32().await?;
+            parameters.push(oid);
+        }
+        
+        Ok(BackendMessage::ParameterDescription(ParameterDescription {
+            types: parameters,
+        }))
+    }
+
     pub async fn parse_frontend_message(
         &mut self,
     ) -> Result<FrontendMessage, PostgresMessageParseError> {
@@ -660,4 +685,5 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             self.read_buffer.resize(len, 0);
         }
     }
+
 }

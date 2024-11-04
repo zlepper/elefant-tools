@@ -219,6 +219,16 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_null_terminated_string(&nr.payload).await?;
                 Ok(())
             },
+            BackendMessage::ParameterDescription(dp) => {
+                self.writer.write_u8(b't').await?;
+                let length = 4 + 2 + dp.types.len() as i32 * 4;
+                self.writer.write_i32(length).await?;
+                self.writer.write_i16(dp.types.len() as i16).await?;
+                for ty in &dp.types {
+                    self.writer.write_i32(*ty).await?;
+                }
+                Ok(())  
+            },
         }
     }
 

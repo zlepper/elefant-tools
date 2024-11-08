@@ -673,6 +673,8 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                     let code = self.reader.read_i32().await?;
                     if code == 80877104 {
                         return Ok(FrontendMessage::GSSENCRequest);
+                    } else if code == 80877103 {
+                        return Ok(FrontendMessage::SSLRequest);
                     }
                 }
 

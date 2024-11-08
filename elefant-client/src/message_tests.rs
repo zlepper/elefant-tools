@@ -248,19 +248,23 @@ async fn round_trip_describe() {
     assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
         target: DescribeTarget::Statement,
         name: "foo".into(),
-    })).await;
+    }))
+    .await;
     assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
         target: DescribeTarget::Portal,
         name: "foo".into(),
-    })).await;
+    }))
+    .await;
     assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
         target: DescribeTarget::Statement,
         name: "".into(),
-    })).await;
+    }))
+    .await;
     assert_frontend_message_round_trip(FrontendMessage::Describe(Describe {
         target: DescribeTarget::Portal,
         name: "".into(),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -271,13 +275,16 @@ async fn round_trip_empty_query_response() {
 #[test]
 async fn round_trip_error_response() {
     assert_backend_message_round_trip(BackendMessage::ErrorResponse(ErrorResponse {
-        fields: vec![ErrorField {
-            field_type: b'S',
-            value: "PANIC".into(),
-        }, ErrorField {
-            field_type: b'n',
-            value: "my_constraint".into(),
-        }],
+        fields: vec![
+            ErrorField {
+                field_type: b'S',
+                value: "PANIC".into(),
+            },
+            ErrorField {
+                field_type: b'n',
+                value: "my_constraint".into(),
+            },
+        ],
     }))
     .await;
 }
@@ -285,13 +292,16 @@ async fn round_trip_error_response() {
 #[test]
 async fn round_trip_notice_response() {
     assert_backend_message_round_trip(BackendMessage::NoticeResponse(ErrorResponse {
-        fields: vec![ErrorField {
-            field_type: b'S',
-            value: "PANIC".into(),
-        }, ErrorField {
-            field_type: b'n',
-            value: "my_constraint".into(),
-        }],
+        fields: vec![
+            ErrorField {
+                field_type: b'S',
+                value: "PANIC".into(),
+            },
+            ErrorField {
+                field_type: b'n',
+                value: "my_constraint".into(),
+            },
+        ],
     }))
     .await;
 }
@@ -301,22 +311,26 @@ async fn round_trip_execute() {
     assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
         portal_name: "foo".into(),
         max_rows: 42,
-    })).await;
+    }))
+    .await;
 
     assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
         portal_name: "".into(),
         max_rows: 0,
-    })).await;
+    }))
+    .await;
 
     assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
         portal_name: "foo".into(),
         max_rows: 0,
-    })).await;
+    }))
+    .await;
 
     assert_frontend_message_round_trip(FrontendMessage::Execute(Execute {
         portal_name: "".into(),
         max_rows: 666,
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -331,29 +345,34 @@ async fn round_trip_function_call() {
         argument_formats: vec![ValueFormat::Text, ValueFormat::Binary],
         arguments: vec![Some(&[1, 2, 3]), None],
         result_format: ValueFormat::Text,
-    })).await;
+    }))
+    .await;
     assert_frontend_message_round_trip(FrontendMessage::FunctionCall(FunctionCall {
         object_id: 42,
         argument_formats: vec![ValueFormat::Text],
         arguments: vec![None],
         result_format: ValueFormat::Text,
-    })).await;
+    }))
+    .await;
     assert_frontend_message_round_trip(FrontendMessage::FunctionCall(FunctionCall {
         object_id: 42,
         argument_formats: vec![],
         arguments: vec![],
         result_format: ValueFormat::Text,
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
-async fn round_trip_function_call_response()  {
+async fn round_trip_function_call_response() {
     assert_backend_message_round_trip(BackendMessage::FunctionCallResponse(FunctionCallResponse {
         value: None,
-    })).await;
+    }))
+    .await;
     assert_backend_message_round_trip(BackendMessage::FunctionCallResponse(FunctionCallResponse {
         value: Some(&[1, 2, 3]),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -363,25 +382,35 @@ async fn round_trip_gssenc_request() {
 
 #[test]
 async fn round_trip_undecided_frontend_p_message() {
-    assert_frontend_message_round_trip(FrontendMessage::UndecidedFrontendPMessage(UndecidedFrontendPMessage {
-        data: &[1, 2, 3],
-    })).await;
+    assert_frontend_message_round_trip(FrontendMessage::UndecidedFrontendPMessage(
+        UndecidedFrontendPMessage { data: &[1, 2, 3] },
+    ))
+    .await;
 }
 
 #[test]
 async fn round_trip_negotiate_protocol_version() {
-    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
-        newest_protocol_version: 42,
-        protocol_options: vec!["foo".into(), "bar".into()],
-    })).await;
-    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
-        newest_protocol_version: 42,
-        protocol_options: vec!["bar".into()],
-    })).await;
-    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
-        newest_protocol_version: 42,
-        protocol_options: vec![],
-    })).await;
+    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(
+        NegotiateProtocolVersion {
+            newest_protocol_version: 42,
+            protocol_options: vec!["foo".into(), "bar".into()],
+        },
+    ))
+    .await;
+    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(
+        NegotiateProtocolVersion {
+            newest_protocol_version: 42,
+            protocol_options: vec!["bar".into()],
+        },
+    ))
+    .await;
+    assert_backend_message_round_trip(BackendMessage::NegotiateProtocolVersion(
+        NegotiateProtocolVersion {
+            newest_protocol_version: 42,
+            protocol_options: vec![],
+        },
+    ))
+    .await;
 }
 
 #[test]
@@ -395,22 +424,26 @@ async fn round_trip_notification_response() {
         process_id: 42,
         channel: "foo".into(),
         payload: "bar".into(),
-    })).await;
+    }))
+    .await;
     assert_backend_message_round_trip(BackendMessage::NotificationResponse(NotificationResponse {
         process_id: 42,
         channel: "".into(),
         payload: "".into(),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
 async fn round_trip_parameter_description() {
     assert_backend_message_round_trip(BackendMessage::ParameterDescription(ParameterDescription {
         types: vec![1, 2, 3],
-    })).await;
+    }))
+    .await;
     assert_backend_message_round_trip(BackendMessage::ParameterDescription(ParameterDescription {
         types: vec![],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -418,7 +451,8 @@ async fn round_trip_parameter_status() {
     assert_backend_message_round_trip(BackendMessage::ParameterStatus(ParameterStatus {
         name: "foo".into(),
         value: "bar".into(),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -427,7 +461,8 @@ async fn round_trip_parse() {
         destination: "foo".into(),
         query: "SELECT 42".into(),
         parameter_types: vec![1, 0, 2, 3, 0],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -444,20 +479,24 @@ async fn round_trip_portal_suspended() {
 async fn round_trip_query() {
     assert_frontend_message_round_trip(FrontendMessage::Query(Query {
         query: "SELECT 42".into(),
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
 async fn round_trip_ready_for_query() {
     assert_backend_message_round_trip(BackendMessage::ReadyForQuery(ReadyForQuery {
         current_transaction_status: CurrentTransactionStatus::Idle,
-    })).await;
+    }))
+    .await;
     assert_backend_message_round_trip(BackendMessage::ReadyForQuery(ReadyForQuery {
         current_transaction_status: CurrentTransactionStatus::InTransaction,
-    })).await;
+    }))
+    .await;
     assert_backend_message_round_trip(BackendMessage::ReadyForQuery(ReadyForQuery {
         current_transaction_status: CurrentTransactionStatus::InFailedTransaction,
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -492,8 +531,15 @@ async fn round_trip_row_description() {
                 format: ValueFormat::Text,
             },
         ],
-    })).await;
+    }))
+    .await;
     assert_backend_message_round_trip(BackendMessage::RowDescription(RowDescription {
         fields: vec![],
-    })).await;
+    }))
+    .await;
+}
+
+#[test]
+async fn round_trip_ssl_request() {
+    assert_frontend_message_round_trip(FrontendMessage::SSLRequest).await;
 }

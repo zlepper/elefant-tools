@@ -168,7 +168,8 @@ pub enum FrontendMessage<'a> {
     GSSENCRequest,
     UndecidedFrontendPMessage(UndecidedFrontendPMessage<'a>),
     Parse(Parse<'a>),
-    Query(Query<'a>)
+    Query(Query<'a>),
+    SSLRequest,
 }
 
 #[derive(Debug, PartialEq, Eq)]

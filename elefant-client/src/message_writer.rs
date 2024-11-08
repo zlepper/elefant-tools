@@ -462,6 +462,11 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(length as i32).await?;
                 self.writer.write_null_terminated_string(&q.query).await?;
                 Ok(())
+            },
+            FrontendMessage::SSLRequest => {
+                self.writer.write_i32(8).await?;
+                self.writer.write_i32(80877103).await?;
+                Ok(())
             }
         }
     }

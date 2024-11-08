@@ -559,3 +559,8 @@ async fn round_trip_startup_message() {
         ],
     })).await;
 }
+
+#[test]
+async fn round_trip_sync() {
+    assert_frontend_message_round_trip(FrontendMessage::Sync).await;
+}

@@ -171,6 +171,7 @@ pub enum FrontendMessage<'a> {
     Query(Query<'a>),
     SSLRequest,
     StartupMessage(StartupMessage<'a>),
+    Sync,
 }
 
 #[derive(Debug, PartialEq, Eq)]

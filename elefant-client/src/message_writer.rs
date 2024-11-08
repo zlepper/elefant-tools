@@ -478,7 +478,12 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 }
                 self.writer.write_u8(0).await?;
                 Ok(())
-            }
+            },
+            FrontendMessage::Sync => {
+                self.writer.write_u8(b'S').await?;
+                self.writer.write_i32(4).await?;
+                Ok(())
+            },
         }
     }
 

@@ -362,8 +362,8 @@ async fn round_trip_gssenc_request() {
 }
 
 #[test]
-async fn round_trip_gss_response() {
-    assert_frontend_message_round_trip(FrontendMessage::GSSResponse(GSSResponse {
+async fn round_trip_undecided_frontend_p_message() {
+    assert_frontend_message_round_trip(FrontendMessage::UndecidedFrontendPMessage(UndecidedFrontendPMessage {
         data: &[1, 2, 3],
     })).await;
 }

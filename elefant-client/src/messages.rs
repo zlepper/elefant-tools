@@ -134,7 +134,7 @@ pub enum FrontendMessage<'a> {
     Flush,
     FunctionCall(FunctionCall<'a>),
     GSSENCRequest,
-    GSSResponse(GSSResponse<'a>),
+    UndecidedFrontendPMessage(UndecidedFrontendPMessage<'a>),
     Parse(Parse<'a>),
 }
 
@@ -209,7 +209,7 @@ pub struct FunctionCall<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct GSSResponse<'a> {
+pub struct UndecidedFrontendPMessage<'a> {
     pub data: &'a [u8],
 }
 

@@ -564,3 +564,8 @@ async fn round_trip_startup_message() {
 async fn round_trip_sync() {
     assert_frontend_message_round_trip(FrontendMessage::Sync).await;
 }
+
+#[test]
+async fn round_trip_terminate() {
+    assert_frontend_message_round_trip(FrontendMessage::Terminate).await;
+}

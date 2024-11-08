@@ -658,6 +658,10 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(FrontendMessage::Sync)
             },
+            b'X' => {
+                self.assert_len_equals(4, message_type).await?;
+                Ok(FrontendMessage::Terminate)
+            },
             _ => {
                 let more = self.reader.read_bytes::<3>().await?;
                 let length = i32::from_be_bytes([message_type, more[0], more[1], more[2]]);

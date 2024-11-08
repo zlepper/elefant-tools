@@ -172,6 +172,7 @@ pub enum FrontendMessage<'a> {
     SSLRequest,
     StartupMessage(StartupMessage<'a>),
     Sync,
+    Terminate,
 }
 
 #[derive(Debug, PartialEq, Eq)]

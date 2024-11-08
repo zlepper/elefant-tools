@@ -543,3 +543,19 @@ async fn round_trip_row_description() {
 async fn round_trip_ssl_request() {
     assert_frontend_message_round_trip(FrontendMessage::SSLRequest).await;
 }
+
+#[test]
+async fn round_trip_startup_message() {
+    assert_frontend_message_round_trip(FrontendMessage::StartupMessage(StartupMessage {
+        parameters: vec![
+            StartupMessageParameter {
+                name: "foo".into(),
+                value: "bar".into(),
+            },
+            StartupMessageParameter {
+                name: "bar2".into(),
+                value: "foo3".into(),
+            },
+        ],
+    })).await;
+}

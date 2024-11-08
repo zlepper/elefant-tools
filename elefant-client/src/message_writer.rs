@@ -467,6 +467,17 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(8).await?;
                 self.writer.write_i32(80877103).await?;
                 Ok(())
+            },
+            FrontendMessage::StartupMessage(s) => {
+                let length = 4 + 4 + s.parameters.iter().map(|p| p.name.len() + 1 + p.value.len() + 1).sum::<usize>() as i32 + 1;
+                self.writer.write_i32(length).await?;
+                self.writer.write_i32(196608).await?;
+                for p in &s.parameters {
+                    self.writer.write_null_terminated_string(&p.name).await?;
+                    self.writer.write_null_terminated_string(&p.value).await?;
+                }
+                self.writer.write_u8(0).await?;
+                Ok(())
             }
         }
     }

@@ -170,6 +170,7 @@ pub enum FrontendMessage<'a> {
     Parse(Parse<'a>),
     Query(Query<'a>),
     SSLRequest,
+    StartupMessage(StartupMessage<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -257,4 +258,15 @@ pub struct Parse<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Query<'a> {
     pub query: Cow<'a, str>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StartupMessage<'a> {
+    pub parameters: Vec<StartupMessageParameter<'a>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StartupMessageParameter<'a> {
+    pub name: Cow<'a, str>,
+    pub value: Cow<'a, str>,
 }

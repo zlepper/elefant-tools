@@ -677,6 +677,34 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                         return Ok(FrontendMessage::SSLRequest);
                     }
                 }
+                
+                if length >= 8 {
+                    let code = self.reader.read_i32().await?;
+                    if code == 196608 {
+                        let len = (length - 8) as usize;
+                        self.extend_buffer(len);
+                        self.reader.read_exact(&mut self.read_buffer[..len]).await?;
+                        
+                        let mut reader = ByteSliceReader::new(&self.read_buffer[..len]);
+                        let mut options = Vec::new();
+                        loop {
+                            let option = reader.read_null_terminated_string()?;
+                            if option.is_empty() {
+                                break;
+                            }
+                            
+                            let value = reader.read_null_terminated_string()?;
+                            options.push(StartupMessageParameter {
+                                name: option,
+                                value,
+                            });
+                        }
+                        
+                        return Ok(FrontendMessage::StartupMessage(StartupMessage {
+                            parameters: options,
+                        }));
+                    }
+                }
 
                 Err(PostgresMessageParseError::UnknownMessage(message_type))
             }

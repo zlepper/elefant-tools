@@ -426,6 +426,13 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 }
                 
                 Ok(())
+            },
+            FrontendMessage::Query(q) => {
+                self.writer.write_u8(b'Q').await?;
+                let length = 4 + q.query.len() + 1;
+                self.writer.write_i32(length as i32).await?;
+                self.writer.write_null_terminated_string(&q.query).await?;
+                Ok(())
             }
         }
     }

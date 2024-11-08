@@ -137,6 +137,7 @@ pub enum FrontendMessage<'a> {
     GSSENCRequest,
     UndecidedFrontendPMessage(UndecidedFrontendPMessage<'a>),
     Parse(Parse<'a>),
+    Query(Query<'a>)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -219,4 +220,9 @@ pub struct Parse<'a> {
     pub destination: Cow<'a, str>,
     pub query: Cow<'a, str>,
     pub parameter_types: Vec<i32>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Query<'a> {
+    pub query: Cow<'a, str>,
 }

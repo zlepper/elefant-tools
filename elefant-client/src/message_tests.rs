@@ -439,3 +439,9 @@ async fn round_trip_parse_complete() {
 async fn round_trip_portal_suspended() {
     assert_backend_message_round_trip(BackendMessage::PortalSuspended).await;
 }
+
+async fn round_trip_query() {
+    assert_frontend_message_round_trip(FrontendMessage::Query(Query {
+        query: "SELECT 42".into(),
+    })).await;
+}

@@ -61,6 +61,16 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(BackendMessage::PortalSuspended)
             },
+            b'Z' => {
+                self.assert_len_equals(5, message_type).await?;
+                let status = match self.reader.read_u8().await? {
+                    b'I' => CurrentTransactionStatus::Idle,
+                    b'T' => CurrentTransactionStatus::InTransaction,
+                    b'E' => CurrentTransactionStatus::InFailedTransaction,
+                    status => return Err(PostgresMessageParseError::UnknownTransactionStatus(status)),
+                };
+                Ok(BackendMessage::ReadyForQuery(ReadyForQuery { current_transaction_status: status }))
+            },
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }

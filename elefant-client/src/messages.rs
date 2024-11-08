@@ -33,6 +33,7 @@ pub enum BackendMessage<'a> {
     ParameterStatus(ParameterStatus<'a>),
     ParseComplete,
     PortalSuspended,
+    ReadyForQuery(ReadyForQuery)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -114,6 +115,19 @@ pub struct NotificationResponse<'a> {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ParameterDescription {
     pub types: Vec<i32>,
+}
+
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ReadyForQuery {
+    pub current_transaction_status: CurrentTransactionStatus
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CurrentTransactionStatus {
+    Idle,
+    InTransaction,
+    InFailedTransaction,
 }
 
 #[derive(Debug, PartialEq, Eq)]

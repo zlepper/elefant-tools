@@ -247,6 +247,16 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                 self.writer.write_i32(4).await?;
                 Ok(())
             },
+            BackendMessage::ReadyForQuery(q) => {
+                self.writer.write_u8(b'Z').await?;
+                self.writer.write_i32(5).await?;
+                self.writer.write_u8(match q.current_transaction_status {
+                    crate::messages::CurrentTransactionStatus::Idle => b'I',
+                    crate::messages::CurrentTransactionStatus::InTransaction => b'T',
+                    crate::messages::CurrentTransactionStatus::InFailedTransaction => b'E',
+                }).await?;
+                Ok(())
+            }
         }
     }
 

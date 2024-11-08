@@ -1,5 +1,5 @@
 use crate::io_extensions::AsyncWriteExt2;
-use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, ErrorResponse, FrontendMessage};
+use crate::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, ErrorResponse, FrontendMessage, ValueFormat};
 use futures::{AsyncWrite, AsyncWriteExt};
 use std::io::Error;
 
@@ -255,6 +255,25 @@ impl<W: AsyncWrite + Unpin> MessageWriter<W> {
                     crate::messages::CurrentTransactionStatus::InTransaction => b'T',
                     crate::messages::CurrentTransactionStatus::InFailedTransaction => b'E',
                 }).await?;
+                Ok(())
+            },
+            BackendMessage::RowDescription(rd) => {
+                self.writer.write_u8(b'T').await?;
+                let length = 4 + 2 + rd.fields.iter().map(|f| f.name.len() + 1 + 4 + 2 + 4 + 2 + 4 + 2).sum::<usize>() as i32;
+                self.writer.write_i32(length).await?;
+                self.writer.write_i16(rd.fields.len() as i16).await?;
+                for field in &rd.fields {
+                    self.writer.write_null_terminated_string(&field.name).await?;
+                    self.writer.write_i32(field.table_oid).await?;
+                    self.writer.write_i16(field.column_attribute_number).await?;
+                    self.writer.write_i32(field.data_type_oid).await?;
+                    self.writer.write_i16(field.data_type_size).await?;
+                    self.writer.write_i32(field.type_modifier).await?;
+                    self.writer.write_i16(match field.format {
+                        ValueFormat::Text => 0,
+                        ValueFormat::Binary => 1
+                    }).await?;
+                }
                 Ok(())
             }
         }

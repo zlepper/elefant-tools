@@ -459,3 +459,41 @@ async fn round_trip_ready_for_query() {
         current_transaction_status: CurrentTransactionStatus::InFailedTransaction,
     })).await;
 }
+
+#[test]
+async fn round_trip_row_description() {
+    assert_backend_message_round_trip(BackendMessage::RowDescription(RowDescription {
+        fields: vec![
+            FieldDescription {
+                name: "foo".into(),
+                table_oid: 42,
+                column_attribute_number: 666,
+                data_type_oid: 42,
+                data_type_size: 666,
+                type_modifier: 42,
+                format: ValueFormat::Text,
+            },
+            FieldDescription {
+                name: "bar".into(),
+                table_oid: 666,
+                column_attribute_number: 42,
+                data_type_oid: 666,
+                data_type_size: 42,
+                type_modifier: 666,
+                format: ValueFormat::Binary,
+            },
+            FieldDescription {
+                name: "bar".into(),
+                table_oid: 0,
+                column_attribute_number: 0,
+                data_type_oid: 666,
+                data_type_size: 42,
+                type_modifier: 666,
+                format: ValueFormat::Text,
+            },
+        ],
+    })).await;
+    assert_backend_message_round_trip(BackendMessage::RowDescription(RowDescription {
+        fields: vec![],
+    })).await;
+}

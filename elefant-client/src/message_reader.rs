@@ -71,6 +71,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 };
                 Ok(BackendMessage::ReadyForQuery(ReadyForQuery { current_transaction_status: status }))
             },
+            b'T' => self.parse_row_description(message_type).await,
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -108,6 +109,50 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
             format,
             column_formats,
         })
+    }
+    
+    async fn parse_row_description(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {
+        let len = self.reader.read_i32().await?;
+        if len < 6 {
+            return Err(PostgresMessageParseError::UnexpectedMessageLength {
+                message_type,
+                length: len,
+            });
+        }
+        
+        let length = len as usize - 4;
+        self.extend_buffer(length);
+        self.reader.read_exact(&mut self.read_buffer[..length]).await?;
+        
+        let mut reader = ByteSliceReader::new(&self.read_buffer);
+        let column_count = reader.read_i16()?;
+        
+        let mut fields = Vec::with_capacity(column_count as usize);
+        for _ in 0..column_count {
+            let name = reader.read_null_terminated_string()?;
+            let table_oid = reader.read_i32()?;
+            let column_attribute_number = reader.read_i16()?;
+            let data_type_oid = reader.read_i32()?;
+            let data_type_size = reader.read_i16()?;
+            let type_modifier = reader.read_i32()?;
+            let format = match reader.read_i16()? {
+                0 => ValueFormat::Text,
+                1 => ValueFormat::Binary,
+                format => return Err(PostgresMessageParseError::UnknownValueFormat(format)),
+            };
+            
+            fields.push(FieldDescription {
+                name,
+                table_oid,
+                column_attribute_number,
+                data_type_oid,
+                data_type_size,
+                type_modifier,
+                format,
+            });
+        }
+        
+        Ok(BackendMessage::RowDescription(RowDescription { fields }))
     }
     
     async fn parse_notification_response(&mut self, message_type: u8) -> Result<BackendMessage, PostgresMessageParseError> {

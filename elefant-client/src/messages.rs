@@ -33,7 +33,8 @@ pub enum BackendMessage<'a> {
     ParameterStatus(ParameterStatus<'a>),
     ParseComplete,
     PortalSuspended,
-    ReadyForQuery(ReadyForQuery)
+    ReadyForQuery(ReadyForQuery),
+    RowDescription(RowDescription<'a>),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -134,6 +135,22 @@ pub enum CurrentTransactionStatus {
 pub struct ParameterStatus<'a> {
     pub name: Cow<'a, str>,
     pub value: Cow<'a, str>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct RowDescription<'a> {
+    pub fields: Vec<FieldDescription<'a>>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct FieldDescription<'a> {
+    pub name: Cow<'a, str>,
+    pub table_oid: i32,
+    pub column_attribute_number: i16,
+    pub data_type_oid: i32,
+    pub data_type_size: i16,
+    pub type_modifier: i32,
+    pub format: ValueFormat,
 }
 
 #[derive(Debug, PartialEq, Eq)]

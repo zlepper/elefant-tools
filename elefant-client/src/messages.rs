@@ -32,6 +32,7 @@ pub enum BackendMessage<'a> {
     ParameterDescription(ParameterDescription),
     ParameterStatus(ParameterStatus<'a>),
     ParseComplete,
+    PortalSuspended,
 }
 
 #[derive(Debug, PartialEq, Eq)]

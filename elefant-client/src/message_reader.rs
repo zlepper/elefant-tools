@@ -57,6 +57,10 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.assert_len_equals(4, message_type).await?;
                 Ok(BackendMessage::ParseComplete)
             },
+            b's' => {
+                self.assert_len_equals(4, message_type).await?;
+                Ok(BackendMessage::PortalSuspended)
+            },
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type)),
         }
     }
@@ -542,7 +546,7 @@ impl<R: AsyncRead + AsyncBufRead + Unpin> MessageReader<R> {
                 self.extend_buffer(length);
                 self.reader.read_exact(&mut self.read_buffer[..length]).await?;
                 
-                Ok(FrontendMessage::GSSResponse(GSSResponse {
+                Ok(FrontendMessage::UndecidedFrontendPMessage(UndecidedFrontendPMessage {
                     data: &self.read_buffer[..length],
                 }))
             },

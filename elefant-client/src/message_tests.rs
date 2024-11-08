@@ -434,3 +434,8 @@ async fn round_trip_parse() {
 async fn round_trip_parse_complete() {
     assert_backend_message_round_trip(BackendMessage::ParseComplete).await;
 }
+
+#[test]
+async fn round_trip_portal_suspended() {
+    assert_backend_message_round_trip(BackendMessage::PortalSuspended).await;
+}

@@ -14,7 +14,7 @@ services:
 #      - -c
 #      - log_destination=stderr
 #      - -c
-#      - log_min_messages=info
+#      - log_min_messages=DEBUG5
 #      - -c
 #      - log_min_error_statement=debug1
 

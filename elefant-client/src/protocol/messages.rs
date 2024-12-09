@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use crate::protocol::frontend_p_message::FrontendPMessage;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BackendMessage<'a> {
@@ -166,7 +167,7 @@ pub enum FrontendMessage<'a> {
     Flush,
     FunctionCall(FunctionCall<'a>),
     GSSENCRequest,
-    UndecidedFrontendPMessage(UndecidedFrontendPMessage<'a>),
+    FrontendPMessage(FrontendPMessage<'a>),
     Parse(Parse<'a>),
     Query(Query<'a>),
     SSLRequest,
@@ -246,11 +247,6 @@ pub struct FunctionCall<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct UndecidedFrontendPMessage<'a> {
-    pub data: &'a [u8],
-}
-
-#[derive(Debug, PartialEq, Eq)]
 pub struct Parse<'a> {
     pub destination: Cow<'a, str>,
     pub query: Cow<'a, str>,
@@ -271,4 +267,13 @@ pub struct StartupMessage<'a> {
 pub struct StartupMessageParameter<'a> {
     pub name: Cow<'a, str>,
     pub value: Cow<'a, str>,
+}
+
+impl StartupMessageParameter<'_> {
+    pub fn new<'a>(name: &'a str, value: &'a str) -> StartupMessageParameter<'a> {
+        StartupMessageParameter {
+            name: Cow::Borrowed(name),
+            value: Cow::Borrowed(value),
+        }
+    }
 }

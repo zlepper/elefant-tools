@@ -1,22 +1,48 @@
-mod messages;
-mod error;
-mod io_extensions;
-mod message_writer;
-#[cfg(test)]
-mod message_tests;
-mod message_reader;
+use std::io::Error;
+use crate::protocol::PostgresConnection;
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+mod protocol;
+#[cfg(feature = "tokio")]
+mod tokio_connection;
+mod postgres_client;
+
+#[derive(Debug)]
+pub enum ElefantClientError {
+    IoError(std::io::Error),
+    PostgresMessageParseError(protocol::PostgresMessageParseError),
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl From<std::io::Error> for ElefantClientError {
+    fn from(value: Error) -> Self {
+        ElefantClientError::IoError(value)
     }
 }
+
+impl From<protocol::PostgresMessageParseError> for ElefantClientError {
+    fn from(value: protocol::PostgresMessageParseError) -> Self {
+        ElefantClientError::PostgresMessageParseError(value)
+    }
+}
+
+
+pub struct PostgresConnectionSettings {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub password: String,
+    pub database: String,
+}
+
+impl Default for PostgresConnectionSettings {
+    fn default() -> Self {
+        Self {
+            database: "postgres".to_string(),
+            port: 5432,
+            password: "".to_string(),
+            host: "localhost".to_string(),
+            user: "postgres".to_string(),
+        }
+    }
+}
+
+

@@ -5,7 +5,18 @@ edition = "2021"
 
 [dependencies]
 futures = "0.3"
+tokio = { version = "1", default-features = false, features = ["net"], optional = true }
+tokio-util = { version = "0.7", optional = true, default-features = false, features = ["compat"] }
+rand = "0.8"
+base64 = "0.22"
+hmac = "0.12"
+md-5 = "0.10"
+sha2 = "0.10"
+stringprep = "0.1"
 
 
 [dev-dependencies]
-tokio = { version = "1.40", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+
+[features]
+tokio = ["dep:tokio", "dep:tokio-util"]

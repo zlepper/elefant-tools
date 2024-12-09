@@ -1,21 +1,20 @@
-use crate::io_extensions::ByteSliceExt;
-use crate::message_reader::MessageReader;
-use crate::message_writer::MessageWriter;
-use crate::messages::*;
+use crate::protocol::io_extensions::ByteSliceExt;
+use crate::protocol::messages::*;
 use futures::io::Cursor;
 use tokio::test;
+use crate::protocol::{FrontendPMessage, PostgresConnection, UndecidedFrontendPMessage};
 
 async fn assert_backend_message_parses_as<By: AsRef<[u8]>>(
     bytes: By,
     expected: BackendMessage<'_>,
 ) {
-    let mut cursor = Cursor::new(&bytes);
-    let mut reader = MessageReader::new(&mut cursor);
-    let result = reader.parse_backend_message().await.unwrap();
+    let mut cursor = Cursor::new(bytes.as_ref().to_vec());
+    let mut reader = PostgresConnection::new(&mut cursor);
+    let result = reader.read_backend_message().await.unwrap();
     assert_eq!(result, expected);
 
     let mut cursor = Cursor::new(Vec::new());
-    let mut writer = MessageWriter::new(&mut cursor);
+    let mut writer = PostgresConnection::new(&mut cursor);
     writer.write_backend_message(&expected).await.unwrap();
     writer.flush().await.unwrap();
     let result = cursor.into_inner();
@@ -24,26 +23,26 @@ async fn assert_backend_message_parses_as<By: AsRef<[u8]>>(
 
 async fn assert_backend_message_round_trip(input: BackendMessage<'_>) {
     let mut cursor = Cursor::new(Vec::new());
-    let mut writer = MessageWriter::new(&mut cursor);
+    let mut writer = PostgresConnection::new(&mut cursor);
     writer.write_backend_message(&input).await.unwrap();
     writer.flush().await.unwrap();
     let bytes = cursor.into_inner();
 
-    let mut cursor = Cursor::new(&bytes);
-    let mut reader = MessageReader::new(&mut cursor);
-    let result = reader.parse_backend_message().await.unwrap();
+    let mut cursor = Cursor::new(bytes);
+    let mut reader = PostgresConnection::new(&mut cursor);
+    let result = reader.read_backend_message().await.unwrap();
     assert_eq!(result, input);
 }
 
 async fn assert_frontend_message_round_trip(input: FrontendMessage<'_>) {
     let mut cursor = Cursor::new(Vec::new());
-    let mut writer = MessageWriter::new(&mut cursor);
+    let mut writer = PostgresConnection::new(&mut cursor);
     writer.write_frontend_message(&input).await.unwrap();
     writer.flush().await.unwrap();
     let bytes = cursor.into_inner();
 
-    let mut cursor = Cursor::new(&bytes);
-    let mut reader = MessageReader::new(&mut cursor);
+    let mut cursor = Cursor::new(bytes);
+    let mut reader = PostgresConnection::new(&mut cursor);
     let result = reader.parse_frontend_message().await.unwrap();
     assert_eq!(result, input);
 }
@@ -382,8 +381,8 @@ async fn round_trip_gssenc_request() {
 
 #[test]
 async fn round_trip_undecided_frontend_p_message() {
-    assert_frontend_message_round_trip(FrontendMessage::UndecidedFrontendPMessage(
-        UndecidedFrontendPMessage { data: &[1, 2, 3] },
+    assert_frontend_message_round_trip(FrontendMessage::FrontendPMessage(
+        FrontendPMessage::Undecided(UndecidedFrontendPMessage { data: &[1, 2, 3] }),
     ))
     .await;
 }

@@ -1,13 +1,9 @@
 use std::borrow::Cow;
-use futures::{AsyncRead, AsyncWrite, AsyncBufRead};
-use crate::{ElefantClientError, PostgresConnectionSettings};
-use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, PostgresConnection, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter};
+use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
+use crate::ElefantClientError;
+use crate::postgres_client::PostgresClient;
+use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter};
 use crate::protocol::sasl::ChannelBinding;
-
-pub struct PostgresClient<C> {
-    pub(crate) connection: PostgresConnection<C>,
-    pub(crate) settings: PostgresConnectionSettings,
-}
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub(crate) async fn establish(&mut self) -> Result<(), ElefantClientError> {
@@ -45,9 +41,9 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                             data: Some(data),
                         }))).await?;
                         self.connection.flush().await?;
-                        
+
                         let msg = self.connection.read_backend_message().await?;
-                        
+
                         match msg {
                             BackendMessage::AuthenticationSASLContinue(ref sasl_continue) => {
                                 sas.update(sasl_continue.data)?;
@@ -57,15 +53,15 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                                     data,
                                 }))).await?;
                                 self.connection.flush().await?;
-                                
+
                                 let msg = self.connection.read_backend_message().await?;
-                                
+
                                 match msg {
                                     BackendMessage::AuthenticationSASLFinal(fin) => {
                                         sas.finish(fin.outcome)?;
-                                        
+
                                         let msg = self.connection.read_backend_message().await?;
-                                        
+
                                         match msg {
                                             BackendMessage::AuthenticationOk => {
                                                 // Authentication successful, whoop whoop!

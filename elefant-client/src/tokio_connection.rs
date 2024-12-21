@@ -6,8 +6,9 @@ use tokio::net::TcpStream;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 
 pub type TokioPostgresConnection = PostgresConnection<Compat<BufStream<TcpStream>>>;
+pub type TokioPostgresClient = PostgresClient<Compat<BufStream<TcpStream>>>;
 
-pub(crate) async fn new_connection(
+async fn new_connection(
     settings: &PostgresConnectionSettings,
 ) -> Result<TokioPostgresConnection, ElefantClientError> {
     let stream = TcpStream::connect(format!("{}:{}", settings.host, settings.port)).await?;
@@ -21,6 +22,7 @@ pub(crate) async fn new_client(
     settings: PostgresConnectionSettings,
 ) -> Result<PostgresClient<Compat<BufStream<TcpStream>>>, ElefantClientError> {
     let connection = new_connection(&settings).await?;
+    
     let client = PostgresClient::new(connection, settings).await?;
 
     Ok(client)
@@ -31,16 +33,11 @@ mod tests {
     use super::*;
     use crate::postgres_client::{QueryResultSet};
     use tokio::test;
+    use crate::test_helpers::get_settings;
 
     #[test]
     pub async fn hello_world() {
-        let settings = PostgresConnectionSettings {
-            password: "passw0rd".to_string(),
-            port: 5415,
-            ..Default::default()
-        };
-
-        let mut client = new_client(settings).await.unwrap();
+        let mut client = new_client(get_settings()).await.unwrap();
 
         let mut query_result = client.query("select 2147483647::int4; select 1::int4", &[]).await.unwrap();
         {

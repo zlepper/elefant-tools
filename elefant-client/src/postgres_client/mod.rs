@@ -1,5 +1,6 @@
 mod establish;
 mod query;
+mod data_types;
 
 use std::borrow::Cow;
 use futures::{AsyncRead, AsyncWrite, AsyncBufRead};
@@ -8,7 +9,8 @@ use crate::{protocol, ElefantClientError, PostgresConnectionSettings};
 use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, PostgresConnection, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter};
 use crate::protocol::sasl::ChannelBinding;
 
-pub use query::{QueryResultSet, PostgresDataRow, QueryResult, FromSql, RowResultReader, ToSql};
+pub use query::{QueryResultSet, PostgresDataRow, QueryResult,  RowResultReader};
+pub use data_types::{FromSql, ToSql, FromSqlOwned};
 
 pub struct PostgresClient<C> {
     pub(crate) connection: PostgresConnection<C>,

@@ -1,11 +1,12 @@
-use crate::postgres_client::PostgresClient;
-use crate::protocol::{BackendMessage, FieldDescription, FrontendMessage, Query, RowDescription};
+use crate::postgres_client::{FromSql, PostgresClient};
+use crate::protocol::{BackendMessage, FieldDescription, FrontendMessage, Query, RowDescription, ValueFormat};
 use crate::{protocol, ElefantClientError};
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use std::borrow::Cow;
 use std::error::Error;
 use std::marker::PhantomData;
 use tracing::{debug, info};
+use crate::postgres_client::data_types::ToSql;
 
 macro_rules! reborrow_until_polonius {
     ($e:expr) => {
@@ -156,31 +157,45 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
 }
 
 
-pub trait FromSql<'a>: Sized {
-    fn from_sql_binary(
-        raw: &'a [u8],
-        field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>>;
-
-    fn from_sql_text(
-        raw: &'a str,
-        field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>>;
-
-    fn accepts(field: &FieldDescription) -> bool;
-}
-
-pub trait ToSql {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Vec<u8>;
-}
-
 pub struct PostgresDataRow<'postgres_client, 'row_result_reader> {
     row_description: &'row_result_reader RowDescription,
     data_row: protocol::DataRow<'postgres_client>,
 }
 
-impl PostgresDataRow<'_, '_> {
+impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
     pub fn get_some_bytes(&self) -> &[Option<&[u8]>] {
         &self.data_row.values
     }
+    
+    pub fn get<T>(&self, index: usize) -> Result<T, ElefantClientError> 
+    where T: FromSql<'postgres_client>
+    {
+        let field = &self.row_description.fields[index];
+        let raw = self.data_row.values[index].unwrap();
+        if !T::accepts(field) {
+            return Err(ElefantClientError::UnsupportedFieldType {
+                postgres_field: field.clone(),
+                desired_rust_type: std::any::type_name::<T>(),
+            })
+        }
+        
+        let value = match field.format {
+            ValueFormat::Text => {
+                let raw_str = std::str::from_utf8(raw).map_err(|e| ElefantClientError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
+                T::from_sql_text(raw_str, field).map_err(|e| ElefantClientError::DataTypeParseError {
+                    original_error: e,
+                    column_index: index,
+                })?
+            }
+            ValueFormat::Binary => {
+                T::from_sql_binary(raw, field).map_err(|e| ElefantClientError::DataTypeParseError {
+                    original_error: e,
+                    column_index: index,
+                })?
+            }
+        };
+        
+        Ok(value)
+    }
+    
 }

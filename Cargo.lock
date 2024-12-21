@@ -329,6 +329,7 @@ dependencies = [
  "stringprep",
  "tokio",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]

@@ -130,7 +130,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
             };
             
             fields.push(FieldDescription {
-                name,
+                name: name.to_string(),
                 table_oid,
                 column_attribute_number,
                 data_type_oid,

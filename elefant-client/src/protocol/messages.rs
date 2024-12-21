@@ -35,7 +35,7 @@ pub enum BackendMessage<'a> {
     ParseComplete,
     PortalSuspended,
     ReadyForQuery(ReadyForQuery),
-    RowDescription(RowDescription<'a>),
+    RowDescription(RowDescription),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -138,14 +138,14 @@ pub struct ParameterStatus<'a> {
     pub value: Cow<'a, str>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct RowDescription<'a> {
-    pub fields: Vec<FieldDescription<'a>>,
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct RowDescription {
+    pub fields: Vec<FieldDescription>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct FieldDescription<'a> {
-    pub name: Cow<'a, str>,
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct FieldDescription {
+    pub name: String,
     pub table_oid: i32,
     pub column_attribute_number: i16,
     pub data_type_oid: i32,
@@ -185,7 +185,7 @@ pub struct Bind<'a> {
     pub result_column_formats: Vec<ValueFormat>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ValueFormat {
     Text,
     Binary,

@@ -1,5 +1,5 @@
 use std::io::Error;
-use crate::protocol::PostgresConnection;
+use crate::protocol::{BackendMessage, PostgresConnection};
 
 mod protocol;
 #[cfg(feature = "tokio")]
@@ -10,7 +10,12 @@ mod postgres_client;
 pub enum ElefantClientError {
     IoError(std::io::Error),
     PostgresMessageParseError(protocol::PostgresMessageParseError),
+    UnexpectedBackendMessage(String),
+    PostgresError(String),
+    ClientIsNotReadyForQuery,
 }
+
+
 
 impl From<std::io::Error> for ElefantClientError {
     fn from(value: Error) -> Self {

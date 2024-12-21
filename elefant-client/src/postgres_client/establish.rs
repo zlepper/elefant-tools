@@ -11,6 +11,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
             parameters: vec![
                 StartupMessageParameter::new("user", &self.settings.user),
                 StartupMessageParameter::new("database", &self.settings.database),
+                StartupMessageParameter::new("client_encoding", "UTF8"),
             ]
         })).await?;
         self.connection.flush().await?;
@@ -85,6 +86,25 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
             }
         }
 
+        
+        
+        loop {
+            let msg = self.connection.read_backend_message().await?;
+
+            match msg {
+                BackendMessage::ParameterStatus(_) => {
+                },
+                BackendMessage::BackendKeyData(_) => {
+                },
+                BackendMessage::ReadyForQuery(_) => {
+                    self.ready_for_query = true;
+                    break;
+                },
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                }
+            }
+        }
 
         Ok(())
     }

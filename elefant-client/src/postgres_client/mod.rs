@@ -45,6 +45,34 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         }
     }
 
+
+    pub async fn reset(&mut self) -> Result<(), ElefantClientError> {
+        if !self.ready_for_query {
+            loop {
+                match self.connection.read_backend_message().await {
+                    Err(protocol::PostgresMessageParseError::IoError(io_err)) => {
+                        return Err(ElefantClientError::IoError(io_err));
+                    }
+                    Err(e) => {
+                        debug!("Ignoring error while resetting elefant client: {:?}", e);
+                    }
+                    Ok(msg) => match msg {
+                        BackendMessage::ReadyForQuery(_) => {
+                            self.ready_for_query = true;
+                            break;
+                        }
+                        _ => {
+                            debug!("Ignoring message while resetting elefant client: {:?}", msg);
+                        }
+                    },
+                }
+            }
+        }
+
+        // TODO: Handle being in a transaction.
+        Ok(())
+    }
+
     pub(crate) async fn new(connection: PostgresConnection<C>, settings: PostgresConnectionSettings) -> Result<Self, ElefantClientError> {
         let mut client = Self {
             connection,

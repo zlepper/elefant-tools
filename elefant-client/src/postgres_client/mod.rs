@@ -16,6 +16,7 @@ pub struct PostgresClient<C> {
     pub(crate) connection: PostgresConnection<C>,
     pub(crate) settings: PostgresConnectionSettings,
     pub(crate) ready_for_query: bool,
+    write_buffer: Vec<u8>,
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
@@ -80,6 +81,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
             connection,
             settings,
             ready_for_query: false,
+            write_buffer: Vec::new(),
         };
 
         client.establish().await?;

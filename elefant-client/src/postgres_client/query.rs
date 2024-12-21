@@ -35,7 +35,80 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                 .await?;
             self.connection.flush().await?;
         } else {
-            todo!("Implement parameterized queries");
+            
+            self.connection.write_frontend_message(&FrontendMessage::Parse(protocol::Parse {
+                destination: Cow::Borrowed(""), 
+                query: Cow::Borrowed(query),
+                parameter_types: vec![],
+            })).await?;
+            self.connection.flush().await?;
+            
+            loop {
+                let msg = self.connection.read_backend_message().await?;
+                
+                match msg {
+                    BackendMessage::ParseComplete => {
+                        break;
+                    },
+                    BackendMessage::ErrorResponse(er) => {
+                        return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                    },
+                    BackendMessage::NoticeResponse(nr) => {
+                        info!("Notice from postgres: {:?}", nr);
+                    },
+                    _ => {
+                        return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                    }
+                }
+            }
+            
+            let mut parameter_values: Vec<Option<&[u8]>> = Vec::with_capacity(parameters.len());
+            self.write_buffer.clear();
+
+            let mut parameter_positions = Vec::with_capacity(parameters.len());
+            
+            for param in parameters.iter() {
+                let start_index = self.write_buffer.len();
+                param.to_sql_binary(&mut self.write_buffer);
+                let end_index = self.write_buffer.len();
+                parameter_positions.push((start_index, end_index));
+            }
+            
+            for (start_index, end_index) in parameter_positions {
+                // TODO: Figure out how to handle `None`/NULL values.
+                parameter_values.push(Some(&self.write_buffer[start_index..end_index]));
+            }
+            
+            
+            self.connection.write_frontend_message(&FrontendMessage::Bind(protocol::Bind {
+                source_statement_name: Cow::Borrowed(""),
+                destination_portal_name: Cow::Borrowed(""),
+                parameter_values,
+                result_column_formats: vec![ValueFormat::Binary],
+                parameter_formats: vec![ValueFormat::Binary],
+            })).await?;
+            self.connection.flush().await?;
+            
+            loop {
+                let msg = self.connection.read_backend_message().await?;
+                
+                match msg {
+                    BackendMessage::BindComplete => {
+                        break;
+                    },
+                    BackendMessage::ErrorResponse(er) => {
+                        return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                    },
+                    BackendMessage::NoticeResponse(nr) => {
+                        info!("Notice from postgres: {:?}", nr);
+                    },
+                    _ => {
+                        return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                    }
+                }
+            }
+            
+            
         }
 
         Ok(QueryResult { client: self })

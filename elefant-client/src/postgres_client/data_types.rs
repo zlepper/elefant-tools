@@ -22,7 +22,7 @@ pub trait FromSqlOwned: for<'a> FromSql<'a> {}
 impl<T> FromSqlOwned for T where T: for<'a> FromSql<'a> {}
 
 pub trait ToSql {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Vec<u8>;
+    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>);
 }
 
 impl<'a> FromSql<'a> for i16 {

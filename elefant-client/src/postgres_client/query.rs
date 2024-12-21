@@ -7,13 +7,24 @@ use std::error::Error;
 use std::marker::PhantomData;
 use tracing::{debug, info};
 
+macro_rules! reborrow_until_polonius {
+    ($e:expr) => {
+        unsafe {
+            // This gets around the borrow checker not supporting releasing the borrow because
+            // it is only kept alive in the return statement. This should all be solved when polonius is a thing
+            // properly, but for now this is the best way to go.
+            &mut *(($e) as *mut _)
+        }
+    };
+}
+
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub async fn query(
         &mut self,
         query: &str,
         parameters: &[&(dyn ToSql + Sync)],
     ) -> Result<QueryResult<C>, ElefantClientError> {
-        self.start_new_query()?;
+        self.start_new_query().await?;
 
         if parameters.is_empty() {
             self.connection
@@ -67,11 +78,10 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
     pub async fn next_result_set<'query_result>(
         &'query_result mut self,
     ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError>
-    where
-        'query_result: 'postgres_client,
     {
         loop {
-            let msg = self.client.connection.read_backend_message().await?;
+            let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
+            let msg = client.connection.read_backend_message().await?;
 
             match msg {
                 BackendMessage::CommandComplete(cc) => {
@@ -79,7 +89,7 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
                 }
                 BackendMessage::RowDescription(rd) => {
                     return Ok(QueryResultSet::RowDescriptionReceived(RowResultReader {
-                        client: self.client,
+                        client,
                         row_description: rd,
                         query_result_res: PhantomData,
                     }));
@@ -133,16 +143,9 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
     pub async fn next_row<'row_result_reader>(
         &'row_result_reader mut self,
     ) -> Result<Option<PostgresDataRow<'postgres_client, 'row_result_reader>>, ElefantClientError>
-    where
-        'row_result_reader: 'postgres_client,
     {
         loop {
-            let client: &mut PostgresClient<C> = unsafe {
-                // This gets around the borrow checker not supporting releasing the borrow because
-                // it is only kept alive in the return statement. This should all be solved when polonius is a thing
-                // properly, but for now this is the best way to go.
-                &mut *(self.client as *mut _)
-            };
+            let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
             let msg = client.connection.read_backend_message().await?;
 
             match msg {
@@ -151,6 +154,10 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
                         row_description: &self.row_description,
                         data_row: dr,
                     }));
+                },
+                BackendMessage::CommandComplete(cc) => {
+                    debug!("Command complete: {:?}", cc);
+                    return Ok(None);
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
                     println!("Ready for query: {:?}", rfq);
@@ -174,17 +181,18 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
     }
 }
 
+
 pub trait FromSql<'a>: Sized {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>>;
-    
+
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>>;
-    
+
     fn accepts(field: &FieldDescription) -> bool;
 }
 

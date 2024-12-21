@@ -12,7 +12,6 @@ pub enum ElefantClientError {
     PostgresMessageParseError(protocol::PostgresMessageParseError),
     UnexpectedBackendMessage(String),
     PostgresError(String),
-    ClientIsNotReadyForQuery,
 }
 
 

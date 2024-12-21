@@ -3,7 +3,8 @@ mod query;
 
 use std::borrow::Cow;
 use futures::{AsyncRead, AsyncWrite, AsyncBufRead};
-use crate::{ElefantClientError, PostgresConnectionSettings};
+use tracing::{debug, trace};
+use crate::{protocol, ElefantClientError, PostgresConnectionSettings};
 use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, PostgresConnection, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter};
 use crate::protocol::sasl::ChannelBinding;
 
@@ -16,24 +17,43 @@ pub struct PostgresClient<C> {
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub(crate) fn start_new_query(&mut self) -> Result<(), ElefantClientError> {
+    pub(crate) async fn start_new_query(&mut self) -> Result<(), ElefantClientError> {
         if self.ready_for_query {
             self.ready_for_query = false;
             Ok(())
         } else {
-            Err(ElefantClientError::ClientIsNotReadyForQuery)
+
+            loop {
+                match self.connection.read_backend_message().await {
+                    Err(protocol::PostgresMessageParseError::IoError(io_err)) => {
+                        return Err(ElefantClientError::IoError(io_err));
+                    }
+                    Err(e) => {
+                        debug!("Ignoring error while starting new query: {:?}", e);
+                    }
+                    Ok(msg) => match msg {
+                        BackendMessage::ReadyForQuery(_) => {
+                            self.ready_for_query = true;
+                            return Ok(())
+                        }
+                        _ => {
+                            trace!("Ignoring message while starting new query: {:?}", msg);
+                        }
+                    },
+                }
+            }
         }
     }
-    
+
     pub(crate) async fn new(connection: PostgresConnection<C>, settings: PostgresConnectionSettings) -> Result<Self, ElefantClientError> {
         let mut client = Self {
             connection,
             settings,
             ready_for_query: false,
         };
-        
+
         client.establish().await?;
-        
+
         Ok(client)
     }
 }

@@ -1,5 +1,5 @@
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
-use crate::postgres_client::{FromSql, PostgresClient, QueryResultSet, Statement};
+use crate::postgres_client::{FromSql, PostgresClient, QueryResultSet, Statement, ToSql};
 use crate::PostgresConnectionSettings;
 use crate::protocol::PostgresConnection;
 
@@ -12,12 +12,12 @@ pub(crate) fn get_settings() -> PostgresConnectionSettings {
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub async fn read_single_column_and_row<'a, S, T>(&'a mut self, sql: &S) -> T
+    pub async fn read_single_column_and_row<'a, S, T>(&'a mut self, sql: &S, parameters: &[&(dyn ToSql)]) -> T
     where T: FromSql<'a>,
         S: Statement + ?Sized
     {
 
-        let mut query_result = self.query(sql, &[]).await.unwrap();
+        let mut query_result = self.query(sql, parameters).await.unwrap();
 
         let result_set = query_result.next_result_set().await.unwrap();
 
@@ -52,8 +52,6 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
 
 
         value
-
-
-
     }
+    
 }

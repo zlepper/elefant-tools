@@ -24,19 +24,11 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub async fn query<'postgres_client, 'query, 'parameters, S>(
         &'postgres_client mut self,
         query: &'query S,
-        parameters: &'parameters [&(dyn ToSql + Sync)],
+        parameters: &'parameters [&(dyn ToSql)],
     ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> where
         S: Statement + ?Sized
     {
-        self.start_new_query().await?;
-
-
-        query.send(self, parameters).await?;
-
-        Ok(QueryResult {
-            client: self,
-            prepared_query_result: query.get_prepared_query_result(),
-        })
+        query.send(self, parameters).await
     }
 
     pub async fn prepare_query(&mut self, query: &str) -> Result<PreparedQuery, ElefantClientError> {
@@ -51,7 +43,6 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     async fn prepare_with_name(&mut self, query: &str, name: Option<String>) -> Result<PreparedQuery, ElefantClientError> {
 
         self.start_new_query().await?;
-        self.sync_required = true;
 
         let destination = name.as_ref().map(|n| Cow::Borrowed(n.as_ref())).unwrap_or(Cow::Borrowed(""));
 
@@ -341,8 +332,7 @@ pub struct PreparedQuery {
 trait Sealed {}
 
 pub trait Statement: Sealed {
-    async fn send<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &mut PostgresClient<C>, parameters: &[&(dyn ToSql + Sync)]) -> Result<(), ElefantClientError>;
-    fn get_prepared_query_result(&self) -> Option<Rc<PreparedQueryResult>>;
+    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &'postgres_client mut PostgresClient<C>, parameters: &[&(dyn ToSql)]) -> Result<QueryResult<'postgres_client, C>, ElefantClientError>;
 }
 
 impl Sealed for PreparedQuery {
@@ -350,8 +340,11 @@ impl Sealed for PreparedQuery {
 }
 
 impl Statement for PreparedQuery {
-    async fn send<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &mut PostgresClient<C>, parameters: &[&(dyn ToSql + Sync)]) -> Result<(), ElefantClientError> {
+    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &'postgres_client mut PostgresClient<C>, parameters: &[&(dyn ToSql)]) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> {
 
+        client.start_new_query().await?;
+        client.sync_required = true;
+        
         let mut parameter_values: Vec<Option<&[u8]>> = Vec::with_capacity(parameters.len());
         client.write_buffer.clear();
 
@@ -405,34 +398,35 @@ impl Statement for PreparedQuery {
             }
         }
 
-        Ok(())
-    }
 
-    fn get_prepared_query_result(&self) -> Option<Rc<PreparedQueryResult>> {
-        Some(self.result.clone())
+        Ok(QueryResult {
+            client,
+            prepared_query_result: Some(self.result.clone()),
+        })
     }
 }
 
 impl Sealed for str {}
 
 impl Statement for str {
-    async fn send<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &mut PostgresClient<C>, parameters: &[&(dyn ToSql + Sync)]) -> Result<(), ElefantClientError> {
+    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &'postgres_client mut PostgresClient<C>, parameters: &[&(dyn ToSql)]) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> {
         if parameters.is_empty() {
+            client.start_new_query().await?;
             client.connection
                 .write_frontend_message(&FrontendMessage::Query(Query {
                     query: Cow::Borrowed(self),
                 }))
                 .await?;
             client.connection.flush().await?;
+
+
+            Ok(QueryResult {
+                client,
+                prepared_query_result: None,
+            })
         } else {
             let prepared_query = client.prepare_with_name(self, None).await?;
-            prepared_query.send(client, parameters).await?;
+            prepared_query.send(client, parameters).await
         }
-
-        Ok(())
-    }
-
-    fn get_prepared_query_result(&self) -> Option<Rc<PreparedQueryResult>> {
-        None
     }
 }

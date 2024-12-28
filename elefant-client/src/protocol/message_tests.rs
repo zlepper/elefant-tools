@@ -107,6 +107,15 @@ async fn round_trip_bind_message() {
         result_column_formats: vec![],
     }))
     .await;
+    
+    assert_frontend_message_round_trip(FrontendMessage::Bind(Bind {
+        destination_portal_name: "".into(),
+        source_statement_name: "".into(),
+        parameter_formats: vec![ValueFormat::Binary],
+        parameter_values: vec![Some(&[1, 2, 3])],
+        result_column_formats: vec![ValueFormat::Binary],
+    }))
+    .await;
 }
 
 #[test]

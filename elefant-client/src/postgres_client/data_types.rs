@@ -14,7 +14,7 @@ pub trait FromSql<'a>: Sized {
     ) -> Result<Self, Box<dyn Error + Sync + Send>>;
 
     fn accepts(field: &FieldDescription) -> bool;
-    
+
     fn from_null(field: &FieldDescription) -> Result<Self, ElefantClientError> {
         Err(ElefantClientError::UnexpectedNullValue {
             postgres_field: field.clone(),
@@ -29,7 +29,10 @@ pub trait FromSqlOwned: for<'a> FromSql<'a> {}
 impl<T> FromSqlOwned for T where T: for<'a> FromSql<'a> {}
 
 pub trait ToSql {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>);
+    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>>;
+    fn is_null(&self) -> bool {
+        false
+    }
 }
 
 pub trait PostgresNamedType {
@@ -65,8 +68,9 @@ impl PostgresNamedType for i16 {
 }
 
 impl ToSql for i16 {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) {
+    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
         target_buffer.extend_from_slice(&self.to_be_bytes());
+        Ok(())
     }
 }
 
@@ -84,9 +88,24 @@ where T : FromSql<'a>
     fn accepts(field: &FieldDescription) -> bool {
         T::accepts(field)
     }
-    
+
     fn from_null(_field: &FieldDescription) -> Result<Self, ElefantClientError> {
         Ok(None)
+    }
+}
+
+impl<T> ToSql for Option<T>
+    where T: ToSql
+{
+    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
+        match self {
+            Some(value) => value.to_sql_binary(target_buffer),
+            None => Err("Cannot convert None to binary representation. This case should never happens and should be considered a bug in the ElefantClient library. Please create an issue on GitHub.".into())
+        }
+    }
+    
+    fn is_null(&self) -> bool {
+        self.is_none()
     }
 }
 
@@ -185,24 +204,34 @@ mod tests {
 
 
             let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
-            
+
             assert_eq!(value, Some(42));
-            
+
             helper.exec("delete from test_table; insert into test_table values (null);").await;
 
             let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
-            
+
             assert_eq!(value, None);
-            
+
             let result = helper.client.read_single_value::<i16>("select value from test_table;", &[]).await;
-            
-            
+
             if let Err(ElefantClientError::UnexpectedNullValue {postgres_field}) = result {
                 assert_eq!(postgres_field.column_attribute_number, 1);
-                
             } else {
                 panic!("Expected UnexpectedNullValue error, got {:?}", result);
             }
+            
+            helper.exec("delete from test_table;").await;
+            
+            helper.client.execute_non_query("insert into test_table values ($1);", &[&None::<i16>]).await.unwrap();
+            let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
+            assert_eq!(value, None);
+            
+            helper.exec("delete from test_table;").await;
+            
+            helper.client.execute_non_query("insert into test_table values ($1);", &[&Some(42i16)]).await.unwrap();
+            let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
+            assert_eq!(value, Some(42));
         }
         
     }

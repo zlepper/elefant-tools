@@ -203,7 +203,6 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
                     return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
-                    println!("Ready for query: {:?}", rfq);
                     self.client.ready_for_query = true;
                     return Ok(QueryResultSet::QueryProcessingComplete);
                 }
@@ -256,7 +255,6 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
                     return Ok(None);
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
-                    println!("Ready for query: {:?}", rfq);
                     self.client.ready_for_query = true;
                     return Ok(None);
                 }
@@ -354,15 +352,22 @@ impl Statement for PreparedQuery {
         let mut parameter_positions = Vec::with_capacity(parameters.len());
 
         for param in parameters.iter() {
+            if param.is_null() {
+                parameter_positions.push(None);
+                continue;
+            }
             let start_index = client.write_buffer.len();
-            param.to_sql_binary(&mut client.write_buffer);
+            param.to_sql_binary(&mut client.write_buffer).map_err(|e| ElefantClientError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
             let end_index = client.write_buffer.len();
-            parameter_positions.push((start_index, end_index));
+            parameter_positions.push(Some((start_index, end_index)));
         }
 
-        for (start_index, end_index) in parameter_positions {
-            // TODO: Figure out how to handle `None`/NULL values.
-            parameter_values.push(Some(&client.write_buffer[start_index..end_index]));
+        for position in parameter_positions {
+            if let Some((start_index, end_index)) = position {
+                parameter_values.push(Some(&client.write_buffer[start_index..end_index]));
+            } else {
+                parameter_values.push(None);
+            }
         }
 
 

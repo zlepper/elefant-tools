@@ -78,7 +78,6 @@ where T : FromSql<'a>
     }
 
     fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
-
         T::from_sql_text(raw, field).map(Some)
     }
 
@@ -102,6 +101,7 @@ mod tests {
         use crate::test_helpers::get_settings;
         use crate::tokio_connection::{new_client, TokioPostgresClient};
         use tokio::test;
+        use crate::ElefantClientError;
         use crate::postgres_client::data_types::PostgresNamedType;
 
         struct DataReaderTest {
@@ -193,6 +193,16 @@ mod tests {
             let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
             
             assert_eq!(value, None);
+            
+            let result = helper.client.read_single_value::<i16>("select value from test_table;", &[]).await;
+            
+            
+            if let Err(ElefantClientError::UnexpectedNullValue {postgres_field}) = result {
+                assert_eq!(postgres_field.column_attribute_number, 1);
+                
+            } else {
+                panic!("Expected UnexpectedNullValue error, got {:?}", result);
+            }
         }
         
     }

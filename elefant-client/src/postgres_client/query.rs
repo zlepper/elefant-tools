@@ -21,12 +21,11 @@ macro_rules! reborrow_until_polonius {
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub async fn query<'postgres_client, 'query, 'parameters, S>(
-        &'postgres_client mut self,
-        query: &'query S,
-        parameters: &'parameters [&(dyn ToSql)],
-    ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> where
-        S: Statement + ?Sized
+    pub async fn query(
+        &mut self,
+        query: &(impl Statement + ?Sized),
+        parameters: &[&(dyn ToSql)],
+    ) -> Result<QueryResult<C>, ElefantClientError>
     {
         query.send(self, parameters).await
     }
@@ -129,7 +128,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                 }
             };
         };
-        
+
         self.ready_for_query = true;
 
         Ok(PreparedQuery {
@@ -293,7 +292,7 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
     where T: FromSql<'postgres_client>
     {
         let field = &self.row_description.fields[index];
-        
+
         if !T::accepts(field) {
             return Err(ElefantClientError::UnsupportedFieldType {
                 postgres_field: field.clone(),
@@ -348,7 +347,7 @@ impl Statement for PreparedQuery {
 
         client.start_new_query().await?;
         client.sync_required = true;
-        
+
         let mut parameter_values: Vec<Option<&[u8]>> = Vec::with_capacity(parameters.len());
         client.write_buffer.clear();
 
@@ -366,7 +365,7 @@ impl Statement for PreparedQuery {
             parameter_values.push(Some(&client.write_buffer[start_index..end_index]));
         }
 
-        
+
         let source_statement_name = self.name.as_ref().map(|n| Cow::Borrowed(n.as_str())).unwrap_or(Cow::Borrowed(""));
 
         client.connection.write_frontend_message(&FrontendMessage::Bind(protocol::Bind {

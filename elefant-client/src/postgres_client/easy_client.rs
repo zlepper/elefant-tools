@@ -3,13 +3,12 @@ use crate::ElefantClientError;
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub async fn read_single_value<S, T>(
+    pub async fn read_single_value<T>(
         &mut self,
-        query: &S,
+        query: &(impl Statement + ?Sized),
         parameters: &[&(dyn ToSql)],
     ) -> Result<T, ElefantClientError>
     where
-        S: Statement + ?Sized,
         T: FromSqlOwned,
     {
         let mut query_result = self.query(query, parameters).await?;

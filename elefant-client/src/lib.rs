@@ -22,7 +22,11 @@ pub enum ElefantClientError {
     DataTypeParseError {
         original_error: Box<dyn Error>,
         column_index: usize,
-    }
+    },
+    NoResultsReturned,
+    UnexpectedNullValue {
+        postgres_field: FieldDescription,
+    },
 }
 
 
@@ -59,6 +63,12 @@ impl Display for ElefantClientError {
             }
             ElefantClientError::DataTypeParseError{column_index, original_error} => {
                 write!(f, "Error while parsing response data: {:?} as index {}", original_error, column_index)
+            },
+            ElefantClientError::NoResultsReturned => {
+                write!(f, "No results returned from query.")
+            },
+            ElefantClientError::UnexpectedNullValue {postgres_field} => {
+                write!(f, "Unexpected null value when processing field: {:?}.", postgres_field)
             }
         }
     }

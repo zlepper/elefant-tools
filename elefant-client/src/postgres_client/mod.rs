@@ -1,6 +1,7 @@
 mod establish;
 mod query;
 mod data_types;
+mod easy_client;
 
 use std::borrow::Cow;
 use std::sync::atomic::AtomicU64;
@@ -25,7 +26,7 @@ pub struct PostgresClient<C> {
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub(crate) async fn start_new_query(&mut self) -> Result<(), ElefantClientError> {
-        
+
         if !self.ready_for_query {
             if self.sync_required {
                 self.connection.write_frontend_message(&FrontendMessage::Sync).await?;
@@ -53,7 +54,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                 }
             }
         }
-        
+
         self.ready_for_query = false;
         Ok(())
     }

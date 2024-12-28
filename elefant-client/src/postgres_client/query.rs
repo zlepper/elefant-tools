@@ -293,31 +293,35 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
     where T: FromSql<'postgres_client>
     {
         let field = &self.row_description.fields[index];
-        let raw = self.data_row.values[index].unwrap();
+        
         if !T::accepts(field) {
             return Err(ElefantClientError::UnsupportedFieldType {
                 postgres_field: field.clone(),
                 desired_rust_type: std::any::type_name::<T>(),
             })
         }
-        
-        let value = match field.format {
-            ValueFormat::Text => {
-                let raw_str = std::str::from_utf8(raw).map_err(|e| ElefantClientError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
-                T::from_sql_text(raw_str, field).map_err(|e| ElefantClientError::DataTypeParseError {
-                    original_error: e,
-                    column_index: index,
-                })?
-            }
-            ValueFormat::Binary => {
-                T::from_sql_binary(raw, field).map_err(|e| ElefantClientError::DataTypeParseError {
-                    original_error: e,
-                    column_index: index,
-                })?
-            }
-        };
-        
-        Ok(value)
+
+        if let Some(raw) = self.data_row.values[index] {
+            let value = match field.format {
+                ValueFormat::Text => {
+                    let raw_str = std::str::from_utf8(raw).map_err(|e| ElefantClientError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))?;
+                    T::from_sql_text(raw_str, field).map_err(|e| ElefantClientError::DataTypeParseError {
+                        original_error: e,
+                        column_index: index,
+                    })?
+                }
+                ValueFormat::Binary => {
+                    T::from_sql_binary(raw, field).map_err(|e| ElefantClientError::DataTypeParseError {
+                        original_error: e,
+                        column_index: index,
+                    })?
+                }
+            };
+
+            Ok(value)
+        } else {
+            T::from_null(field)
+        }
     }
     
 }

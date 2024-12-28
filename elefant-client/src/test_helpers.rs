@@ -12,7 +12,7 @@ pub(crate) fn get_settings() -> PostgresConnectionSettings {
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub async fn read_single_column_and_row<'a, S, T>(&'a mut self, sql: &S, parameters: &[&(dyn ToSql)]) -> T
+    pub async fn read_single_column_and_row_exactly<'a, S, T>(&'a mut self, sql: &S, parameters: &[&(dyn ToSql)]) -> T
     where T: FromSql<'a>,
         S: Statement + ?Sized
     {

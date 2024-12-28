@@ -1,5 +1,6 @@
 use crate::protocol::FieldDescription;
 use std::error::Error;
+use crate::ElefantClientError;
 
 pub trait FromSql<'a>: Sized {
     fn from_sql_binary(
@@ -13,6 +14,12 @@ pub trait FromSql<'a>: Sized {
     ) -> Result<Self, Box<dyn Error + Sync + Send>>;
 
     fn accepts(field: &FieldDescription) -> bool;
+    
+    fn from_null(field: &FieldDescription) -> Result<Self, ElefantClientError> {
+        Err(ElefantClientError::UnexpectedNullValue {
+            postgres_field: field.clone(),
+        })
+    }
 }
 /// A trait for types which can be created from a Postgres value without borrowing any data.
 ///
@@ -37,7 +44,7 @@ impl<'a> FromSql<'a> for i16 {
         if raw.len() != 2 {
             return Err(format!("Invalid length for i16. Expected 2 bytes, got {} bytes instead. Error occurred when parsing field {:?}", raw.len(), field).into());
         }
-        
+
         Ok(i16::from_be_bytes(raw.try_into().unwrap()))
     }
 
@@ -63,6 +70,26 @@ impl ToSql for i16 {
     }
 }
 
+impl<'a, T> FromSql<'a> for Option<T>
+where T : FromSql<'a>
+{
+    fn from_sql_binary(raw: &'a [u8], field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        T::from_sql_binary(raw, field).map(Some)
+    }
+
+    fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+
+        T::from_sql_text(raw, field).map(Some)
+    }
+
+    fn accepts(field: &FieldDescription) -> bool {
+        T::accepts(field)
+    }
+    
+    fn from_null(_field: &FieldDescription) -> Result<Self, ElefantClientError> {
+        Ok(None)
+    }
+}
 
 
 #[cfg(test)]
@@ -95,13 +122,13 @@ mod tests {
             {
                 let sql = format!("select '{}'::{};", value, cast_to);
 
-                let received_value: T = self.client.read_single_column_and_row(sql.as_str(), &[]).await;
+                let received_value: T = self.client.read_single_column_and_row_exactly(sql.as_str(), &[]).await;
 
                 assert_eq!(received_value, value);
 
                 let prepared_query = self.client.prepare_query(&sql).await.unwrap();
 
-                let received_value: T = self.client.read_single_column_and_row(&prepared_query, &[]).await;
+                let received_value: T = self.client.read_single_column_and_row_exactly(&prepared_query, &[]).await;
 
                 assert_eq!(received_value, value);
             }
@@ -118,9 +145,13 @@ mod tests {
             {
                 let sql = format!("select t.f::{0} from (select b.f::text from (select $1::{0} as f) as b) as t", T::PG_NAME);
 
-                let received_value: T = self.client.read_single_column_and_row(sql.as_str(), &[&value]).await;
+                let received_value: T = self.client.read_single_column_and_row_exactly(sql.as_str(), &[&value]).await;
 
                 assert_eq!(received_value, value);
+            }
+
+            pub async fn exec(&mut self, sql: &str) {
+                self.client.execute_non_query(sql, &[]).await.unwrap();
             }
         }
         
@@ -141,6 +172,27 @@ mod tests {
             helper.test_round_trip(i16::MIN).await;
             helper.test_round_trip(-1i16).await;
             helper.test_round_trip(0i16).await;
+        }
+
+        #[test]
+        async fn nullable_types() {
+            let mut helper = DataReaderTest::new().await;
+            helper.exec(r#"
+                    drop table if exists test_table;
+                    create table test_table(value int2);
+                    insert into test_table values (42);
+                    "#).await;
+
+
+            let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
+            
+            assert_eq!(value, Some(42));
+            
+            helper.exec("delete from test_table; insert into test_table values (null);").await;
+
+            let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
+            
+            assert_eq!(value, None);
         }
         
     }

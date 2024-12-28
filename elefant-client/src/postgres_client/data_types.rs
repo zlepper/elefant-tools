@@ -13,6 +13,8 @@ pub trait FromSql<'a>: Sized {
     ) -> Result<Self, Box<dyn Error + Sync + Send>>;
 
     fn accepts(field: &FieldDescription) -> bool;
+    
+    const PG_NAME: &'static str;
 }
 /// A trait for types which can be created from a Postgres value without borrowing any data.
 ///
@@ -45,8 +47,10 @@ impl<'a> FromSql<'a> for i16 {
     }
 
     fn accepts(field: &FieldDescription) -> bool {
-        field.name.as_str() == "int2"
+        field.name.as_str() == Self::PG_NAME
     }
+    
+    const PG_NAME: &'static str = "int2";
 }
 
 #[cfg(test)]
@@ -72,11 +76,11 @@ mod tests {
 
 
 
-            pub async fn test_read<T>(&mut self, value: T, cast_to: &str)
+            pub async fn test_read_special_cast<T>(&mut self, value: T, cast_to: &str)
             where
                 T: FromSqlOwned + Display + Eq + Debug,
             {
-                let sql = format!("select {}::{};", value, cast_to);
+                let sql = format!("select '{}'::{};", value, cast_to);
 
                 let received_value: T = self.client.read_single_column_and_row(sql.as_str()).await;
 
@@ -88,6 +92,13 @@ mod tests {
                 
                 assert_eq!(received_value, value);
             }
+            
+            pub async fn test_read<T>(&mut self, value: T)
+            where
+                T: FromSqlOwned + Display + Eq + Debug,
+            {
+                self.test_read_special_cast(value, T::PG_NAME).await
+            }
         }
         
         #[test]
@@ -95,9 +106,11 @@ mod tests {
 
             let mut helper = DataReaderTest::new().await;
 
-            helper.test_read(1i16, "int2").await;
-            helper.test_read(1i16, "smallint").await;
-            helper.test_read(i16::MAX, "int2").await;
+            helper.test_read(1i16).await;
+            helper.test_read(i16::MAX).await;
+            helper.test_read(i16::MIN).await;
+            helper.test_read(-1i16).await;
+            helper.test_read_special_cast(1i16, "smallint").await;
         }
         
     }

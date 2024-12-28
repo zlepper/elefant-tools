@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use futures::{AsyncBufRead, AsyncRead, AsyncReadExt, AsyncWrite};
 use crate::protocol::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, CurrentTransactionStatus, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FieldDescription, FrontendMessage, FrontendPMessage, FunctionCall, FunctionCallResponse, NegotiateProtocolVersion, NotificationResponse, ParameterDescription, ParameterStatus, Parse, PostgresMessageParseError, Query, ReadyForQuery, RowDescription, StartupMessage, StartupMessageParameter, UndecidedFrontendPMessage, ValueFormat};
 use crate::protocol::io_extensions::{AsyncReadExt2, ByteSliceReader};
@@ -130,7 +131,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
             };
             
             fields.push(FieldDescription {
-                name: name.to_string(),
+                name: Rc::new(name.to_string()),
                 table_oid,
                 column_attribute_number,
                 data_type_oid,

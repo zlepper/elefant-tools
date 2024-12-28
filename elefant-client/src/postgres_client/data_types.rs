@@ -30,7 +30,11 @@ impl<'a> FromSql<'a> for i16 {
         raw: &'a [u8],
         field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        todo!()
+        if raw.len() != 2 {
+            return Err(format!("Invalid length for i16. Expected 2 bytes, got {} bytes instead. Error occurred when parsing field {:?}", raw.len(), field).into());
+        }
+        
+        Ok(i16::from_be_bytes([raw[0], raw[1]]))
     }
 
     fn from_sql_text(
@@ -41,7 +45,7 @@ impl<'a> FromSql<'a> for i16 {
     }
 
     fn accepts(field: &FieldDescription) -> bool {
-        field.name == "int2"
+        field.name.as_str() == "int2"
     }
 }
 
@@ -72,10 +76,16 @@ mod tests {
             where
                 T: FromSqlOwned + Display + Eq + Debug,
             {
-                let sql = format!("select {}::{}", value, cast_to);
+                let sql = format!("select {}::{};", value, cast_to);
 
-                let received_value = self.client.read_single_column_and_row::<T>(&sql).await;
+                let received_value: T = self.client.read_single_column_and_row(sql.as_str()).await;
 
+                assert_eq!(received_value, value);
+                
+                let prepared_query = self.client.prepare_query(&sql).await.unwrap();
+                
+                let received_value: T = self.client.read_single_column_and_row(&prepared_query).await;
+                
                 assert_eq!(received_value, value);
             }
         }
@@ -87,6 +97,7 @@ mod tests {
 
             helper.test_read(1i16, "int2").await;
             helper.test_read(1i16, "smallint").await;
+            helper.test_read(i16::MAX, "int2").await;
         }
         
     }

@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use crate::protocol::io_extensions::ByteSliceExt;
 use crate::protocol::messages::*;
 use futures::io::Cursor;
@@ -503,7 +504,7 @@ async fn round_trip_row_description() {
     assert_backend_message_round_trip(BackendMessage::RowDescription(RowDescription {
         fields: vec![
             FieldDescription {
-                name: "foo".into(),
+                name: Rc::new("foo".into()),
                 table_oid: 42,
                 column_attribute_number: 666,
                 data_type_oid: 42,
@@ -512,7 +513,7 @@ async fn round_trip_row_description() {
                 format: ValueFormat::Text,
             },
             FieldDescription {
-                name: "bar".into(),
+                name: Rc::new("bar".into()),
                 table_oid: 666,
                 column_attribute_number: 42,
                 data_type_oid: 666,
@@ -521,7 +522,7 @@ async fn round_trip_row_description() {
                 format: ValueFormat::Binary,
             },
             FieldDescription {
-                name: "bar".into(),
+                name: Rc::new("bar".into()),
                 table_oid: 0,
                 column_attribute_number: 0,
                 data_type_oid: 666,

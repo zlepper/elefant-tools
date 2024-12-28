@@ -5,6 +5,7 @@ use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use std::borrow::Cow;
 use std::error::Error;
 use std::marker::PhantomData;
+use std::rc::Rc;
 use tracing::{debug, info};
 use crate::postgres_client::data_types::ToSql;
 
@@ -20,104 +21,143 @@ macro_rules! reborrow_until_polonius {
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub async fn query(
-        &mut self,
-        query: &str,
-        parameters: &[&(dyn ToSql + Sync)],
-    ) -> Result<QueryResult<C>, ElefantClientError> {
+    pub async fn query<'postgres_client, 'query, 'parameters, S>(
+        &'postgres_client mut self,
+        query: &'query S,
+        parameters: &'parameters [&(dyn ToSql + Sync)],
+    ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> where
+        S: Statement + ?Sized
+    {
         self.start_new_query().await?;
 
-        if parameters.is_empty() {
-            self.connection
-                .write_frontend_message(&FrontendMessage::Query(Query {
-                    query: Cow::Borrowed(query),
-                }))
-                .await?;
-            self.connection.flush().await?;
-        } else {
-            
-            self.connection.write_frontend_message(&FrontendMessage::Parse(protocol::Parse {
-                destination: Cow::Borrowed(""), 
-                query: Cow::Borrowed(query),
-                parameter_types: vec![],
-            })).await?;
-            self.connection.flush().await?;
-            
-            loop {
-                let msg = self.connection.read_backend_message().await?;
-                
-                match msg {
-                    BackendMessage::ParseComplete => {
-                        break;
-                    },
-                    BackendMessage::ErrorResponse(er) => {
-                        return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
-                    },
-                    BackendMessage::NoticeResponse(nr) => {
-                        info!("Notice from postgres: {:?}", nr);
-                    },
-                    _ => {
-                        return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
-                    }
-                }
-            }
-            
-            let mut parameter_values: Vec<Option<&[u8]>> = Vec::with_capacity(parameters.len());
-            self.write_buffer.clear();
 
-            let mut parameter_positions = Vec::with_capacity(parameters.len());
-            
-            for param in parameters.iter() {
-                let start_index = self.write_buffer.len();
-                param.to_sql_binary(&mut self.write_buffer);
-                let end_index = self.write_buffer.len();
-                parameter_positions.push((start_index, end_index));
-            }
-            
-            for (start_index, end_index) in parameter_positions {
-                // TODO: Figure out how to handle `None`/NULL values.
-                parameter_values.push(Some(&self.write_buffer[start_index..end_index]));
-            }
-            
-            
-            self.connection.write_frontend_message(&FrontendMessage::Bind(protocol::Bind {
-                source_statement_name: Cow::Borrowed(""),
-                destination_portal_name: Cow::Borrowed(""),
-                parameter_values,
-                result_column_formats: vec![ValueFormat::Binary],
-                parameter_formats: vec![ValueFormat::Binary],
-            })).await?;
-            self.connection.flush().await?;
-            
-            loop {
-                let msg = self.connection.read_backend_message().await?;
-                
-                match msg {
-                    BackendMessage::BindComplete => {
-                        break;
-                    },
-                    BackendMessage::ErrorResponse(er) => {
-                        return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
-                    },
-                    BackendMessage::NoticeResponse(nr) => {
-                        info!("Notice from postgres: {:?}", nr);
-                    },
-                    _ => {
-                        return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
-                    }
-                }
-            }
-            
-            
-        }
+        query.send(self, parameters).await?;
 
-        Ok(QueryResult { client: self })
+        Ok(QueryResult {
+            client: self,
+            prepared_query_result: query.get_prepared_query_result(),
+        })
     }
 
+    pub async fn prepare_query(&mut self, query: &str) -> Result<PreparedQuery, ElefantClientError> {
+
+        self.prepared_query_counter += 1;
+
+        let name = format!("elefant_prepared_query_{}", self.prepared_query_counter);
+
+        self.prepare_with_name(query, Some(name)).await
+    }
+
+    async fn prepare_with_name(&mut self, query: &str, name: Option<String>) -> Result<PreparedQuery, ElefantClientError> {
+
+        self.start_new_query().await?;
+        self.sync_required = true;
+
+        let destination = name.as_ref().map(|n| Cow::Borrowed(n.as_ref())).unwrap_or(Cow::Borrowed(""));
+
+        self.connection.write_frontend_message(&FrontendMessage::Parse(protocol::Parse {
+            destination: destination.clone(),
+            query: Cow::Borrowed(query),
+            parameter_types: vec![],
+        })).await?;
+
+        self.connection.write_frontend_message(&FrontendMessage::Describe(protocol::Describe {
+            name: destination,
+            target: protocol::DescribeTarget::Statement,
+        })).await?;
+        self.connection.write_frontend_message(&FrontendMessage::Flush).await?;
+        self.connection.flush().await?;
+
+        loop {
+            let msg = self.connection.read_backend_message().await?;
+
+            match msg {
+                BackendMessage::ParseComplete => {
+                    break;
+                },
+                BackendMessage::ErrorResponse(er) => {
+                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                },
+                BackendMessage::NoticeResponse(nr) => {
+                    info!("Notice from postgres: {:?}", nr);
+                },
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                }
+            }
+        }
+
+        let parameter_description = loop {
+            let msg = self.connection.read_backend_message().await?;
+
+            match msg {
+                BackendMessage::ParameterDescription(pd) => {
+                    break pd;
+                },
+                BackendMessage::ErrorResponse(er) => {
+                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                },
+                BackendMessage::NoticeResponse(nr) => {
+                    info!("Notice from postgres: {:?}", nr);
+                },
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                }
+            };
+        };
+
+
+        let row_description = loop {
+            let msg = self.connection.read_backend_message().await?;
+
+            match msg {
+                BackendMessage::RowDescription(rd) => {
+                    break PreparedQueryResult::RowDescription(RowDescription {
+                        fields: rd.fields.iter().map(|f| FieldDescription {
+                            name: f.name.clone(),
+                            format: ValueFormat::Binary,
+                            data_type_oid: f.data_type_oid,
+                            data_type_size: f.data_type_size,
+                            type_modifier: f.type_modifier,
+                            table_oid: f.table_oid,
+                            column_attribute_number: f.column_attribute_number,
+                        }).collect()
+                    });
+                },
+                BackendMessage::NoData => {
+                    break PreparedQueryResult::NoData;
+                },
+                BackendMessage::ErrorResponse(er) => {
+                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                },
+                BackendMessage::NoticeResponse(nr) => {
+                    info!("Notice from postgres: {:?}", nr);
+                },
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                }
+            };
+        };
+        
+        self.ready_for_query = true;
+
+        Ok(PreparedQuery {
+            name,
+            client_id: self.client_id,
+            parameter_description,
+            result: Rc::new(row_description),
+        })
+    }
 }
 
-pub struct QueryResult<'a, C> {
-    client: &'a mut PostgresClient<C>,
+enum PreparedQueryResult {
+    RowDescription(protocol::RowDescription),
+    NoData,
+}
+
+pub struct QueryResult<'postgres_client, C> {
+    client: &'postgres_client mut PostgresClient<C>,
+    prepared_query_result: Option<Rc<PreparedQueryResult>>,
 }
 
 impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
@@ -127,6 +167,24 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
         &'query_result mut self,
     ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError>
     {
+        if let Some(prepared) = self.prepared_query_result.take() {
+            self.prepared_query_result = Some(Rc::new(PreparedQueryResult::NoData));
+            return match prepared.as_ref() {
+                PreparedQueryResult::RowDescription(rd) => {
+                    let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
+                    Ok(QueryResultSet::RowDescriptionReceived(RowResultReader {
+                        client,
+                        row_description: rd.clone(),
+                        query_result_res: PhantomData,
+                    }))
+                }
+                PreparedQueryResult::NoData => {
+                    Ok(QueryResultSet::QueryProcessingComplete)
+                }
+            }
+        }
+
+
         loop {
             let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
             let msg = client.connection.read_backend_message().await?;
@@ -271,4 +329,110 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
         Ok(value)
     }
     
+}
+
+pub struct PreparedQuery {
+    name: Option<String>,
+    client_id: u64,
+    parameter_description: protocol::ParameterDescription,
+    result: Rc<PreparedQueryResult>,
+}
+
+trait Sealed {}
+
+pub trait Statement: Sealed {
+    async fn send<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &mut PostgresClient<C>, parameters: &[&(dyn ToSql + Sync)]) -> Result<(), ElefantClientError>;
+    fn get_prepared_query_result(&self) -> Option<Rc<PreparedQueryResult>>;
+}
+
+impl Sealed for PreparedQuery {
+
+}
+
+impl Statement for PreparedQuery {
+    async fn send<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &mut PostgresClient<C>, parameters: &[&(dyn ToSql + Sync)]) -> Result<(), ElefantClientError> {
+
+        let mut parameter_values: Vec<Option<&[u8]>> = Vec::with_capacity(parameters.len());
+        client.write_buffer.clear();
+
+        let mut parameter_positions = Vec::with_capacity(parameters.len());
+
+        for param in parameters.iter() {
+            let start_index = client.write_buffer.len();
+            param.to_sql_binary(&mut client.write_buffer);
+            let end_index = client.write_buffer.len();
+            parameter_positions.push((start_index, end_index));
+        }
+
+        for (start_index, end_index) in parameter_positions {
+            // TODO: Figure out how to handle `None`/NULL values.
+            parameter_values.push(Some(&client.write_buffer[start_index..end_index]));
+        }
+
+        
+        let source_statement_name = self.name.as_ref().map(|n| Cow::Borrowed(n.as_str())).unwrap_or(Cow::Borrowed(""));
+
+        client.connection.write_frontend_message(&FrontendMessage::Bind(protocol::Bind {
+            source_statement_name,
+            destination_portal_name: Cow::Borrowed(""),
+            parameter_values,
+            result_column_formats: vec![ValueFormat::Binary],
+            parameter_formats: vec![ValueFormat::Binary],
+        })).await?;
+        client.connection.write_frontend_message(&FrontendMessage::Execute(protocol::Execute {
+            portal_name: Cow::Borrowed(""),
+            max_rows: 0,
+        })).await?;
+        client.connection.write_frontend_message(&FrontendMessage::Flush).await?;
+        client.connection.flush().await?;
+
+        loop {
+            let msg = client.connection.read_backend_message().await?;
+
+            match msg {
+                BackendMessage::BindComplete => {
+                    break;
+                },
+                BackendMessage::ErrorResponse(er) => {
+                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                },
+                BackendMessage::NoticeResponse(nr) => {
+                    info!("Notice from postgres: {:?}", nr);
+                },
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn get_prepared_query_result(&self) -> Option<Rc<PreparedQueryResult>> {
+        Some(self.result.clone())
+    }
+}
+
+impl Sealed for str {}
+
+impl Statement for str {
+    async fn send<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(&self, client: &mut PostgresClient<C>, parameters: &[&(dyn ToSql + Sync)]) -> Result<(), ElefantClientError> {
+        if parameters.is_empty() {
+            client.connection
+                .write_frontend_message(&FrontendMessage::Query(Query {
+                    query: Cow::Borrowed(self),
+                }))
+                .await?;
+            client.connection.flush().await?;
+        } else {
+            let prepared_query = client.prepare_with_name(self, None).await?;
+            prepared_query.send(client, parameters).await?;
+        }
+
+        Ok(())
+    }
+
+    fn get_prepared_query_result(&self) -> Option<Rc<PreparedQueryResult>> {
+        None
+    }
 }

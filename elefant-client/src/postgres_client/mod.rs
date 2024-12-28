@@ -3,13 +3,14 @@ mod query;
 mod data_types;
 
 use std::borrow::Cow;
+use std::sync::atomic::AtomicU64;
 use futures::{AsyncRead, AsyncWrite, AsyncBufRead};
 use tracing::{debug, trace};
 use crate::{protocol, ElefantClientError, PostgresConnectionSettings};
 use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, PostgresConnection, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter};
 use crate::protocol::sasl::ChannelBinding;
 
-pub use query::{QueryResultSet, PostgresDataRow, QueryResult,  RowResultReader};
+pub use query::{QueryResultSet, PostgresDataRow, QueryResult,  RowResultReader, Statement};
 pub use data_types::{FromSql, ToSql, FromSqlOwned};
 
 pub struct PostgresClient<C> {
@@ -17,14 +18,21 @@ pub struct PostgresClient<C> {
     pub(crate) settings: PostgresConnectionSettings,
     pub(crate) ready_for_query: bool,
     write_buffer: Vec<u8>,
+    pub(crate) client_id: u64,
+    pub(crate) prepared_query_counter: u64,
+    sync_required: bool
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub(crate) async fn start_new_query(&mut self) -> Result<(), ElefantClientError> {
-        if self.ready_for_query {
-            self.ready_for_query = false;
-            Ok(())
-        } else {
+        
+        if !self.ready_for_query {
+            if self.sync_required {
+                self.connection.write_frontend_message(&FrontendMessage::Sync).await?;
+                self.connection.flush().await?;
+                self.sync_required = false;
+            }
+
 
             loop {
                 match self.connection.read_backend_message().await {
@@ -36,8 +44,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                     }
                     Ok(msg) => match msg {
                         BackendMessage::ReadyForQuery(_) => {
-                            self.ready_for_query = true;
-                            return Ok(())
+                            break;
                         }
                         _ => {
                             trace!("Ignoring message while starting new query: {:?}", msg);
@@ -46,6 +53,9 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                 }
             }
         }
+        
+        self.ready_for_query = false;
+        Ok(())
     }
 
 
@@ -82,6 +92,9 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
             settings,
             ready_for_query: false,
             write_buffer: Vec::new(),
+            client_id: CLIENT_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+            prepared_query_counter: 1,
+            sync_required: false
         };
 
         client.establish().await?;
@@ -89,4 +102,6 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         Ok(client)
     }
 }
+
+static CLIENT_ID_COUNTER: AtomicU64 = AtomicU64::new(1);
 

@@ -39,40 +39,53 @@ pub trait PostgresNamedType {
     const PG_NAME: &'static str;
 }
 
-impl<'a> FromSql<'a> for i16 {
-    fn from_sql_binary(
-        raw: &'a [u8],
-        field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        if raw.len() != 2 {
-            return Err(format!("Invalid length for i16. Expected 2 bytes, got {} bytes instead. Error occurred when parsing field {:?}", raw.len(), field).into());
+macro_rules! impl_number {
+    ($typ: ty, $pg_name: expr, $oid: expr) => {
+        impl<'a> FromSql<'a> for $typ {
+            fn from_sql_binary(
+                raw: &'a [u8],
+                field: &FieldDescription,
+            ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+
+                const BYTE_SIZE: usize = std::mem::size_of::<$typ>();
+
+                if raw.len() != BYTE_SIZE {
+                    return Err(format!("Invalid length for {}. Expected {} bytes, got {} bytes instead. Error occurred when parsing field {:?}", std::any::type_name::<$typ>(), BYTE_SIZE, raw.len(), field).into());
+                }
+
+                Ok(<$typ>::from_be_bytes(raw.try_into().unwrap()))
+            }
+
+            fn from_sql_text(
+                raw: &'a str,
+                _field: &FieldDescription,
+            ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+                Ok(raw.parse()?)
+            }
+
+            fn accepts(field: &FieldDescription) -> bool {
+                field.data_type_oid == $oid
+            }
         }
 
-        Ok(i16::from_be_bytes(raw.try_into().unwrap()))
-    }
+        impl PostgresNamedType for $typ {
+            const PG_NAME: &'static str = $pg_name;
+        }
 
-    fn from_sql_text(
-        raw: &'a str,
-        _field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        Ok(raw.parse()?)
-    }
-
-    fn accepts(field: &FieldDescription) -> bool {
-        field.data_type_oid == 21
-    }
+        impl ToSql for $typ {
+            fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
+                target_buffer.extend_from_slice(&self.to_be_bytes());
+                Ok(())
+            }
+        }
+    };
 }
 
-impl PostgresNamedType for i16 {
-    const PG_NAME: &'static str = "int2";
-}
-
-impl ToSql for i16 {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
-        target_buffer.extend_from_slice(&self.to_be_bytes());
-        Ok(())
-    }
-}
+impl_number!(i16, "int2", 21);
+impl_number!(i32, "int4", 23);
+impl_number!(i64, "int8", 20);
+impl_number!(f32, "float4", 700);
+impl_number!(f64, "float8", 701);
 
 impl<'a, T> FromSql<'a> for Option<T>
 where T : FromSql<'a>
@@ -103,7 +116,7 @@ impl<T> ToSql for Option<T>
             None => Err("Cannot convert None to binary representation. This case should never happens and should be considered a bug in the ElefantClient library. Please create an issue on GitHub.".into())
         }
     }
-    
+
     fn is_null(&self) -> bool {
         self.is_none()
     }
@@ -133,11 +146,9 @@ mod tests {
                 Self { client }
             }
 
-
-
             pub async fn test_read_special_cast<T>(&mut self, value: T, cast_to: &str)
             where
-                T: FromSqlOwned + Display + Eq + Debug,
+                T: FromSqlOwned + Display + PartialEq + Debug,
             {
                 let sql = format!("select '{}'::{};", value, cast_to);
 
@@ -154,13 +165,13 @@ mod tests {
 
             pub async fn test_read<T>(&mut self, value: T)
             where
-                T: FromSqlOwned + Display + Eq + Debug + PostgresNamedType,
+                T: FromSqlOwned + Display + PartialEq + Debug + PostgresNamedType,
             {
                 self.test_read_special_cast(value, T::PG_NAME).await
             }
 
             pub async fn test_round_trip<T>(&mut self, value: T)
-                where T: FromSqlOwned + Display + Eq + Debug + ToSql + PostgresNamedType
+                where T: FromSqlOwned + Display + PartialEq + Debug + ToSql + PostgresNamedType
             {
                 let sql = format!("select t.f::{0} from (select b.f::text from (select $1::{0} as f) as b) as t", T::PG_NAME);
 
@@ -179,18 +190,47 @@ mod tests {
 
             let mut helper = DataReaderTest::new().await;
 
-            helper.test_read(1i16).await;
-            helper.test_read(i16::MAX).await;
-            helper.test_read(i16::MIN).await;
-            helper.test_read(-1i16).await;
-            helper.test_read(0i16).await;
+            macro_rules! test_integer_values {
+                ($typ: ty) => {
+                    helper.test_read::<$typ>(1).await;
+                    helper.test_read(<$typ>::MAX).await;
+                    helper.test_read(<$typ>::MIN).await;
+                    helper.test_read::<$typ>(-1).await;
+                    helper.test_read::<$typ>(0).await;
+
+                    helper.test_round_trip::<$typ>(1).await;
+                    helper.test_round_trip::<$typ>(<$typ>::MAX).await;
+                    helper.test_round_trip::<$typ>(<$typ>::MIN).await;
+                    helper.test_round_trip::<$typ>(-1).await;
+                    helper.test_round_trip::<$typ>(0).await;
+                };
+            }
+
+            test_integer_values!(i16);
+            test_integer_values!(i32);
+            test_integer_values!(i64);
+
             helper.test_read_special_cast(1i16, "smallint").await;
 
-            helper.test_round_trip(1i16).await;
-            helper.test_round_trip(i16::MAX).await;
-            helper.test_round_trip(i16::MIN).await;
-            helper.test_round_trip(-1i16).await;
-            helper.test_round_trip(0i16).await;
+            macro_rules! test_float_values {
+                ($typ: ty) => {
+                    helper.test_read::<$typ>(1.0).await;
+                    helper.test_read::<$typ>(-1.0).await;
+                    helper.test_read::<$typ>(0.5).await;
+                    helper.test_read::<$typ>(-0.5).await;
+                    helper.test_read::<$typ>(0.0).await;
+
+                    helper.test_round_trip::<$typ>(1.0).await;
+                    helper.test_round_trip::<$typ>(-1.0).await;
+                    helper.test_round_trip::<$typ>(0.5).await;
+                    helper.test_round_trip::<$typ>(-0.5).await;
+                    helper.test_round_trip::<$typ>(0.0).await;
+                };
+            }
+
+            test_float_values!(f32);
+            test_float_values!(f64);
+
         }
 
         #[test]
@@ -220,15 +260,15 @@ mod tests {
             } else {
                 panic!("Expected UnexpectedNullValue error, got {:?}", result);
             }
-            
+
             helper.exec("delete from test_table;").await;
-            
+
             helper.client.execute_non_query("insert into test_table values ($1);", &[&None::<i16>]).await.unwrap();
             let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
             assert_eq!(value, None);
-            
+
             helper.exec("delete from test_table;").await;
-            
+
             helper.client.execute_non_query("insert into test_table values ($1);", &[&Some(42i16)]).await.unwrap();
             let value: Option<i16> = helper.client.read_single_value("select value from test_table;", &[]).await.unwrap();
             assert_eq!(value, Some(42));

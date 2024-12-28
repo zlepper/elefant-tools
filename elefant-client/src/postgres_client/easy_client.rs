@@ -1,15 +1,15 @@
-use crate::postgres_client::{FromSqlOwned, PostgresClient, QueryResultSet, Statement, ToSql};
-use crate::ElefantClientError;
+use crate::postgres_client::{PostgresClient, QueryResultSet, Statement};
+use crate::{ElefantClientError, FromSql, ToSql};
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
-    pub async fn read_single_value<T>(
-        &mut self,
+    pub async fn read_single_value<'postgres_client, T>(
+        &'postgres_client mut self,
         query: &(impl Statement + ?Sized),
         parameters: &[&(dyn ToSql)],
     ) -> Result<T, ElefantClientError>
     where
-        T: FromSqlOwned,
+        T: FromSql<'postgres_client>,
     {
         let mut query_result = self.query(query, parameters).await?;
 

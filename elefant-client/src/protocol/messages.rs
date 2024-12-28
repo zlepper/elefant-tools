@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::rc::Rc;
 use crate::protocol::frontend_p_message::FrontendPMessage;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -146,7 +145,7 @@ pub struct RowDescription {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct FieldDescription {
-    pub name: Rc<String>,
+    pub name: String,
     pub table_oid: i32,
     pub column_attribute_number: i16,
     pub data_type_oid: i32,

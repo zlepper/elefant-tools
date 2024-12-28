@@ -6,8 +6,8 @@ members = [
     "elefant-test-macros",
     "drop-all-test-databases",
     "benchmark-import-prepare",
-    "elefant-client"
-]
+    "elefant-client",
+    "codegen"]
 
 
 [profile.dev]

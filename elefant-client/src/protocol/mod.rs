@@ -13,6 +13,4 @@ mod frontend_p_message;
 pub use error::*;
 pub use messages::*;
 pub use frontend_p_message::*;
-pub use message_writer::*;
-pub use message_reader::*;
 pub use postgres_connection::*;

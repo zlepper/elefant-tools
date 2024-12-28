@@ -18,7 +18,7 @@ async fn new_connection(
     Ok(PostgresConnection::new(stream.compat()))
 }
 
-pub(crate) async fn new_client(
+pub async fn new_client(
     settings: PostgresConnectionSettings,
 ) -> Result<PostgresClient<Compat<BufStream<TcpStream>>>, ElefantClientError> {
     let connection = new_connection(&settings).await?;

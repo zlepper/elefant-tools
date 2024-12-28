@@ -1,0 +1,9 @@
+[package]
+name = "codegen"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+elefant-client = { path = "../elefant-client", features = ["tokio"] }
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"

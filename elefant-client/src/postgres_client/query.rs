@@ -1,12 +1,11 @@
-use crate::postgres_client::data_types::ToSql;
-use crate::postgres_client::{FromSql, PostgresClient};
+use crate::postgres_client::{PostgresClient};
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, Query, RowDescription, ValueFormat,
 };
-use crate::{protocol, ElefantClientError};
+use crate::{protocol, ElefantClientError, FromSql, ToSql};
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use std::borrow::Cow;
-use std::error::Error;
+use std::future::Future;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use tracing::{debug, info};
@@ -227,6 +226,7 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
                     self.client.ready_for_query = true;
+                    self.client.current_transaction_status = rfq.current_transaction_status;
                     return Ok(QueryResultSet::QueryProcessingComplete);
                 }
                 BackendMessage::NoticeResponse(nr) => {
@@ -279,6 +279,7 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
                     self.client.ready_for_query = true;
+                    self.client.current_transaction_status = rfq.current_transaction_status;
                     return Ok(None);
                 }
                 BackendMessage::ErrorResponse(er) => {
@@ -361,12 +362,13 @@ pub struct PreparedQuery {
 
 trait Sealed {}
 
+#[allow(private_bounds)]
 pub trait Statement: Sealed {
-    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
+    fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
         parameters: &[&(dyn ToSql)],
-    ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError>;
+    ) -> impl Future<Output = Result<QueryResult<'postgres_client, C>, ElefantClientError>>;
 }
 
 impl Sealed for PreparedQuery {}

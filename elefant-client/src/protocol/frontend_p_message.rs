@@ -1,10 +1,9 @@
 use std::borrow::Cow;
 use futures::{AsyncWrite, AsyncWriteExt};
 use crate::protocol::io_extensions::AsyncWriteExt2;
-use crate::protocol::PostgresMessageParseError;
 
 #[derive(Debug, PartialEq, Eq)]
-pub(crate) enum FrontendPMessage<'a> {
+pub enum FrontendPMessage<'a> {
     SASLInitialResponse(SASLInitialResponse<'a>),
     SASLResponse(SASLResponse<'a>),
     GSSResponse(GSSResponse<'a>),

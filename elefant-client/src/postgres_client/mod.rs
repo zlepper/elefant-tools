@@ -1,18 +1,14 @@
 mod establish;
 mod query;
-mod data_types;
 mod easy_client;
 
-use std::borrow::Cow;
 use std::sync::atomic::AtomicU64;
 use futures::{AsyncRead, AsyncWrite, AsyncBufRead};
 use tracing::{debug, trace};
 use crate::{protocol, ElefantClientError, PostgresConnectionSettings};
-use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, PostgresConnection, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter};
-use crate::protocol::sasl::ChannelBinding;
+use crate::protocol::{BackendMessage, FrontendMessage, PostgresConnection, CurrentTransactionStatus};
 
 pub use query::{QueryResultSet, PostgresDataRow, QueryResult,  RowResultReader, Statement};
-pub use data_types::{FromSql, ToSql, FromSqlOwned};
 
 pub struct PostgresClient<C> {
     pub(crate) connection: PostgresConnection<C>,
@@ -21,7 +17,8 @@ pub struct PostgresClient<C> {
     write_buffer: Vec<u8>,
     pub(crate) client_id: u64,
     pub(crate) prepared_query_counter: u64,
-    sync_required: bool
+    sync_required: bool,
+    current_transaction_status: CurrentTransactionStatus
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
@@ -95,7 +92,8 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
             write_buffer: Vec::new(),
             client_id: CLIENT_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
             prepared_query_counter: 1,
-            sync_required: false
+            sync_required: false,
+            current_transaction_status: CurrentTransactionStatus::Idle,
         };
 
         client.establish().await?;

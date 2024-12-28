@@ -1,7 +1,7 @@
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
-use crate::postgres_client::{FromSql, PostgresClient, QueryResultSet, Statement, ToSql};
-use crate::PostgresConnectionSettings;
-use crate::protocol::PostgresConnection;
+use crate::postgres_client::{PostgresClient, QueryResultSet, Statement};
+use crate::{FromSql, PostgresConnectionSettings, ToSql};
+use crate::tokio_connection::{new_client, TokioPostgresClient};
 
 pub(crate) fn get_settings() -> PostgresConnectionSettings {
     PostgresConnectionSettings {
@@ -9,6 +9,11 @@ pub(crate) fn get_settings() -> PostgresConnectionSettings {
         port: 5415,
         ..Default::default()
     }
+}
+
+#[cfg(feature = "tokio")]
+pub(crate) async fn get_tokio_test_client() -> TokioPostgresClient {
+    new_client(get_settings()).await.unwrap()
 }
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {

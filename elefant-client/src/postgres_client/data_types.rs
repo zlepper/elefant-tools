@@ -219,18 +219,27 @@ mod tests {
                     helper.test_read::<$typ>(0.5).await;
                     helper.test_read::<$typ>(-0.5).await;
                     helper.test_read::<$typ>(0.0).await;
+                    helper.test_read::<$typ>(<$typ>::INFINITY).await;
+                    helper.test_read::<$typ>(<$typ>::NEG_INFINITY).await;
 
                     helper.test_round_trip::<$typ>(1.0).await;
                     helper.test_round_trip::<$typ>(-1.0).await;
                     helper.test_round_trip::<$typ>(0.5).await;
                     helper.test_round_trip::<$typ>(-0.5).await;
                     helper.test_round_trip::<$typ>(0.0).await;
+                    helper.test_round_trip::<$typ>(<$typ>::INFINITY).await;
+                    helper.test_round_trip::<$typ>(<$typ>::NEG_INFINITY).await;
+
+                    let should_be_nan: $typ = helper.client.read_single_value(&format!("select 'NaN'::{};", <$typ>::PG_NAME), &[]).await.unwrap();
+                    assert!(should_be_nan.is_nan());
+
+                    let should_be_nan: $typ = helper.client.read_single_value(&format!("select $1::{};", <$typ>::PG_NAME), &[&<$typ>::NAN]).await.unwrap();
+                    assert!(should_be_nan.is_nan());
                 };
             }
 
             test_float_values!(f32);
             test_float_values!(f64);
-
         }
 
         #[test]

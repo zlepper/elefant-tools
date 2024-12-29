@@ -62,20 +62,6 @@ pub(crate) trait AsyncWriteExt2: AsyncWrite + Unpin {
 
 impl<W: AsyncWrite + Unpin> AsyncWriteExt2 for W {}
 
-// pub(crate) trait AsyncBufReadExt2: AsyncBufRead + Unpin {
-//     async fn read_null_terminated_string(&mut self) -> Result<(String, usize), std::io::Error> {
-//         let mut buf = Vec::new();
-//         let bytes_read = self.read_until(b'\0', &mut buf).await?;
-//         buf.pop();
-//
-//         String::from_utf8(buf)
-//             .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))
-//             .map(|s| (s, bytes_read))
-//     }
-// }
-//
-// impl<R: AsyncBufRead + Unpin> AsyncBufReadExt2 for R {}
-
 pub(crate) trait ByteSliceExt<const N: usize>: Sized {
     fn from_be_bytes(bytes: Self) -> Self {
         bytes

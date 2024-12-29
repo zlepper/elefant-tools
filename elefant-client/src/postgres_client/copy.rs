@@ -16,7 +16,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         match msg {
             BackendMessage::CopyOutResponse(_) => Ok(CopyReader { client: self }),
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                "Expected CopyOutResponse{:?}",
+                "Expected CopyOutResponse, got {:?}",
                 msg
             ))),
         }
@@ -32,7 +32,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         let msg = self.read_next_backend_message().await?;
 
         match msg {
-            BackendMessage::CopyInResponse(_) => Ok(CopyWriter { client: self }),
+            BackendMessage::CopyInResponse(_) => Ok(CopyWriter::new(self)),
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
                 "Expected CopyInResponse{:?}",
                 msg
@@ -43,25 +43,69 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
 
 pub struct CopyWriter<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> {
     client: &'a mut PostgresClient<C>,
+    data_buffer: Vec<u8>,
+    cursor: usize,
 }
 
 impl<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> CopyWriter<'a, C> {
+
+    fn new(client: &'a mut PostgresClient<C>) -> Self {
+        Self {
+            client,
+            data_buffer: vec![0; 8192],
+            cursor: 0,
+        }
+    }
+
     pub async fn write(&mut self, data: &[u8]) -> Result<(), ElefantClientError> {
-        self.client
-            .connection
-            .write_frontend_message(&crate::protocol::FrontendMessage::CopyData(
-                CopyData { data },
-            ))
-            .await?;
+
+        if self.data_buffer.len() - self.cursor < data.len() {
+            self.write_buffer_content().await?;
+        }
+
+        if data.len() > self.data_buffer.len() {
+            // Immediately write large messages to avoid having to expand the buffer.
+            self.client
+                .connection
+                .write_frontend_message(&crate::protocol::FrontendMessage::CopyData(
+                    CopyData {
+                        data
+                    },
+                ))
+                .await?;
+        } else {
+            self.data_buffer[self.cursor..self.cursor + data.len()].copy_from_slice(data);
+            self.cursor += data.len();
+        }
+
+
         Ok(())
     }
 
     pub async fn flush(&mut self) -> Result<(), ElefantClientError> {
+        self.write_buffer_content().await?;
         self.client.connection.flush().await?;
         Ok(())
     }
 
-    pub async fn end(self) -> Result<(), ElefantClientError> {
+    async fn write_buffer_content(&mut self) -> Result<(), ElefantClientError> {
+        if self.cursor > 0 {
+            self.client
+                .connection
+                .write_frontend_message(&crate::protocol::FrontendMessage::CopyData(
+                    CopyData {
+                        data: &self.data_buffer[0..self.cursor]
+                    },
+                ))
+                .await?;
+            self.cursor = 0;
+        }
+        Ok(())
+    }
+
+    pub async fn end(mut self) -> Result<(), ElefantClientError> {
+        self.write_buffer_content().await?;
+
         self.client
             .connection
             .write_frontend_message(&crate::protocol::FrontendMessage::CopyDone)

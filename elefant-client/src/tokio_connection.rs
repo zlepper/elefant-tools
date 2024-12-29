@@ -12,6 +12,7 @@ async fn new_connection(
     settings: &PostgresConnectionSettings,
 ) -> Result<TokioPostgresConnection, ElefantClientError> {
     let stream = TcpStream::connect(format!("{}:{}", settings.host, settings.port)).await?;
+    stream.set_nodelay(true)?;
 
     let stream = BufStream::new(stream);
 
@@ -121,7 +122,7 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     pub async fn connect_to_all_the_postgres() {
         let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516];

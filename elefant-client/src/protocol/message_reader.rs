@@ -274,9 +274,10 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
         let len = self.connection.read_i32().await?;
         let len = len as usize - 4;
         self.extend_buffer(len);
-        self.connection.read_exact(&mut self.read_buffer[..len]).await?;
+        let slice = &mut self.read_buffer[..len];
+        self.connection.read_exact(slice).await?;
         Ok(CopyData {
-            data: &self.read_buffer[..len],
+            data: slice,
         })
     }
 
@@ -842,7 +843,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
         }))
     }
 
-    fn extend_buffer(&mut self, len: usize) {
+    pub(crate) fn extend_buffer(&mut self, len: usize) {
         if self.read_buffer.len() < len {
             self.read_buffer.resize(len, 0);
         }

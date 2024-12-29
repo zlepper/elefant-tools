@@ -10,6 +10,7 @@ pub use error::ElefantClientError;
 pub use postgres_client::*;
 pub use types::*;
 
+#[derive(Clone)]
 pub struct PostgresConnectionSettings {
     pub host: String,
     pub port: u16,

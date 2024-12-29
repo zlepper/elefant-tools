@@ -7,7 +7,7 @@ members = [
     "drop-all-test-databases",
     "benchmark-import-prepare",
     "elefant-client",
-    "codegen"]
+    "codegen", "elefant-client-benchmarks", "elefant-client-profiling"]
 
 
 [profile.dev]
@@ -21,3 +21,7 @@ debug = "full"
 split-debuginfo = "off"
 #lto = "fat"
 
+
+[profile.profiling]
+inherits = "release"
+debug = true

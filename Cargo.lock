@@ -376,6 +376,7 @@ name = "elefant-tools"
 version = "0.0.4"
 dependencies = [
  "bytes",
+ "elefant-client",
  "elefant-test-macros",
  "futures",
  "indoc",

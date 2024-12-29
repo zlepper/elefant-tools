@@ -1,6 +1,7 @@
-use crate::postgres_client::{PostgresClient, QueryResultSet, Statement};
+use crate::postgres_client::{PostgresClient, QueryResultSet};
 use crate::{ElefantClientError, FromSql, ToSql};
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
+use crate::postgres_client::statements::Statement;
 
 impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub async fn read_single_value<'postgres_client, T>(

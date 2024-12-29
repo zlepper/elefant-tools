@@ -1,6 +1,6 @@
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
-use crate::postgres_client::{PostgresClient, QueryResultSet, Statement};
-use crate::{FromSql, PostgresConnectionSettings, ToSql};
+use crate::postgres_client::{PostgresClient, QueryResultSet};
+use crate::{FromSql, PostgresConnectionSettings, Statement, ToSql};
 use crate::tokio_connection::{new_client, TokioPostgresClient};
 
 pub(crate) fn get_settings() -> PostgresConnectionSettings {

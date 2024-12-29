@@ -1,14 +1,16 @@
 mod establish;
 mod query;
 mod easy_client;
+mod statements;
 
 use std::sync::atomic::AtomicU64;
-use futures::{AsyncRead, AsyncWrite, AsyncBufRead};
+use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use tracing::{debug, trace};
 use crate::{protocol, ElefantClientError, PostgresConnectionSettings};
-use crate::protocol::{BackendMessage, FrontendMessage, PostgresConnection, CurrentTransactionStatus};
+use crate::protocol::{BackendMessage, CurrentTransactionStatus, FrontendMessage, PostgresConnection};
 
-pub use query::{QueryResultSet, PostgresDataRow, QueryResult,  RowResultReader, Statement};
+pub use query::{PostgresDataRow, QueryResult, QueryResultSet, RowResultReader};
+pub use statements::*;
 
 pub struct PostgresClient<C> {
     pub(crate) connection: PostgresConnection<C>,

@@ -15,6 +15,7 @@ keywords = ["pg_dump", "pg_restore", "postgres", "backup", "restore"]
 [dependencies]
 tokio = { version = "1", features = ["rt", "fs"], default-features = false }
 tokio-postgres = "0.7"
+elefant-client = { path = "../elefant-client", features = ["tokio"] }
 thiserror = "1.0"
 itertools = "0.13"
 bytes = "1.7"

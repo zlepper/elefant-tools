@@ -2,7 +2,7 @@ use crate::postgres_client::{PostgresClient};
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, Query, RowDescription, ValueFormat,
 };
-use crate::{protocol, ElefantClientError, FromSql, ToSql};
+use crate::{protocol, ElefantClientError, FromSql, FromSqlOwned, FromSqlRowOwned, ToSql};
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use std::borrow::Cow;
 use std::future::Future;
@@ -241,6 +241,62 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
             }
         }
     }
+    
+    pub async fn collect_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError> 
+        where T: FromSqlRowOwned
+    {
+        let mut results = Vec::new();
+        loop {
+            let result_set = self.next_result_set().await?;
+            match result_set {
+                QueryResultSet::QueryProcessingComplete => {
+                    return Ok(results);
+                }
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
+                    loop {
+                        let row = row_result_reader.next_row().await?;
+                        match row {
+                            Some(row) => {
+                                let value = T::from_sql_row(&row)?;
+                                results.push(value);
+                            }
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    pub async fn collect_single_column_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError> 
+        where T: FromSqlOwned
+    {
+        let mut results = Vec::new();
+        loop {
+            let result_set = self.next_result_set().await?;
+            match result_set {
+                QueryResultSet::QueryProcessingComplete => {
+                    return Ok(results);
+                }
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
+                    loop {
+                        let row = row_result_reader.next_row().await?;
+                        match row {
+                            Some(row) => {
+                                let value: T = row.get(0)?;
+                                results.push(value);
+                            }
+                            None => {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 pub enum QueryResultSet<'postgres_client, 'query_result_set, C> {
@@ -350,6 +406,20 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
         } else {
             T::from_null(field)
         }
+    }
+    
+    pub fn column_count(&self) -> usize {
+        self.row_description.fields.len()
+    }
+    
+    pub fn require_columns(&self, count: usize) -> Result<(), ElefantClientError> {
+        if self.column_count() < count {
+            return Err(ElefantClientError::NotEnoughColumns {
+                desired: count,
+                actual: self.column_count(),
+            });
+        }
+        Ok(())
     }
 }
 

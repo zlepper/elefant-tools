@@ -226,6 +226,10 @@ where T: FromSql<'a>
         match PostgresType::get_by_oid(oid) {
             None => false,
             Some(t) => {
+                if !t.is_array {
+                    return false;
+                }
+                
                 match t.element {
                     None => false,
                     Some(element_type) => T::accepts_postgres_type(element_type.oid)

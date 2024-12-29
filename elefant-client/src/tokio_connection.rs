@@ -121,4 +121,19 @@ mod tests {
             }
         }
     }
+    
+    #[test]
+    pub async fn connect_to_all_the_postgres() {
+        let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516];
+
+        for port in pg_ports {
+            let _client = new_client(PostgresConnectionSettings {
+                user: "postgres".to_string(),
+                host: "localhost".to_string(),
+                database: "postgres".to_string(),
+                port,
+                password: "passw0rd".to_string(),
+            }).await.unwrap_or_else(|_| panic!("Failed to connect to port {}", port));
+        }
+    }
 }

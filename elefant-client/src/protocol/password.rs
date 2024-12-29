@@ -3,7 +3,6 @@
 use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, Mac};
-use md5::Md5;
 use rand::RngCore;
 use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
@@ -79,23 +78,6 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
     )
 }
 
-/// **Not recommended, as MD5 is not considered to be secure.**
-///
-/// Hash password using MD5 with the username as the salt.
-///
-/// The client may assume the returned string doesn't contain any
-/// special characters that would require escaping.
-pub fn md5(password: &[u8], username: &str) -> String {
-    // salt password with username
-    let mut salted_password = Vec::from(password);
-    salted_password.extend_from_slice(username.as_bytes());
-
-    let mut hash = Md5::new();
-    hash.update(&salted_password);
-    let digest = hash.finalize();
-    format!("md5{:x}", digest)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -107,14 +89,6 @@ mod tests {
         assert_eq!(
             scram_sha_256_salt(b"secret", salt),
             "SCRAM-SHA-256$4096:AQIDBAUGBwgJCgsMDQ4PEA==$8rrDg00OqaiWXJ7p+sCgHEIaBSHY89ZJl3mfIsf32oY=:05L1f+yZbiN8O0AnO40Og85NNRhvzTS57naKRWCcsIA="
-        );
-    }
-
-    #[test]
-    fn test_encrypt_md5() {
-        assert_eq!(
-            md5(b"secret", "foo"),
-            "md54ab2c5d00339c4b2a4e921d2dc4edec7"
         );
     }
 }

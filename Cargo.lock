@@ -114,6 +114,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base16ct"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+
+[[package]]
 name = "base64"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -315,6 +321,7 @@ name = "drop-all-test-databases"
 version = "0.0.0"
 dependencies = [
  "anyhow",
+ "elefant-client",
  "elefant-tools",
  "tokio",
 ]
@@ -329,6 +336,7 @@ checksum = "60b1af1c220855b6ceac025d3f6ecdd2b7c4894bfe9cd9bda4fbb4bc7c0d4cf0"
 name = "elefant-client"
 version = "0.1.0"
 dependencies = [
+ "base16ct",
  "base64",
  "futures",
  "hmac",

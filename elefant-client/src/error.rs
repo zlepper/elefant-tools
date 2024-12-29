@@ -21,6 +21,10 @@ pub enum ElefantClientError {
     UnexpectedNullValue {
         postgres_field: FieldDescription,
     },
+    NotEnoughColumns {
+        desired: usize,
+        actual: usize,
+    },
 }
 
 
@@ -63,6 +67,9 @@ impl Display for ElefantClientError {
             },
             ElefantClientError::UnexpectedNullValue {postgres_field} => {
                 write!(f, "Unexpected null value when processing field: {:?}.", postgres_field)
+            },
+            ElefantClientError::NotEnoughColumns {desired, actual} => {
+                write!(f, "Not enough columns returned. Desired: {}, Actual: {}", desired, actual)
             }
         }
     }

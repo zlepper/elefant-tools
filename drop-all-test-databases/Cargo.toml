@@ -8,3 +8,4 @@ edition = "2021"
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs"], default-features = false }
 elefant-tools = { path = "../elefant-tools", features = ["test_utilities"] }
 anyhow = "1.0"
+elefant-client = { path = "../elefant-client", features = ["tokio"] }

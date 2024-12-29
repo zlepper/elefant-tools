@@ -7,10 +7,10 @@ use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use tracing::{debug, info};
+use tracing::{debug, trace};
 use crate::postgres_client::statements::{PreparedQuery, Statement};
 
-macro_rules! reborrow_until_polonius {
+#[macro_export] macro_rules! reborrow_until_polonius {
     ($e:expr) => {
         unsafe {
             // This gets around the borrow checker not supporting releasing the borrow because
@@ -72,18 +72,32 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
             .await?;
         self.connection.flush().await?;
 
-        loop {
-            let msg = self.connection.read_backend_message().await?;
+        let msg = self.read_next_backend_message().await?;
+
+        match msg {
+            BackendMessage::ParseComplete => {
+                trace!("Parse complete");
+            }
+            BackendMessage::ErrorResponse(er) => {
+                return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+            }
+            _ => {
+                return Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                    "{:?}",
+                    msg
+                )));
+            }
+        }
+
+        let parameter_description = {
+            let msg = self.read_next_backend_message().await?;
 
             match msg {
-                BackendMessage::ParseComplete => {
-                    break;
+                BackendMessage::ParameterDescription(pd) => {
+                    pd
                 }
                 BackendMessage::ErrorResponse(er) => {
                     return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
-                }
-                BackendMessage::NoticeResponse(nr) => {
-                    info!("Notice from postgres: {:?}", nr);
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -92,36 +106,14 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                     )));
                 }
             }
-        }
-
-        let parameter_description = loop {
-            let msg = self.connection.read_backend_message().await?;
-
-            match msg {
-                BackendMessage::ParameterDescription(pd) => {
-                    break pd;
-                }
-                BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
-                }
-                BackendMessage::NoticeResponse(nr) => {
-                    info!("Notice from postgres: {:?}", nr);
-                }
-                _ => {
-                    return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "{:?}",
-                        msg
-                    )));
-                }
-            };
         };
 
-        let row_description = loop {
-            let msg = self.connection.read_backend_message().await?;
+        let row_description = {
+            let msg = self.read_next_backend_message().await?;
 
             match msg {
                 BackendMessage::RowDescription(rd) => {
-                    break PreparedQueryResult::RowDescription(RowDescription {
+                    PreparedQueryResult::RowDescription(RowDescription {
                         fields: rd
                             .fields
                             .iter()
@@ -135,24 +127,21 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                                 column_attribute_number: f.column_attribute_number,
                             })
                             .collect(),
-                    });
+                    })
                 }
                 BackendMessage::NoData => {
-                    break PreparedQueryResult::NoData;
+                    PreparedQueryResult::NoData
                 }
                 BackendMessage::ErrorResponse(er) => {
                     return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
-                }
-                BackendMessage::NoticeResponse(nr) => {
-                    info!("Notice from postgres: {:?}", nr);
-                }
+                },
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
                         "{:?}",
                         msg
                     )));
                 }
-            };
+            }
         };
 
         self.ready_for_query = true;
@@ -204,7 +193,7 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
 
         loop {
             let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
-            let msg = client.connection.read_backend_message().await?;
+            let msg = client.read_next_backend_message().await?;
 
             match msg {
                 BackendMessage::CommandComplete(cc) => {
@@ -233,9 +222,6 @@ impl<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>
                     self.client.ready_for_query = true;
                     self.client.current_transaction_status = rfq.current_transaction_status;
                     return Ok(QueryResultSet::QueryProcessingComplete);
-                }
-                BackendMessage::NoticeResponse(nr) => {
-                    info!("Notice from postgres: {:?}", nr);
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -323,38 +309,33 @@ impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncBufRead + AsyncWri
         &'row_result_reader mut self,
     ) -> Result<Option<PostgresDataRow<'postgres_client, 'row_result_reader>>, ElefantClientError>
     {
-        loop {
-            let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
-            let msg = client.connection.read_backend_message().await?;
+        let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
+        let msg = client.read_next_backend_message().await?;
 
-            match msg {
-                BackendMessage::DataRow(dr) => {
-                    return Ok(Some(PostgresDataRow {
-                        row_description: &self.row_description,
-                        data_row: dr,
-                    }));
-                }
-                BackendMessage::CommandComplete(cc) => {
-                    debug!("Command complete: {:?}", cc);
-                    return Ok(None);
-                }
-                BackendMessage::ReadyForQuery(rfq) => {
-                    self.client.ready_for_query = true;
-                    self.client.current_transaction_status = rfq.current_transaction_status;
-                    return Ok(None);
-                }
-                BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)))
-                }
-                BackendMessage::NoticeResponse(nr) => {
-                    info!("Notice from postgres: {:?}", nr);
-                }
-                _ => {
-                    return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "{:?}",
-                        msg
-                    )))
-                }
+        match msg {
+            BackendMessage::DataRow(dr) => {
+                Ok(Some(PostgresDataRow {
+                    row_description: &self.row_description,
+                    data_row: dr,
+                }))
+            }
+            BackendMessage::CommandComplete(cc) => {
+                debug!("Command complete: {:?}", cc);
+                Ok(None)
+            }
+            BackendMessage::ReadyForQuery(rfq) => {
+                self.client.ready_for_query = true;
+                self.client.current_transaction_status = rfq.current_transaction_status;
+                Ok(None)
+            }
+            BackendMessage::ErrorResponse(er) => {
+                Err(ElefantClientError::PostgresError(format!("{:?}", er)))
+            }
+            _ => {
+                Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                    "{:?}",
+                    msg
+                )))
             }
         }
     }

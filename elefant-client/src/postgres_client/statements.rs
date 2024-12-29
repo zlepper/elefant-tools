@@ -1,7 +1,7 @@
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use std::future::Future;
 use std::borrow::Cow;
-use tracing::info;
+use tracing::{info, trace};
 use std::rc::Rc;
 use crate::{protocol, ElefantClientError, PostgresClient, QueryResult, ToSql};
 use crate::postgres_client::query::PreparedQueryResult;
@@ -107,25 +107,20 @@ impl Statement for PreparedQuery {
             .await?;
         client.connection.flush().await?;
 
-        loop {
-            let msg = client.connection.read_backend_message().await?;
+        let msg = client.read_next_backend_message().await?;
 
-            match msg {
-                BackendMessage::BindComplete => {
-                    break;
-                }
-                BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
-                }
-                BackendMessage::NoticeResponse(nr) => {
-                    info!("Notice from postgres: {:?}", nr);
-                }
-                _ => {
-                    return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "{:?}",
-                        msg
-                    )));
-                }
+        match msg {
+            BackendMessage::BindComplete => {
+                trace!("Bind complete");
+            }
+            BackendMessage::ErrorResponse(er) => {
+                return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+            }
+            _ => {
+                return Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                    "{:?}",
+                    msg
+                )));
             }
         }
 

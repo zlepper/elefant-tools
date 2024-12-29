@@ -17,7 +17,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         })).await?;
         self.connection.flush().await?;
 
-        let msg = self.connection.read_backend_message().await?;
+        let msg = self.read_next_backend_message().await?;
 
         match msg {
             BackendMessage::AuthenticationSASL(ref sasl) => {
@@ -44,7 +44,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                         }))).await?;
                         self.connection.flush().await?;
 
-                        let msg = self.connection.read_backend_message().await?;
+                        let msg = self.read_next_backend_message().await?;
 
                         match msg {
                             BackendMessage::AuthenticationSASLContinue(ref sasl_continue) => {
@@ -56,13 +56,13 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                                 }))).await?;
                                 self.connection.flush().await?;
 
-                                let msg = self.connection.read_backend_message().await?;
+                                let msg = self.read_next_backend_message().await?;
 
                                 match msg {
                                     BackendMessage::AuthenticationSASLFinal(fin) => {
                                         sas.finish(fin.outcome)?;
 
-                                        let msg = self.connection.read_backend_message().await?;
+                                        let msg = self.read_next_backend_message().await?;
 
                                         match msg {
                                             BackendMessage::AuthenticationOk => {
@@ -82,14 +82,14 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                 }
 
             },
-            BackendMessage::AuthenticationMD5Password(md5Pw) => {
-                let pw = calculate_md5_password_message(&self.settings, md5Pw.salt);
+            BackendMessage::AuthenticationMD5Password(md5_pw) => {
+                let pw = calculate_md5_password_message(&self.settings, md5_pw.salt);
                 self.connection.write_frontend_message(&FrontendMessage::FrontendPMessage(FrontendPMessage::PasswordMessage(PasswordMessage {
                     password: pw.into(),
                 }))).await?;
                 self.connection.flush().await?;
 
-                let msg = self.connection.read_backend_message().await?;
+                let msg = self.read_next_backend_message().await?;
                 match msg {
                     BackendMessage::AuthenticationOk => {
                         // Authentication successful, whoop whoop!
@@ -98,7 +98,7 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
                         panic!("Unexpected message: {:?}", msg);
                     }
                 }
-            },
+            }
             _ => {
                 panic!("Unexpected message: {:?}", msg);
             }
@@ -107,11 +107,9 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         
         
         loop {
-            let msg = self.connection.read_backend_message().await?;
+            let msg = self.read_next_backend_message().await?;
 
             match msg {
-                BackendMessage::ParameterStatus(_) => {
-                },
                 BackendMessage::BackendKeyData(_) => {
                 },
                 BackendMessage::ReadyForQuery(_) => {
@@ -140,12 +138,10 @@ fn calculate_md5_password_message(settings: &PostgresConnectionSettings, salt: [
     hasher.update(&settings.password);
     hasher.update(&settings.user);
     let username_password_md5 = hasher.finalize_reset();
+    
     hasher.update(format!("{:x}", username_password_md5));
     hasher.update(salt);
     let password_md5 = hasher.finalize_reset();
 
-    // let username_password_md5 = md5::Md5::digest(format!("{}{}", &settings.password, &settings.user));
-    // let salt_hex = base16ct::lower::encode_string(&salt);
-    // let password_md5 = md5::Md5::digest(format!("{:x}{}", username_password_md5, salt_hex));
     format!("md5{:x}", password_md5)
 }

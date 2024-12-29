@@ -2,11 +2,12 @@ mod establish;
 mod query;
 mod easy_client;
 mod statements;
+mod copy;
 
 use std::sync::atomic::AtomicU64;
 use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
 use tracing::{debug, trace};
-use crate::{protocol, ElefantClientError, PostgresConnectionSettings};
+use crate::{protocol, reborrow_until_polonius, ElefantClientError, PostgresConnectionSettings};
 use crate::protocol::{BackendMessage, CurrentTransactionStatus, FrontendMessage, PostgresConnection};
 
 pub use query::{PostgresDataRow, QueryResult, QueryResultSet, RowResultReader};
@@ -35,9 +36,9 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
 
 
             loop {
-                match self.connection.read_backend_message().await {
-                    Err(protocol::PostgresMessageParseError::IoError(io_err)) => {
-                        return Err(ElefantClientError::IoError(io_err));
+                match self.read_next_backend_message().await {
+                    Err(ElefantClientError::IoError(e)) => {
+                        return Err(ElefantClientError::IoError(e));
                     }
                     Err(e) => {
                         debug!("Ignoring error while starting new query: {:?}", e);
@@ -62,8 +63,8 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub async fn reset(&mut self) -> Result<(), ElefantClientError> {
         if !self.ready_for_query {
             loop {
-                match self.connection.read_backend_message().await {
-                    Err(protocol::PostgresMessageParseError::IoError(io_err)) => {
+                match self.read_next_backend_message().await {
+                    Err(ElefantClientError::IoError(io_err)) => {
                         return Err(ElefantClientError::IoError(io_err));
                     }
                     Err(e) => {
@@ -101,6 +102,26 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
         client.establish().await?;
 
         Ok(client)
+    }
+
+    /// Helper method for reading backend messages while ignoring and handling "async" messages.
+    pub(crate) async fn read_next_backend_message(&mut self) -> Result<BackendMessage, ElefantClientError> {
+
+        loop {
+            let connection: &mut PostgresConnection<C> = reborrow_until_polonius!(&mut self.connection);
+            let msg = connection.read_backend_message().await?;
+            match msg {
+                BackendMessage::NoticeResponse(nr) => {
+                    debug!("Received notice response from postgres: {:?}", nr);
+                },
+                BackendMessage::ParameterStatus(ps) => {
+                    debug!("Received parameter status from postgres: {:?}", ps);
+                },
+                _ => {
+                    return Ok(msg);
+                }
+            }
+        }
     }
 }
 

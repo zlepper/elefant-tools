@@ -9,6 +9,7 @@ mod postgres_connection;
 mod password;
 pub mod sasl;
 mod frontend_p_message;
+mod frame_reader;
 
 pub use error::*;
 pub use messages::*;

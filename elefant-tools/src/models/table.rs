@@ -230,6 +230,24 @@ impl PostgresTable {
             retention: _,
         } = &self.table_type
         {
+            for index in &self.indices {
+                if index.index_constraint_type == PostgresIndexType::PrimaryKey {
+                    continue;
+                }
+
+                let create_index_sql = index.get_create_index_command(schema, self, identifier_quoter);
+                sql.push_str(&create_index_sql);
+            }
+
+            for constraint in &self.constraints {
+                if let PostgresConstraint::Unique(uk) = constraint {
+                    let create_constraint_sql = uk.get_create_statement(self, schema, identifier_quoter);
+                    sql.push_str(&create_constraint_sql);
+                }
+            }
+
+
+
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {
                 match dim {

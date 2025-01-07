@@ -6,7 +6,6 @@ use tokio_postgres::types::FromSqlOwned;
 use uuid::Uuid;
 
 #[allow(dead_code)]
-
 /// A helper for running tests that require a database.
 ///
 /// This will automatically create a new database for each test,

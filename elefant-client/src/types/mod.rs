@@ -6,7 +6,6 @@ mod from_sql_row;
 use std::error::Error;
 use crate::ElefantClientError;
 use crate::protocol::FieldDescription;
-pub use core::*;
 pub use oid::*;
 pub use from_sql_row::*;
 

@@ -12,7 +12,7 @@ pub(crate) enum PostgresThingWithDependencies<'a> {
     Domain(&'a PostgresDomain, &'a PostgresSchema),
 }
 
-impl<'a> HaveDependencies for &PostgresThingWithDependencies<'a> {
+impl HaveDependencies for &PostgresThingWithDependencies<'_> {
     fn depends_on(&self) -> &Vec<ObjectId> {
         match self {
             PostgresThingWithDependencies::Table(table, _) => &table.depends_on,
@@ -38,7 +38,7 @@ impl<'a> HaveDependencies for &PostgresThingWithDependencies<'a> {
     }
 }
 
-impl<'a> PostgresThingWithDependencies<'a> {
+impl PostgresThingWithDependencies<'_> {
     pub fn get_create_sql(&self, identifier_quoter: &crate::IdentifierQuoter) -> String {
         match self {
             PostgresThingWithDependencies::Table(table, schema) => {

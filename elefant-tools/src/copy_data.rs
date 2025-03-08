@@ -454,12 +454,10 @@ fn get_post_apply_statement_groups(
                     continue;
                 }
 
-                let sql = index.get_create_index_command(schema, table, identifier_quoter);
-                if table.is_timescale_table() {
-                    statements.push(vec![sql]);
-                } else {
+                if !table.is_timescale_table() {
+                    let sql = index.get_create_index_command(schema, table, identifier_quoter);
                     group_1.push(sql);
-                }
+                } 
             }
         }
 
@@ -526,10 +524,8 @@ fn get_post_apply_statement_groups(
                         );
                         continue;
                     }
-                    let sql = uk.get_create_statement(table, schema, identifier_quoter);
-                    if table.is_timescale_table() {
-                        statements.push(vec![sql]);
-                    } else {
+                    if !table.is_timescale_table() {
+                        let sql = uk.get_create_statement(table, schema, identifier_quoter);
                         group_3.push(sql);
                     }
                 }

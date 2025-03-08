@@ -23,7 +23,7 @@ impl<'de> Deserialize<'de> for Interval {
 
 struct IntervalVisitor;
 
-impl<'de> Visitor<'de> for IntervalVisitor {
+impl Visitor<'_> for IntervalVisitor {
     type Value = Interval;
 
     fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {

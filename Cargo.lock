@@ -345,7 +345,7 @@ dependencies = [
 
 [[package]]
 name = "elefant-sync"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "clap",
  "elefant-test-macros",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "elefant-tools"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "bytes",
  "elefant-client",

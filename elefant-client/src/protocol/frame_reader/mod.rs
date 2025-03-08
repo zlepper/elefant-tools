@@ -5,11 +5,15 @@ mod encoder;
 
 pub use decoder::*;
 pub use encoder::*;
+use crate::profiler::Profiler;
 use crate::reborrow_until_polonius;
+
+
 
 pub(crate) struct Framed<S> {
     stream: S,
-    buffer: Vec<u8>,
+    read_buffer: Vec<u8>,
+    write_buffer: Vec<u8>,
     start: usize,
     end: usize,
     needs_more: bool,
@@ -17,10 +21,11 @@ pub(crate) struct Framed<S> {
 
 impl<S> Framed<S>  {
 
-    fn new(stream: S) -> Self {
+    pub fn new(stream: S) -> Self {
         Self {
             stream,
-            buffer: vec![0; KB8],
+            read_buffer: vec![0; KB8],
+            write_buffer: Vec::with_capacity(KB8),
             start: 0,
             end: 0,
             needs_more: false,
@@ -32,15 +37,13 @@ const KB8: usize = 8192;
 
 impl<S: AsyncRead + Unpin> Framed<S>  {
 
-    async fn read_frame<'a, C: Decoder<'a>>(&'a mut self) -> Result<C::Output, C::Error> {
-        if self.buffer.len() < self.buffer.capacity() {
-            self.fill_buffer_to_capacity();
-        }
-
+    pub async fn read_frame<'a, C: Decoder<'a, M>, M: 'a>(&'a mut self) -> Result<M, C::Error> {
+        let _read_frame = Profiler::start("read_frame");
         loop {
 
+            // let _read_frame_inner = Profiler::start("read_frame_inner");
             let me: &mut Framed<S> = reborrow_until_polonius!(self);
-            match me.try_read_frame::<C>().await {
+            match me.try_read_frame::<C, M>().await {
                 Ok(Some(m)) => return Ok(m),
                 Ok(None) => {}
                 Err(e) => return Err(e),
@@ -50,32 +53,40 @@ impl<S: AsyncRead + Unpin> Framed<S>  {
 
     }
 
-    async fn try_read_frame<'a, C: Decoder<'a>>(&'a mut self) -> Result<Option<C::Output>, C::Error> {
+    async fn try_read_frame<'a, C: Decoder<'a, M>, M: 'a>(&'a mut self) -> Result<Option<M>, C::Error> {
 
+        // let _try_read_frame = Profiler::start("try_read_frame");
 
         if self.needs_more {
-            let read = self.stream.read(&mut self.buffer[self.end..]).await?;
+            // let _needs_more = Profiler::start("needs_more");
+            let read = self.stream.read(&mut self.read_buffer[self.end..]).await?;
             self.end += read;
             self.needs_more = false;
         }
 
         // When we are at the end of the current read, we need to read more data
         if self.start == self.end {
-            self.end = self.stream.read(&mut self.buffer).await?;
+            // let _read_more_data = Profiler::start("read_more_data");
+            self.end = self.stream.read(&mut self.read_buffer).await?;
             self.start = 0;
         }
 
         let me: &mut Framed<S> = reborrow_until_polonius!(self);
 
-        let mut reader = ByteSliceReader::new(&self.buffer[self.start..self.end]);
+        let mut reader = ByteSliceReader::new(&self.read_buffer[self.start..self.end]);
 
-        match C::decode(&mut reader) {
+        // let _dec = Profiler::start("decode");
+        let part = C::decode(&mut reader);
+        // drop(_dec);
+
+        match part {
             Ok(m) => {
                 self.start += reader.get_read_bytes();
                 debug_assert!(self.start <= self.end);
                 Ok(Some(m))
             },
             Err(DecodeError::NeedsMoreData(expected_more)) => {
+                // let _needs_more_data = Profiler::start("needs_more_data");
                 me.needs_more = true;
                 let expected_more = expected_more.map(|u| u.get()).unwrap_or(KB8);
                 let expected = reader.get_read_bytes() + expected_more;
@@ -96,27 +107,27 @@ impl<S: AsyncRead + Unpin> Framed<S>  {
         // so we might as well spend the time doing something useful.
         self.move_current_values_to_start_of_buffer();
 
-        if expected_total > self.buffer.len() {
-            let additional = expected_total - self.buffer.len();
+        if expected_total > self.read_buffer.len() {
+            let additional = expected_total - self.read_buffer.len();
             self.grow_buffer(additional);
         }
     }
 
     fn grow_buffer(&mut self, additional: usize) {
-        self.buffer.reserve(additional);
+        self.read_buffer.reserve(additional);
         self.fill_buffer_to_capacity();
     }
 
     fn fill_buffer_to_capacity(&mut self) {
-        let additional = self.buffer.capacity() - self.buffer.len();
-        self.buffer.extend(std::iter::repeat(0).take(additional));
-        debug_assert_eq!(self.buffer.len(), self.buffer.capacity());
+        let additional = self.read_buffer.capacity() - self.read_buffer.len();
+        self.read_buffer.extend(std::iter::repeat(0).take(additional));
+        debug_assert_eq!(self.read_buffer.len(), self.read_buffer.capacity());
     }
 
     fn move_current_values_to_start_of_buffer(&mut self) {
         if self.start > 0 && self.end > self.start {
             let remaining = self.end - self.start;
-            self.buffer.copy_within(self.start..self.end, 0);
+            self.read_buffer.copy_within(self.start..self.end, 0);
             self.end = remaining;
             self.start = 0;
         } else {
@@ -129,15 +140,24 @@ impl<S: AsyncRead + Unpin> Framed<S>  {
 
 impl<W: AsyncWrite + Unpin> Framed<W> {
 
-    async fn write_frame<'a, C: Encoder<'a>>(&'a mut self, message: C::Input) -> Result<(), C::Error> {
-        self.buffer.clear();
-        let mut writer = ByteSliceWriter::new(&mut self.buffer);
+    pub async fn write_frame<'a, C: Encoder<'a, M>, M: 'a>(&'a mut self, message: M) -> Result<(), C::Error> {
+        let _write_frame = Profiler::start("write_frame");
+        self.write_buffer.clear();
+        let _e = Profiler::start("encode");
+        let mut writer = ByteSliceWriter::new(&mut self.write_buffer);
         C::encode(&mut writer, message)?;
-        self.stream.write_all(&self.buffer).await?;
+        drop(_e);
+        let _write_all = Profiler::start("write_all");
+        self.stream.write_all(&self.write_buffer).await?;
+        drop(_write_all);
         Ok(())
     }
 
+    pub async fn flush(&mut self) -> std::io::Result<()> {
+        self.stream.flush().await
+    }
 }
+
 
 
 #[cfg(test)]
@@ -204,11 +224,10 @@ mod tests {
         Bytes(&'a [u8]),
     }
 
-    impl<'a> Decoder<'a> for TestCodec {
-        type Output = TestMessage<'a>;
+    impl<'a> Decoder<'a, TestMessage<'a>> for TestCodec {
         type Error = TestCodecError;
 
-        fn decode(buffer: &mut ByteSliceReader<'a>) -> DecodeResult<Self::Output, Self::Error> {
+        fn decode(buffer: &mut ByteSliceReader<'a>) -> DecodeResult<TestMessage<'a>, Self::Error> {
 
             let typ = buffer.read_u8()?;
 
@@ -229,11 +248,10 @@ mod tests {
         }
     }
 
-    impl<'a> Encoder<'a> for TestCodec {
-        type Input = TestMessage<'a>;
+    impl<'a> Encoder<'a, TestMessage<'a>> for TestCodec {
         type Error = TestCodecError;
 
-        fn encode(destination: &mut ByteSliceWriter, input: Self::Input) -> Result<(), Self::Error> {
+        fn encode(destination: &mut ByteSliceWriter, input: TestMessage<'a>) -> Result<(), Self::Error> {
             match input {
                 TestMessage::Ints(i32, i16, u8) => {
                     destination.write_u8(1);
@@ -308,15 +326,15 @@ mod tests {
             let mut buffer = Vec::<u8>::new();
 
             let mut w = Framed::new(Cursor::new(&mut buffer));
-            w.write_frame::<TestCodec>(TestMessage::Ints(1, 1, 1)).await.unwrap();
-            w.write_frame::<TestCodec>(TestMessage::Ints(2, 3, 4)).await.unwrap();
+            w.write_frame::<TestCodec, _>(TestMessage::Ints(1, 1, 1)).await.unwrap();
+            w.write_frame::<TestCodec, _>(TestMessage::Ints(2, 3, 4)).await.unwrap();
 
             let reader = LimitedReader::new(buffer, buffer_read_limit);
             let mut frame_reader = Framed::new(reader);
-            let frame = frame_reader.read_frame::<TestCodec>().await.unwrap();
+            let frame = frame_reader.read_frame::<TestCodec, _>().await.unwrap();
             assert_eq!(frame, TestMessage::Ints(1, 1, 1));
 
-            let frame = frame_reader.read_frame::<TestCodec>().await.unwrap();
+            let frame = frame_reader.read_frame::<TestCodec, _>().await.unwrap();
             assert_eq!(frame, TestMessage::Ints(2, 3, 4));
         }
     }
@@ -327,15 +345,15 @@ mod tests {
             let mut buffer = Vec::<u8>::new();
 
             let mut w = Framed::new(Cursor::new(&mut buffer));
-            w.write_frame::<TestCodec>(TestMessage::String("Hello, world!".into())).await.unwrap();
-            w.write_frame::<TestCodec>(TestMessage::String("Goodbye, world!".into())).await.unwrap();
+            w.write_frame::<TestCodec, _>(TestMessage::String("Hello, world!".into())).await.unwrap();
+            w.write_frame::<TestCodec, _>(TestMessage::String("Goodbye, world!".into())).await.unwrap();
 
             let reader = LimitedReader::new(buffer, buffer_read_limit);
             let mut frame_reader = Framed::new(reader);
-            let frame = frame_reader.read_frame::<TestCodec>().await.unwrap();
+            let frame = frame_reader.read_frame::<TestCodec, _>().await.unwrap();
             assert_eq!(frame, TestMessage::String("Hello, world!".into()));
 
-            let frame = frame_reader.read_frame::<TestCodec>().await.unwrap();
+            let frame = frame_reader.read_frame::<TestCodec, _>().await.unwrap();
             assert_eq!(frame, TestMessage::String("Goodbye, world!".into()));
         }
     }
@@ -346,15 +364,15 @@ mod tests {
             let mut buffer = Vec::<u8>::new();
 
             let mut w = Framed::new(Cursor::new(&mut buffer));
-            w.write_frame::<TestCodec>(TestMessage::Bytes(&[1, 2, 3, 4])).await.unwrap();
-            w.write_frame::<TestCodec>(TestMessage::Bytes(&[5, 6, 7, 8, 9, 10])).await.unwrap();
+            w.write_frame::<TestCodec, _>(TestMessage::Bytes(&[1, 2, 3, 4])).await.unwrap();
+            w.write_frame::<TestCodec, _>(TestMessage::Bytes(&[5, 6, 7, 8, 9, 10])).await.unwrap();
 
             let reader = LimitedReader::new(buffer, buffer_read_limit);
             let mut frame_reader = Framed::new(reader);
-            let frame = frame_reader.read_frame::<TestCodec>().await.unwrap();
+            let frame = frame_reader.read_frame::<TestCodec, _>().await.unwrap();
             assert_eq!(frame, TestMessage::Bytes(&[1, 2, 3, 4]));
 
-            let frame = frame_reader.read_frame::<TestCodec>().await.unwrap();
+            let frame = frame_reader.read_frame::<TestCodec, _>().await.unwrap();
             assert_eq!(frame, TestMessage::Bytes(&[5, 6, 7, 8, 9, 10]));
         }
     }

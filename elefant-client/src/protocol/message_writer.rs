@@ -1,246 +1,233 @@
-use crate::protocol::io_extensions::AsyncWriteExt2;
 use crate::protocol::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, ErrorResponse, FrontendMessage};
-use futures::{AsyncBufRead, AsyncRead, AsyncWrite, AsyncWriteExt};
-use std::io::Error;
+use futures::{AsyncRead, AsyncWrite};
 use crate::protocol::postgres_connection::PostgresConnection;
 use crate::protocol::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, CancelRequest, Close, CommandComplete, CopyData, CopyFail, CurrentTransactionStatus, DataRow, Describe, Execute, FrontendPMessage, FunctionCall, FunctionCallResponse, NegotiateProtocolVersion, NotificationResponse, ParameterDescription, ParameterStatus, Parse, Query, ReadyForQuery, RowDescription, StartupMessage, ValueFormat};
+use crate::protocol::frame_reader::{ByteSliceWriter, Encoder};
 
-impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
+struct PostgresMessageEncoder<'a, 'b> {
+    destination: &'b mut ByteSliceWriter<'a>,
+}
 
-
-    pub async fn write_backend_message(
-        &mut self,
-        message: &BackendMessage<'_>,
-    ) -> Result<(), std::io::Error> {
+impl<'a, 'b> PostgresMessageEncoder<'a, 'b> {
+    fn encode_backend_message(mut self, message: &BackendMessage<'_>) -> Result<(), std::io::Error> {
         match message {
             BackendMessage::AuthenticationOk => {
-                self.write_authentication_ok().await
+                self.write_authentication_ok()
             }
             BackendMessage::AuthenticationKerberosV5 => {
-                self.write_authentication_kerberos_v5().await
+                self.write_authentication_kerberos_v5()
             }
             BackendMessage::AuthenticationCleartextPassword => {
-                self.write_authentication_cleartext_password().await
+                self.write_authentication_cleartext_password()
             }
             BackendMessage::AuthenticationMD5Password(md5) => {
-                self.write_authentication_md5_password(md5).await
+                self.write_authentication_md5_password(md5)
             }
             BackendMessage::AuthenticationGSS => {
-                self.write_authentication_gss().await
+                self.write_authentication_gss()
             }
             BackendMessage::AuthenticationGSSContinue(gss) => {
-                self.write_authentication_gss_continue(gss).await
+                self.write_authentication_gss_continue(gss)
             }
             BackendMessage::AuthenticationSSPI => {
-                self.write_authentication_sspi().await
+                self.write_authentication_sspi()
             }
             BackendMessage::AuthenticationSASL(sasl) => {
-                self.write_authentication_sasl(sasl).await
+                self.write_authentication_sasl(sasl)
             }
             BackendMessage::AuthenticationSASLContinue(sasl) => {
-                self.write_authentication_sasl_continue(sasl).await
+                self.write_authentication_sasl_continue(sasl)
             }
             BackendMessage::AuthenticationSASLFinal(sasl) => {
-                self.write_authentication_sasl_final(sasl).await
+                self.write_authentication_sasl_final(sasl)
             }
             BackendMessage::BackendKeyData(bkd) => {
-                self.write_backend_key_data(bkd).await
+                self.write_backend_key_data(bkd)
             }
             BackendMessage::BindComplete => {
-                self.write_bind_complete().await
+                self.write_bind_complete()
             }
             BackendMessage::CloseComplete => {
-                self.write_close_complete().await
+                self.write_close_complete()
             }
             BackendMessage::CommandComplete(cc) => {
-                self.write_command_complete(cc).await
+                self.write_command_complete(cc)
             }
             BackendMessage::CopyData(cd) => {
-                self.write_copy_data(cd).await
+                self.write_copy_data(cd)
             }
             BackendMessage::CopyDone => {
-                self.write_copy_done().await
+                self.write_copy_done()
             }
             BackendMessage::CopyInResponse(cr) => {
-                self.write_copy_in_response(cr).await
+                self.write_copy_in_response(cr)
             }
             BackendMessage::CopyOutResponse(cr) => {
-                self.write_copy_out_response(cr).await
+                self.write_copy_out_response(cr)
             }
             BackendMessage::CopyBothResponse(cr) => {
-                self.write_copy_both_response(cr).await
+                self.write_copy_both_response(cr)
             }
             BackendMessage::DataRow(dr) => {
-                self.write_data_row(dr).await?;
-                Ok(())
+                self.write_data_row(dr)
             },
             BackendMessage::EmptyQueryResponse => {
-                self.write_empty_query_response().await
+                self.write_empty_query_response()
             },
             BackendMessage::ErrorResponse(er) => {
-                self.write_error_response(er).await
+                self.write_error_response(er)
             },
             BackendMessage::NoticeResponse(er) => {
-                self.write_notice_response(er).await
+                self.write_notice_response(er)
             },
             BackendMessage::FunctionCallResponse(fr) => {
-                self.write_function_call_response(fr).await
+                self.write_function_call_response(fr)
             },
             BackendMessage::NegotiateProtocolVersion(npv) => {
-                self.write_negotiate_protocol_version(npv).await
+                self.write_negotiate_protocol_version(npv)
             },
             BackendMessage::NoData => {
-                self.write_no_data().await
+                self.write_no_data()
             },
             BackendMessage::NotificationResponse(nr) => {
-                self.write_notification_response(nr).await
+                self.write_notification_response(nr)
             },
             BackendMessage::ParameterDescription(dp) => {
-                self.write_parameter_description(dp).await
+                self.write_parameter_description(dp)
             },
             BackendMessage::ParameterStatus(ps) => {
-                self.write_parameter_status(ps).await
+                self.write_parameter_status(ps)
             },
             BackendMessage::ParseComplete => {
-                self.write_parse_complete().await
+                self.write_parse_complete()
             },
             BackendMessage::PortalSuspended => {
-                self.write_portal_suspended().await
+                self.write_portal_suspended()
             },
             BackendMessage::ReadyForQuery(q) => {
-                self.write_ready_for_query(q).await
+                self.write_ready_for_query(q)
             },
             BackendMessage::RowDescription(rd) => {
-                self.write_row_description(rd).await
+                self.write_row_description(rd)
             }
         }
-    }
 
-    async fn write_row_description(&mut self, rd: &RowDescription) -> Result<(), Error> {
-        self.connection.write_u8(b'T').await?;
-        let length = 4 + 2 + rd.fields.iter().map(|f| f.name.len() + 1 + 4 + 2 + 4 + 2 + 4 + 2).sum::<usize>() as i32;
-        self.connection.write_i32(length).await?;
-        self.connection.write_i16(rd.fields.len() as i16).await?;
-        for field in &rd.fields {
-            self.connection.write_null_terminated_string(&field.name).await?;
-            self.connection.write_i32(field.table_oid).await?;
-            self.connection.write_i16(field.column_attribute_number).await?;
-            self.connection.write_i32(field.data_type_oid).await?;
-            self.connection.write_i16(field.data_type_size).await?;
-            self.connection.write_i32(field.type_modifier).await?;
-            self.connection.write_i16(match field.format {
-                ValueFormat::Text => 0,
-                ValueFormat::Binary => 1
-            }).await?;
-        }
         Ok(())
     }
 
-    async fn write_ready_for_query(&mut self, q: &ReadyForQuery) -> Result<(), Error> {
-        self.connection.write_u8(b'Z').await?;
-        self.connection.write_i32(5).await?;
-        self.connection.write_u8(match q.current_transaction_status {
+
+    fn write_row_description(self, rd: &RowDescription) {
+        self.destination.write_u8(b'T');
+        let length = 4 + 2 + rd.fields.iter().map(|f| f.name.len() + 1 + 4 + 2 + 4 + 2 + 4 + 2).sum::<usize>() as i32;
+        self.destination.write_i32(length);
+        self.destination.write_i16(rd.fields.len() as i16);
+        for field in &rd.fields {
+            self.destination.write_null_terminated_string(&field.name);
+            self.destination.write_i32(field.table_oid);
+            self.destination.write_i16(field.column_attribute_number);
+            self.destination.write_i32(field.data_type_oid);
+            self.destination.write_i16(field.data_type_size);
+            self.destination.write_i32(field.type_modifier);
+            self.destination.write_i16(match field.format {
+                ValueFormat::Text => 0,
+                ValueFormat::Binary => 1
+            });
+        }
+    }
+
+    fn write_ready_for_query(self, q: &ReadyForQuery) {
+        self.destination.write_u8(b'Z');
+        self.destination.write_i32(5);
+        self.destination.write_u8(match q.current_transaction_status {
             CurrentTransactionStatus::Idle => b'I',
             CurrentTransactionStatus::InTransaction => b'T',
             CurrentTransactionStatus::InFailedTransaction => b'E',
-        }).await?;
-        Ok(())
+        });
     }
 
-    async fn write_portal_suspended(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b's').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_portal_suspended(self) {
+        self.destination.write_u8(b's');
+        self.destination.write_i32(4);
     }
 
-    async fn write_parse_complete(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'1').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_parse_complete(&mut self) {
+        self.destination.write_u8(b'1');
+        self.destination.write_i32(4);
     }
 
-    async fn write_parameter_status(&mut self, ps: &ParameterStatus<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'S').await?;
+    fn write_parameter_status(&mut self, ps: &ParameterStatus<'_>) {
+        self.destination.write_u8(b'S');
         let length = 4 + ps.name.len() + 1 + ps.value.len() + 1;
-        self.connection.write_i32(length as i32).await?;
-        self.connection.write_null_terminated_string(&ps.name).await?;
-        self.connection.write_null_terminated_string(&ps.value).await?;
-        Ok(())
+        self.destination.write_i32(length as i32);
+        self.destination.write_null_terminated_string(&ps.name);
+        self.destination.write_null_terminated_string(&ps.value);
     }
 
-    async fn write_parameter_description(&mut self, dp: &ParameterDescription) -> Result<(), Error> {
-        self.connection.write_u8(b't').await?;
+    fn write_parameter_description(&mut self, dp: &ParameterDescription) {
+        self.destination.write_u8(b't');
         let length = 4 + 2 + dp.types.len() as i32 * 4;
-        self.connection.write_i32(length).await?;
-        self.connection.write_i16(dp.types.len() as i16).await?;
+        self.destination.write_i32(length);
+        self.destination.write_i16(dp.types.len() as i16);
         for ty in &dp.types {
-            self.connection.write_i32(*ty).await?;
+            self.destination.write_i32(*ty);
         }
-        Ok(())
     }
 
-    async fn write_notification_response(&mut self, nr: &NotificationResponse<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'A').await?;
+    fn write_notification_response(&mut self, nr: &NotificationResponse<'_>)  {
+        self.destination.write_u8(b'A');
         let length = 4 + 4 + nr.channel.len() + 1 + nr.payload.len() + 1;
-        self.connection.write_i32(length as i32).await?;
-        self.connection.write_i32(nr.process_id).await?;
-        self.connection.write_null_terminated_string(&nr.channel).await?;
-        self.connection.write_null_terminated_string(&nr.payload).await?;
-        Ok(())
+        self.destination.write_i32(length as i32);
+        self.destination.write_i32(nr.process_id);
+        self.destination.write_null_terminated_string(&nr.channel);
+        self.destination.write_null_terminated_string(&nr.payload);
     }
 
-    async fn write_no_data(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'n').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_no_data(&mut self) {
+        self.destination.write_u8(b'n');
+        self.destination.write_i32(4);
     }
 
-    async fn write_negotiate_protocol_version(&mut self, npv: &NegotiateProtocolVersion<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'v').await?;
+    fn write_negotiate_protocol_version(&mut self, npv: &NegotiateProtocolVersion<'_>) {
+        self.destination.write_u8(b'v');
         let length = 4 + 4 + 4 + npv.protocol_options.iter().map(|s| s.len() + 1).sum::<usize>() as i32;
-        self.connection.write_i32(length).await?;
-        self.connection.write_i32(npv.newest_protocol_version).await?;
-        self.connection.write_i32(npv.protocol_options.len() as i32).await?;
+        self.destination.write_i32(length);
+        self.destination.write_i32(npv.newest_protocol_version);
+        self.destination.write_i32(npv.protocol_options.len() as i32);
         for option in &npv.protocol_options {
-            self.connection.write_all(option.as_bytes()).await?;
-            self.connection.write_u8(0).await?;
+            self.destination.write_bytes(option.as_bytes());
+            self.destination.write_u8(0);
         }
-        Ok(())
     }
 
-    async fn write_function_call_response(&mut self, fr: &FunctionCallResponse<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'V').await?;
+    fn write_function_call_response(&mut self, fr: &FunctionCallResponse<'_>) {
+        self.destination.write_u8(b'V');
         let length = 4 + 4 + fr.value.map(|v| v.len()).unwrap_or(0) as i32;
-        self.connection.write_i32(length).await?;
+        self.destination.write_i32(length);
         if let Some(value) = &fr.value {
-            self.connection.write_i32(value.len() as i32).await?;
-            self.connection.write_all(value).await?;
+            self.destination.write_i32(value.len() as i32);
+            self.destination.write_bytes(value);
         } else {
-            self.connection.write_i32(-1).await?;
+            self.destination.write_i32(-1);
         }
-        Ok(())
     }
 
-    async fn write_notice_response(&mut self, er: &ErrorResponse<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'N').await?;
-        self.write_error_response_body(er).await?;
-        Ok(())
+    fn write_notice_response(&mut self, er: &ErrorResponse<'_>) {
+        self.destination.write_u8(b'N');
+        self.write_error_response_body(er);
     }
 
-    async fn write_error_response(&mut self, er: &ErrorResponse<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'E').await?;
-        self.write_error_response_body(er).await?;
-        Ok(())
+    fn write_error_response(&mut self, er: &ErrorResponse<'_>) {
+        self.destination.write_u8(b'E');
+        self.write_error_response_body(er);
     }
 
-    async fn write_empty_query_response(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'I').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_empty_query_response(&mut self) {
+        self.destination.write_u8(b'I');
+        self.destination.write_i32(4);
     }
 
-    async fn write_data_row(&mut self, dr: &DataRow<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'D').await?;
+    fn write_data_row(&mut self, dr: &DataRow<'_>) {
+        self.destination.write_u8(b'D');
         let length = 4
             + 2
             + dr.values
@@ -253,429 +240,379 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
                 }
             })
             .sum::<i32>();
-        self.connection.write_i32(length).await?;
-        self.connection.write_i16(dr.values.len() as i16).await?;
+        self.destination.write_i32(length);
+        self.destination.write_i16(dr.values.len() as i16);
         for column in &dr.values {
             if let Some(column) = column {
-                self.connection.write_i32(column.len() as i32).await?;
-                self.connection.write_all(column).await?;
+                self.destination.write_i32(column.len() as i32);
+                self.destination.write_bytes(column);
             } else {
-                self.connection.write_i32(-1).await?;
+                self.destination.write_i32(-1);
             }
         }
-        Ok(())
     }
 
-    async fn write_copy_both_response(&mut self, cr: &CopyResponse) -> Result<(), Error> {
-        self.connection.write_u8(b'W').await?;
-        self.write_copy_response(cr).await
+    fn write_copy_both_response(self, cr: &CopyResponse)  {
+        self.destination.write_u8(b'W');
+        self.write_copy_response(cr);
     }
 
-    async fn write_copy_out_response(&mut self, cr: &CopyResponse) -> Result<(), Error> {
-        self.connection.write_u8(b'H').await?;
-        self.write_copy_response(cr).await
+    fn write_copy_out_response(self, cr: &CopyResponse) {
+        self.destination.write_u8(b'H');
+        self.write_copy_response(cr)
     }
 
-    async fn write_copy_in_response(&mut self, cr: &CopyResponse) -> Result<(), Error> {
-        self.connection.write_u8(b'G').await?;
-        self.write_copy_response(cr).await
+    fn write_copy_in_response(self, cr: &CopyResponse) {
+        self.destination.write_u8(b'G');
+        self.write_copy_response(cr)
     }
 
-    async fn write_copy_done(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'c').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_copy_done(self) {
+        self.destination.write_u8(b'c');
+        self.destination.write_i32(4);
     }
 
-    async fn write_copy_data(&mut self, cd: &CopyData<'_>) -> Result<(), Error> {
-        let length = 4 + cd.data.len() + 1;
-        self.extend_buffer(length);
-        self.read_buffer[0] = b'd';
-        let bytes = (length as i32 - 1).to_be_bytes();
-        self.read_buffer[1] = bytes[0];
-        self.read_buffer[2] = bytes[1];
-        self.read_buffer[3] = bytes[2];
-        self.read_buffer[4] = bytes[3];
-        self.read_buffer[5..5 + cd.data.len()].copy_from_slice(cd.data);
-        // // self.connection.write_u8(b'd').await?;
-        // self.connection.write_i32((length - 1) as i32).await?;
-        self.connection.write_all(&self.read_buffer[..length]).await?;
-        Ok(())
+    fn write_copy_data(self, cd: &CopyData<'_>) {
+        self.destination.write_u8(b'd');
+        let length = 4 + cd.data.len();
+        self.destination.write_i32(length as i32);
+        self.destination.write_bytes(cd.data);
     }
 
-    async fn write_command_complete(&mut self, cc: &CommandComplete<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'C').await?;
+    fn write_command_complete(&mut self, cc: &CommandComplete<'_>) {
+        self.destination.write_u8(b'C');
         let length = 4 + cc.tag.len() + 1;
-        self.connection.write_i32(length as i32).await?;
-        self.connection.write_all(cc.tag.as_bytes()).await?;
-        self.connection.write_u8(0).await?;
-        Ok(())
+        self.destination.write_i32(length as i32);
+        self.destination.write_bytes(cc.tag.as_bytes());
+        self.destination.write_u8(0);
     }
 
-    async fn write_close_complete(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'3').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_close_complete(&mut self) {
+        self.destination.write_u8(b'3');
+        self.destination.write_i32(4);
     }
 
-    async fn write_bind_complete(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'2').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_bind_complete(&mut self) {
+        self.destination.write_u8(b'2');
+        self.destination.write_i32(4);
     }
 
-    async fn write_backend_key_data(&mut self, bkd: &BackendKeyData) -> Result<(), Error> {
-        self.connection.write_u8(b'K').await?;
-        self.connection.write_i32(12).await?;
-        self.connection.write_i32(bkd.process_id).await?;
-        self.connection.write_i32(bkd.secret_key).await?;
-        Ok(())
+    fn write_backend_key_data(&mut self, bkd: &BackendKeyData) {
+        self.destination.write_u8(b'K');
+        self.destination.write_i32(12);
+        self.destination.write_i32(bkd.process_id);
+        self.destination.write_i32(bkd.secret_key);
     }
 
-    async fn write_authentication_sasl_final(&mut self, sasl: &AuthenticationSASLFinal<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8 + sasl.outcome.len() as i32).await?;
-        self.connection.write_i32(12).await?;
-        self.connection.write_all(sasl.outcome).await?;
-        Ok(())
+    fn write_authentication_sasl_final(&mut self, sasl: &AuthenticationSASLFinal<'_>)  {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8 + sasl.outcome.len() as i32);
+        self.destination.write_i32(12);
+        self.destination.write_bytes(sasl.outcome);
     }
 
-    async fn write_authentication_sasl_continue(&mut self, sasl: &AuthenticationSASLContinue<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8 + sasl.data.len() as i32).await?;
-        self.connection.write_i32(11).await?;
-        self.connection.write_all(sasl.data).await?;
-        Ok(())
+    fn write_authentication_sasl_continue(&mut self, sasl: &AuthenticationSASLContinue<'_>) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8 + sasl.data.len() as i32);
+        self.destination.write_i32(11);
+        self.destination.write_bytes(sasl.data);
     }
 
-    async fn write_authentication_sasl(&mut self, sasl: &AuthenticationSASL<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
+    fn write_authentication_sasl(&mut self, sasl: &AuthenticationSASL<'_>) {
+        self.destination.write_u8(b'R');
         let length = 8 + sasl.mechanisms.iter().map(|s| s.len() + 1).sum::<usize>() as i32;
-        self.connection.write_i32(length).await?;
-        self.connection.write_i32(10).await?;
+        self.destination.write_i32(length);
+        self.destination.write_i32(10);
         for mechanism in &sasl.mechanisms {
-            self.connection.write_all(mechanism.as_bytes()).await?;
-            self.connection.write_u8(0).await?;
+            self.destination.write_bytes(mechanism.as_bytes());
+            self.destination.write_u8(0);
         }
-        Ok(())
     }
 
-    async fn write_authentication_sspi(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(9).await?;
-        Ok(())
+    fn write_authentication_sspi(&mut self) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8);
+        self.destination.write_i32(9);
     }
 
-    async fn write_authentication_gss_continue(&mut self, gss: &AuthenticationGSSContinue<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8 + gss.data.len() as i32).await?;
-        self.connection.write_i32(8).await?;
-        self.connection.write_all(gss.data).await?;
-        Ok(())
+    fn write_authentication_gss_continue(&mut self, gss: &AuthenticationGSSContinue<'_>)  {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8 + gss.data.len() as i32);
+        self.destination.write_i32(8);
+        self.destination.write_bytes(gss.data);
     }
 
-    async fn write_authentication_gss(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(7).await?;
-        Ok(())
+    fn write_authentication_gss(&mut self) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8);
+        self.destination.write_i32(7);
     }
 
-    async fn write_authentication_md5_password(&mut self, md5: &AuthenticationMD5Password) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(12).await?;
-        self.connection.write_i32(5).await?;
-        self.connection.write_all(&md5.salt).await?;
-        Ok(())
+    fn write_authentication_md5_password(&mut self, md5: &AuthenticationMD5Password) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(12);
+        self.destination.write_i32(5);
+        self.destination.write_bytes(&md5.salt);
     }
 
-    async fn write_authentication_cleartext_password(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(3).await?;
-        Ok(())
+    fn write_authentication_cleartext_password(&mut self) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8);
+        self.destination.write_i32(3);
     }
 
-    async fn write_authentication_kerberos_v5(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(2).await?;
-        Ok(())
+    fn write_authentication_kerberos_v5(&mut self) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8);
+        self.destination.write_i32(2);
     }
 
-    async fn write_authentication_ok(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'R').await?;
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(0).await?;
-        Ok(())
+    fn write_authentication_ok(&mut self) {
+        self.destination.write_u8(b'R');
+        self.destination.write_i32(8);
+        self.destination.write_i32(0);
     }
 
-    async fn write_error_response_body(&mut self, er: &ErrorResponse<'_>) -> Result<(), Error> {
+    fn write_error_response_body(&mut self, er: &ErrorResponse<'_>)  {
         let length = 4
             + er.fields
             .iter()
             .map(|f| 1 + f.value.len() as i32 + 1)
             .sum::<i32>()
             + 1;
-        self.connection.write_i32(length).await?;
+        self.destination.write_i32(length);
         for f in &er.fields {
-            self.connection.write_u8(f.field_type).await?;
-            self.connection.write_all(f.value.as_bytes()).await?;
-            self.connection.write_u8(0).await?;
+            self.destination.write_u8(f.field_type);
+            self.destination.write_bytes(f.value.as_bytes());
+            self.destination.write_u8(0);
         }
-        self.connection.write_u8(0).await?;
-        Ok(())
+        self.destination.write_u8(0);
     }
 
-    async fn write_copy_response(&mut self, cir: &CopyResponse) -> Result<(), Error> {
+    fn write_copy_response(self, cir: &CopyResponse)  {
         let len = 4 + 1 + 2 + (cir.column_formats.len() * 2) as i32;
-        self.connection.write_i32(len).await?;
+        self.destination.write_i32(len);
 
-        self.connection
+        self.destination
             .write_u8(match cir.format {
                 ValueFormat::Text => 0,
                 ValueFormat::Binary => 1,
-            })
-            .await?;
+            });
 
-        self.connection
-            .write_i16(cir.column_formats.len() as i16)
-            .await?;
+        self.destination.write_i16(cir.column_formats.len() as i16);
 
         for format in &cir.column_formats {
-            self.connection
+            self.destination
                 .write_i16(match format {
                     ValueFormat::Text => 0,
                     ValueFormat::Binary => 1,
-                })
-                .await?;
+                });
         }
-
-        Ok(())
     }
 
-    pub async fn write_frontend_message(
-        &mut self,
-        message: &FrontendMessage<'_>,
-    ) -> Result<(), std::io::Error> {
+    fn encode_frontend_message(mut self, message: &FrontendMessage<'_>) {
+
         match message {
-            FrontendMessage::Bind(bind) => self.write_bind_message(bind).await,
+            FrontendMessage::Bind(bind) => self.write_bind_message(bind),
             FrontendMessage::CancelRequest(cr) => {
-                self.write_cancel_request(cr).await
+                self.write_cancel_request(cr)
             }
             FrontendMessage::Close(close) => {
-                self.write_close(close).await
+                self.write_close(close)
             }
             FrontendMessage::CopyData(cd) => {
-                self.write_copy_data(cd).await
+                self.write_copy_data(cd)
             }
             FrontendMessage::CopyDone => {
-                self.write_copy_done().await
+                self.write_copy_done()
             }
             FrontendMessage::CopyFail(cf) => {
-                self.write_copy_fail(cf).await
+                self.write_copy_fail(cf)
             },
             FrontendMessage::Describe(d) => {
-                self.write_describe(d).await
+                self.write_describe(d)
             },
             FrontendMessage::Execute(e) => {
-                self.write_execute(e).await
+                self.write_execute(e)
             },
             FrontendMessage::Flush => {
-                self.write_flush().await
+                self.write_flush()
             },
             FrontendMessage::FunctionCall(fc) => {
-                self.write_function_call(fc).await
+                self.write_function_call(fc)
             },
             FrontendMessage::GSSENCRequest => {
-                self.write_gss_enc_request().await
+                self.write_gss_enc_request()
             },
             FrontendMessage::FrontendPMessage(gr) => {
-                self.write_frontend_p_message(gr).await
+                self.write_frontend_p_message(gr)
             },
             FrontendMessage::Parse(p) => {
-                self.write_parse(&p).await
+                self.write_parse(p)
             },
             FrontendMessage::Query(q) => {
-                self.write_query(q).await
+                self.write_query(q)
             },
             FrontendMessage::SSLRequest => {
-                self.write_ssl_request().await
+                self.write_ssl_request()
             },
             FrontendMessage::StartupMessage(s) => {
-                self.write_startup_message(s).await
+                self.write_startup_message(s)
             },
             FrontendMessage::Sync => {
-                self.write_sync().await
+                self.write_sync()
             },
             FrontendMessage::Terminate => {
-                self.write_terminate().await
+                self.write_terminate()
             },
         }
+
     }
 
-    async fn write_terminate(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'X').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+
+    fn write_terminate(&mut self) {
+        self.destination.write_u8(b'X');
+        self.destination.write_i32(4);
     }
 
-    async fn write_sync(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'S').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_sync(&mut self) {
+        self.destination.write_u8(b'S');
+        self.destination.write_i32(4);
     }
 
-    async fn write_startup_message(&mut self, s: &StartupMessage<'_>) -> Result<(), Error> {
+    fn write_startup_message(&mut self, s: &StartupMessage<'_>) {
         let length = 4 + 4 + s.parameters.iter().map(|p| p.name.len() + 1 + p.value.len() + 1).sum::<usize>() as i32 + 1;
-        self.connection.write_i32(length).await?;
-        self.connection.write_i32(196608).await?;
+        self.destination.write_i32(length);
+        self.destination.write_i32(196608);
         for p in &s.parameters {
-            self.connection.write_null_terminated_string(&p.name).await?;
-            self.connection.write_null_terminated_string(&p.value).await?;
+            self.destination.write_null_terminated_string(&p.name);
+            self.destination.write_null_terminated_string(&p.value);
         }
-        self.connection.write_u8(0).await?;
-        Ok(())
+        self.destination.write_u8(0);
     }
 
-    async fn write_ssl_request(&mut self) -> Result<(), Error> {
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(80877103).await?;
-        Ok(())
+    fn write_ssl_request(&mut self) {
+        self.destination.write_i32(8);
+        self.destination.write_i32(80877103);
     }
 
-    async fn write_query(&mut self, q: &Query<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'Q').await?;
+    fn write_query(&mut self, q: &Query<'_>) {
+        self.destination.write_u8(b'Q');
         let length = 4 + q.query.len() + 1;
-        self.connection.write_i32(length as i32).await?;
-        self.connection.write_null_terminated_string(&q.query).await?;
-        Ok(())
+        self.destination.write_i32(length as i32);
+        self.destination.write_null_terminated_string(&q.query);
     }
 
-    async fn write_parse(&mut self, p: &Parse<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'P').await?;
+    fn write_parse(&mut self, p: &Parse<'_>) {
+        self.destination.write_u8(b'P');
         let length = 4 + p.destination.len() + 1 + p.query.len() + 1 + 2 + p.parameter_types.len() * 4;
-        self.connection.write_i32(length as i32).await?;
-        self.connection.write_null_terminated_string(&p.destination).await?;
-        self.connection.write_null_terminated_string(&p.query).await?;
-        self.connection.write_i16(p.parameter_types.len() as i16).await?;
+        self.destination.write_i32(length as i32);
+        self.destination.write_null_terminated_string(&p.destination);
+        self.destination.write_null_terminated_string(&p.query);
+        self.destination.write_i16(p.parameter_types.len() as i16);
         for ty in &p.parameter_types {
-            self.connection.write_i32(*ty).await?;
+            self.destination.write_i32(*ty);
         }
-        Ok(())
     }
 
-    async fn write_frontend_p_message(&mut self, gr: &FrontendPMessage<'_>) -> Result<(), Error> {
-        gr.write_to(&mut self.connection).await?;
-        Ok(())
+    fn write_frontend_p_message(&mut self, gr: &FrontendPMessage<'_>) {
+        gr.write_to(self.destination);
     }
 
-    async fn write_gss_enc_request(&mut self) -> Result<(), Error> {
-        self.connection.write_i32(8).await?;
-        self.connection.write_i32(80877104).await?;
-        Ok(())
+    fn write_gss_enc_request(&mut self) {
+        self.destination.write_i32(8);
+        self.destination.write_i32(80877104);
     }
 
-    async fn write_function_call(&mut self, fc: &FunctionCall<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'F').await?;
+    fn write_function_call(&mut self, fc: &FunctionCall<'_>) {
+        self.destination.write_u8(b'F');
         let length = 4 + 4 + 2 + (fc.argument_formats.len() as i32 * 2) + 2 + (fc.arguments.iter().map(|a| if let Some(a) = a {
             a.len() as i32
         } else {
             0
         } + 4).sum::<i32>()) + 2;
-        self.connection.write_i32(length).await?;
-        self.connection.write_i32(fc.object_id).await?;
-        self.connection.write_i16(fc.argument_formats.len() as i16).await?;
+        self.destination.write_i32(length);
+        self.destination.write_i32(fc.object_id);
+        self.destination.write_i16(fc.argument_formats.len() as i16);
         for format in &fc.argument_formats {
-            self.connection.write_i16(match format {
+            self.destination.write_i16(match format {
                 ValueFormat::Text => 0,
                 ValueFormat::Binary => 1,
-            }).await?;
+            });
         }
-        self.connection.write_i16(fc.arguments.len() as i16).await?;
+        self.destination.write_i16(fc.arguments.len() as i16);
         for argument in &fc.arguments {
             match argument {
                 Some(argument) => {
-                    self.connection.write_i32(argument.len() as i32).await?;
-                    self.connection.write_all(argument).await?;
+                    self.destination.write_i32(argument.len() as i32);
+                    self.destination.write_bytes(argument);
                 },
                 None => {
-                    self.connection.write_i32(-1).await?;
+                    self.destination.write_i32(-1);
                 },
             }
         }
-        self.connection.write_i16(match fc.result_format {
+        self.destination.write_i16(match fc.result_format {
             ValueFormat::Text => 0,
             ValueFormat::Binary => 1,
-        }).await?;
-        Ok(())
+        });
     }
 
-    async fn write_flush(&mut self) -> Result<(), Error> {
-        self.connection.write_u8(b'H').await?;
-        self.connection.write_i32(4).await?;
-        Ok(())
+    fn write_flush(&mut self)  {
+        self.destination.write_u8(b'H');
+        self.destination.write_i32(4);
     }
 
-    async fn write_execute(&mut self, e: &Execute<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'E').await?;
+    fn write_execute(&mut self, e: &Execute<'_>) {
+        self.destination.write_u8(b'E');
         let length = 4 + e.portal_name.len() + 1 + 4;
-        self.connection.write_i32(length as i32).await?;
-        self.connection.write_all(e.portal_name.as_bytes()).await?;
-        self.connection.write_u8(0).await?;
-        self.connection.write_i32(e.max_rows).await?;
-        Ok(())
+        self.destination.write_i32(length as i32);
+        self.destination.write_bytes(e.portal_name.as_bytes());
+        self.destination.write_u8(0);
+        self.destination.write_i32(e.max_rows);
     }
 
-    async fn write_describe(&mut self, d: &Describe<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'D').await?;
-        self.connection.write_i32(4 + 1 + d.name.len() as i32 + 1).await?;
-        self.connection.write_u8(match d.target {
+    fn write_describe(&mut self, d: &Describe<'_>) {
+        self.destination.write_u8(b'D');
+        self.destination.write_i32(4 + 1 + d.name.len() as i32 + 1);
+        self.destination.write_u8(match d.target {
             DescribeTarget::Statement => b'S',
             DescribeTarget::Portal => b'P',
-        }).await?;
-        self.connection.write_all(d.name.as_bytes()).await?;
-        self.connection.write_u8(0).await?;
-        Ok(())
+        });
+        self.destination.write_bytes(d.name.as_bytes());
+        self.destination.write_u8(0);
     }
 
-    async fn write_copy_fail(&mut self, cf: &CopyFail<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'f').await?;
-        self.connection
-            .write_i32(4 + cf.message.len() as i32 + 1)
-            .await?;
-        self.connection.write_all(cf.message.as_bytes()).await?;
-        self.connection.write_u8(0).await?;
-        Ok(())
+    fn write_copy_fail(&mut self, cf: &CopyFail<'_>) {
+        self.destination.write_u8(b'f');
+        self.destination
+            .write_i32(4 + cf.message.len() as i32 + 1);
+        self.destination.write_bytes(cf.message.as_bytes());
+        self.destination.write_u8(0);
     }
 
-    async fn write_close(&mut self, close: &Close<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'C').await?;
-        self.connection
-            .write_i32(4 + 1 + close.name.len() as i32 + 1)
-            .await?;
-        self.connection
+    fn write_close(&mut self, close: &Close<'_>){
+        self.destination.write_u8(b'C');
+        self.destination
+            .write_i32(4 + 1 + close.name.len() as i32 + 1);
+        self.destination
             .write_u8(match close.target {
                 CloseType::Statement => b'S',
                 CloseType::Portal => b'P',
-            })
-            .await?;
-        self.connection.write_all(close.name.as_bytes()).await?;
-        self.connection.write_u8(0).await?;
-        Ok(())
+            });
+        self.destination.write_bytes(close.name.as_bytes());
+        self.destination.write_u8(0);
     }
 
-    async fn write_cancel_request(&mut self, cr: &CancelRequest) -> Result<(), Error> {
-        self.connection.write_i32(16).await?;
-        self.connection.write_i32(80877102).await?;
-        self.connection.write_i32(cr.process_id).await?;
-        self.connection.write_i32(cr.secret_key).await?;
-        Ok(())
+    fn write_cancel_request(&mut self, cr: &CancelRequest)  {
+        self.destination.write_i32(16);
+        self.destination.write_i32(80877102);
+        self.destination.write_i32(cr.process_id);
+        self.destination.write_i32(cr.secret_key);
     }
 
-    async fn write_bind_message(&mut self, bind: &Bind<'_>) -> Result<(), Error> {
-        self.connection.write_u8(b'B').await?;
+    fn write_bind_message(&mut self, bind: &Bind<'_>) {
+        self.destination.write_u8(b'B');
         let length = size_of::<i32>()
             + bind.destination_portal_name.len()
             + size_of::<u8>()
@@ -692,52 +629,90 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresConnection<C> {
             + bind.parameter_values.len() * size_of::<i32>()
             + size_of::<i16>()
             + bind.result_column_formats.len() * size_of::<i16>();
-        self.connection.write_i32(length as i32).await?;
-        self.connection
-            .write_all(bind.destination_portal_name.as_bytes())
-            .await?;
-        self.connection.write_u8(0).await?;
-        self.connection
-            .write_all(bind.source_statement_name.as_bytes())
-            .await?;
-        self.connection.write_u8(0).await?;
-        self.connection
-            .write_i16(bind.parameter_formats.len() as i16)
-            .await?;
+        self.destination.write_i32(length as i32);
+        self.destination.write_bytes(bind.destination_portal_name.as_bytes());
+        self.destination.write_u8(0);
+        self.destination.write_bytes(bind.source_statement_name.as_bytes());
+        self.destination.write_u8(0);
+        self.destination
+            .write_i16(bind.parameter_formats.len() as i16);
         for format in &bind.parameter_formats {
-            self.connection
+            self.destination
                 .write_i16(match format {
                     ValueFormat::Text => 0,
                     ValueFormat::Binary => 1,
-                })
-                .await?;
+                });
         }
-        self.connection
-            .write_i16(bind.parameter_values.len() as i16)
-            .await?;
+        self.destination
+            .write_i16(bind.parameter_values.len() as i16);
         for value in &bind.parameter_values {
             match value {
                 Some(value) => {
-                    self.connection.write_i32(value.len() as i32).await?;
-                    self.connection.write_all(value).await?;
+                    self.destination.write_i32(value.len() as i32);
+                    self.destination.write_bytes(value);
                 }
                 None => {
-                    self.connection.write_i32(-1).await?;
+                    self.destination.write_i32(-1);
                 }
             }
         }
-        self.connection
-            .write_i16(bind.result_column_formats.len() as i16)
-            .await?;
+        self.destination
+            .write_i16(bind.result_column_formats.len() as i16);
         for format in &bind.result_column_formats {
-            self.connection
+            self.destination
                 .write_i16(match format {
                     ValueFormat::Text => 0,
                     ValueFormat::Binary => 1,
-                })
-                .await?;
+                });
         }
+    }
+
+    fn new(destination: &'b mut ByteSliceWriter<'a>) -> PostgresMessageEncoder<'a, 'b> {
+        PostgresMessageEncoder { destination }
+    }
+}
+
+impl<'a, 'b> Encoder<'a, &'a BackendMessage<'a>> for PostgresMessageEncoder<'a, 'b> {
+    type Error = std::io::Error;
+
+    fn encode(destination: &mut ByteSliceWriter, input: &BackendMessage<'a>) -> Result<(), Self::Error> {
+        let encoder = PostgresMessageEncoder::new(destination);
+
+        encoder.encode_backend_message(input)
+
+
+
+    }
+}
+
+impl<'a, 'b> Encoder<'a, &'a FrontendMessage<'a>> for PostgresMessageEncoder<'a, 'b> {
+    type Error = std::io::Error;
+
+    fn encode(destination: &mut ByteSliceWriter, input: &'a FrontendMessage<'a>) -> Result<(), Self::Error> {
+        let encoder = PostgresMessageEncoder::new(destination);
+
+        encoder.encode_frontend_message(input);
+
         Ok(())
+    }
+}
+
+
+impl<C: AsyncRead + AsyncWrite + Unpin> PostgresConnection<C> {
+
+
+    pub async fn write_backend_message(
+        &mut self,
+        message: &BackendMessage<'_>,
+    ) -> Result<(), std::io::Error> {
+        self.connection.write_frame::<PostgresMessageEncoder, _>(message).await
+    }
+
+    pub async fn write_frontend_message(
+        &mut self,
+        message: &FrontendMessage<'_>,
+    ) -> Result<(), std::io::Error> {
+        self.connection.write_frame::<PostgresMessageEncoder, _>(message).await
     }
 
     pub async fn flush(&mut self) -> std::io::Result<()> {

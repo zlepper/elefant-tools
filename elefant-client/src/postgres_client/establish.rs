@@ -1,12 +1,12 @@
 use std::borrow::Cow;
-use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncWrite};
 use md5::Digest;
 use crate::{ElefantClientError, PostgresConnectionSettings};
 use crate::postgres_client::PostgresClient;
 use crate::protocol::{BackendMessage, FrontendMessage, FrontendPMessage, sasl, SASLInitialResponse, SASLResponse, StartupMessage, StartupMessageParameter, PasswordMessage};
 use crate::protocol::sasl::ChannelBinding;
 
-impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
+impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub(crate) async fn establish(&mut self) -> Result<(), ElefantClientError> {
         self.connection.write_frontend_message(&FrontendMessage::StartupMessage(StartupMessage {
             parameters: vec![

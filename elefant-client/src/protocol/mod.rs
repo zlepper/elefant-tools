@@ -1,6 +1,5 @@
 mod messages;
 mod error;
-mod io_extensions;
 mod message_writer;
 #[cfg(test)]
 mod message_tests;

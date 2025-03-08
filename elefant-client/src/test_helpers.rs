@@ -1,4 +1,4 @@
-use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncWrite};
 use crate::postgres_client::{PostgresClient, QueryResultSet};
 use crate::{FromSql, PostgresConnectionSettings, Statement, ToSql};
 use crate::tokio_connection::{new_client, TokioPostgresClient};
@@ -16,7 +16,7 @@ pub(crate) async fn get_tokio_test_client() -> TokioPostgresClient {
     new_client(get_settings()).await.unwrap()
 }
 
-impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
+impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub async fn read_single_column_and_row_exactly<'a, S, T>(&'a mut self, sql: &S, parameters: &[&(dyn ToSql)]) -> T
     where T: FromSql<'a>,
         S: Statement + ?Sized

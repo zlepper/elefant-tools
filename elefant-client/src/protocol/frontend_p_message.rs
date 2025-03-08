@@ -1,6 +1,5 @@
 use std::borrow::Cow;
-use futures::{AsyncWrite, AsyncWriteExt};
-use crate::protocol::io_extensions::AsyncWriteExt2;
+use crate::protocol::frame_reader::ByteSliceWriter;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum FrontendPMessage<'a> {
@@ -39,44 +38,43 @@ pub struct UndecidedFrontendPMessage<'a> {
 
 
 impl FrontendPMessage<'_> {
-    pub(crate) async fn write_to<C: AsyncWrite + Unpin>(&self, destination: &mut C) -> Result<(), std::io::Error> {
+    pub(crate) fn write_to(&self, destination: &mut ByteSliceWriter) {
         match self {
             FrontendPMessage::SASLInitialResponse(sasl) => {
-                destination.write_u8(b'p').await?;
+                destination.write_u8(b'p');
                 
                 let length = 4 + sasl.mechanism.len() + 1 + 4 + sasl.data.map(|d| d.len()).unwrap_or(0);
                 
-                destination.write_i32(length as i32).await?;
-                destination.write_null_terminated_string(&sasl.mechanism).await?;
+                destination.write_i32(length as i32);
+                destination.write_null_terminated_string(&sasl.mechanism);
                 if let Some(data) = sasl.data {
-                    destination.write_i32(data.len() as i32).await?;
-                    destination.write_all(data).await?;
+                    destination.write_i32(data.len() as i32);
+                    destination.write_bytes(data);
                 } else {
-                    destination.write_i32(-1).await?;
+                    destination.write_i32(-1);
                 }
             }
             FrontendPMessage::SASLResponse(sasl) => {
-                destination.write_u8(b'p').await?;
-                destination.write_i32(4 + sasl.data.len() as i32).await?;
-                destination.write_all(sasl.data).await?;
+                destination.write_u8(b'p');
+                destination.write_i32(4 + sasl.data.len() as i32);
+                destination.write_bytes(sasl.data);
             }
             FrontendPMessage::GSSResponse(gss) => {
-                destination.write_u8(b'p').await?;
-                destination.write_i32(4 + gss.data.len() as i32).await?;
-                destination.write_all(gss.data).await?;
+                destination.write_u8(b'p');
+                destination.write_i32(4 + gss.data.len() as i32);
+                destination.write_bytes(gss.data);
             }
             FrontendPMessage::PasswordMessage(pw) => {
-                destination.write_u8(b'p').await?;
-                destination.write_i32(4 + pw.password.len() as i32 + 1 ).await?;
-                destination.write_null_terminated_string(&pw.password).await?;
+                destination.write_u8(b'p');
+                destination.write_i32(4 + pw.password.len() as i32 + 1 );
+                destination.write_null_terminated_string(&pw.password);
             },
             FrontendPMessage::Undecided(undecided) => {
-                destination.write_u8(b'p').await?;
-                destination.write_i32(4 + undecided.data.len() as i32).await?;
-                destination.write_all(undecided.data).await?;
+                destination.write_u8(b'p');
+                destination.write_i32(4 + undecided.data.len() as i32);
+                destination.write_bytes(undecided.data);
             }
         }
         
-        Ok(())
     }
 }

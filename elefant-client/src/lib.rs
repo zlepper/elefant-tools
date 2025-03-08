@@ -6,6 +6,8 @@ mod postgres_client;
 mod test_helpers;
 mod error;
 mod types;
+pub mod profiler;
+
 pub use error::ElefantClientError;
 pub use postgres_client::*;
 pub use types::*;

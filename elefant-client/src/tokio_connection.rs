@@ -1,12 +1,12 @@
 use crate::postgres_client::PostgresClient;
 use crate::protocol::PostgresConnection;
 use crate::{ElefantClientError, PostgresConnectionSettings};
-use tokio::io::BufStream;
+use tokio::io::{BufWriter};
 use tokio::net::TcpStream;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
 
-pub type TokioPostgresConnection = PostgresConnection<Compat<BufStream<TcpStream>>>;
-pub type TokioPostgresClient = PostgresClient<Compat<BufStream<TcpStream>>>;
+pub type TokioPostgresConnection = PostgresConnection<Compat<BufWriter<TcpStream>>>;
+pub type TokioPostgresClient = PostgresClient<Compat<BufWriter<TcpStream>>>;
 
 async fn new_connection(
     settings: &PostgresConnectionSettings,
@@ -14,14 +14,14 @@ async fn new_connection(
     let stream = TcpStream::connect(format!("{}:{}", settings.host, settings.port)).await?;
     stream.set_nodelay(true)?;
 
-    let stream = BufStream::new(stream);
+    let stream = BufWriter::new(stream);
 
     Ok(PostgresConnection::new(stream.compat()))
 }
 
 pub async fn new_client(
     settings: PostgresConnectionSettings,
-) -> Result<PostgresClient<Compat<BufStream<TcpStream>>>, ElefantClientError> {
+) -> Result<TokioPostgresClient, ElefantClientError> {
     let connection = new_connection(&settings).await?;
     
     let client = PostgresClient::new(connection, settings).await?;

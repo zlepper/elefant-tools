@@ -1,8 +1,7 @@
-pub trait Encoder<'a> {
-    type Input: 'a;
+pub trait Encoder<'a, I: 'a> {
     type Error: From<std::io::Error>;
 
-    fn encode(destination: &mut ByteSliceWriter, input: Self::Input) -> Result<(), Self::Error>;
+    fn encode(destination: &mut ByteSliceWriter, input: I) -> Result<(), Self::Error>;
 }
 
 pub struct ByteSliceWriter<'a> {

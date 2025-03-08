@@ -1,7 +1,7 @@
-use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncWrite};
 use std::future::Future;
 use std::borrow::Cow;
-use tracing::{info, trace};
+use tracing::{trace};
 use std::rc::Rc;
 use crate::{protocol, ElefantClientError, PostgresClient, QueryResult, ToSql};
 use crate::postgres_client::query::PreparedQueryResult;
@@ -34,7 +34,7 @@ trait Sealed {}
 
 #[allow(private_bounds)]
 pub trait Statement: Sealed {
-    fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
+    fn send<'postgres_client, C: AsyncRead + AsyncWrite + Unpin>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
         parameters: &[&(dyn ToSql)],
@@ -44,7 +44,7 @@ pub trait Statement: Sealed {
 impl Sealed for PreparedQuery {}
 
 impl Statement for PreparedQuery {
-    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
+    async fn send<'postgres_client, C: AsyncRead + AsyncWrite + Unpin>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
         parameters: &[&(dyn ToSql)],
@@ -131,7 +131,7 @@ impl Statement for PreparedQuery {
 impl Sealed for str {}
 
 impl Statement for str {
-    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
+    async fn send<'postgres_client, C: AsyncRead + AsyncWrite + Unpin>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
         parameters: &[&(dyn ToSql)],
@@ -157,7 +157,7 @@ impl Statement for str {
 impl Sealed for String {}
 
 impl Statement for String {
-    async fn send<'postgres_client, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
+    async fn send<'postgres_client, C: AsyncRead + AsyncWrite + Unpin>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
         parameters: &[&(dyn ToSql)],

@@ -1,5 +1,6 @@
 use std::error::Error;
 use std::fmt::Display;
+use crate::protocol::frame_reader::DecodeErrorError;
 
 #[derive(Debug)]
 pub enum PostgresMessageParseError {
@@ -19,6 +20,8 @@ pub enum PostgresMessageParseError {
     UnknownDescribeTarget(u8),
     UnknownTransactionStatus(u8),
 }
+
+impl DecodeErrorError for PostgresMessageParseError {}
 
 impl From<std::io::Error> for PostgresMessageParseError {
     fn from(e: std::io::Error) -> Self {

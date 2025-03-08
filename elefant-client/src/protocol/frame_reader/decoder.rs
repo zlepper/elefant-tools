@@ -1,11 +1,10 @@
 use std::borrow::Cow;
 use std::num::NonZeroUsize;
 
-pub trait Decoder<'a> {
-    type Output: 'a;
+pub trait Decoder<'a, O: 'a> {
     type Error: From<std::io::Error>;
 
-    fn decode(buffer: &mut ByteSliceReader<'a>) -> DecodeResult<Self::Output, Self::Error>;
+    fn decode(buffer: &mut ByteSliceReader<'a>) -> DecodeResult<O, Self::Error>;
 }
 
 pub type DecodeResult<T, E> = Result<T, DecodeError<E>>;
@@ -69,7 +68,7 @@ impl<'a> ByteSliceReader<'a> {
             position += 1;
         }
         let (byt, remaining) = self.bytes.split_at(position);
-        self.bytes = remaining;
+        self.bytes = &remaining[1..];
         let result = String::from_utf8_lossy(byt);
         self.read_bytes += position + 1;
         Ok(result)
@@ -104,6 +103,17 @@ impl<'a> ByteSliceReader<'a> {
         self.read_bytes += 2;
         Ok(result)
     }
+    
+    pub fn read_i8(&mut self) -> Result<i8, ByteSliceError> {
+        if self.bytes.len() < 1 {
+            return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(1)));
+        }
+
+        let result = i8::from_be_bytes([self.bytes[0]]);
+        self.bytes = &self.bytes[1..];
+        self.read_bytes += 1;
+        Ok(result)
+    }
 
     pub fn read_u8(&mut self) -> Result<u8, ByteSliceError> {
         if self.bytes.len() < 1 {
@@ -128,6 +138,22 @@ impl<'a> ByteSliceReader<'a> {
                 Ok(byt)
             },
             None => Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(n))),
+        }
+    }
+    
+    pub fn read_exact(&mut self, slice: &mut [u8]) -> Result<(), ByteSliceError> {
+        if slice.is_empty() {
+            return Ok(());
+        }
+        
+        match self.bytes.split_at_checked(slice.len()) {
+            Some((byt, remaining)) => {
+                slice.copy_from_slice(byt);
+                self.bytes = remaining;
+                self.read_bytes += slice.len();
+                Ok(())
+            },
+            None => Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(slice.len()))),
         }
     }
     

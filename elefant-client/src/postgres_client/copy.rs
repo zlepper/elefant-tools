@@ -1,9 +1,9 @@
-use crate::protocol::{BackendMessage, CopyData, CopyResponse};
+use crate::protocol::{BackendMessage, CopyData};
 use crate::{ElefantClientError, PostgresClient, Statement, ToSql};
-use futures::{AsyncBufRead, AsyncRead, AsyncWrite};
+use futures::{AsyncRead, AsyncWrite};
 use tracing::debug;
 
-impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
+impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
     pub async fn copy_out(
         &mut self,
         query: &(impl Statement + ?Sized),
@@ -41,13 +41,13 @@ impl<C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> PostgresClient<C> {
     }
 }
 
-pub struct CopyWriter<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> {
+pub struct CopyWriter<'a, C: AsyncRead + AsyncWrite + Unpin> {
     client: &'a mut PostgresClient<C>,
     data_buffer: Vec<u8>,
     cursor: usize,
 }
 
-impl<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> CopyWriter<'a, C> {
+impl<'a, C: AsyncRead + AsyncWrite + Unpin> CopyWriter<'a, C> {
 
     fn new(client: &'a mut PostgresClient<C>) -> Self {
         Self {
@@ -144,11 +144,11 @@ impl<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> CopyWriter<'a, C> {
     }
 }
 
-pub struct CopyReader<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> {
+pub struct CopyReader<'a, C: AsyncRead + AsyncWrite + Unpin> {
     client: &'a mut PostgresClient<C>,
 }
 
-impl<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> CopyReader<'a, C> {
+impl<'a, C: AsyncRead + AsyncWrite + Unpin + Send> CopyReader<'a, C> {
     pub async fn read(&mut self) -> Result<Option<CopyData>, ElefantClientError> {
         let msg = self.client.read_next_backend_message().await?;
         match msg {
@@ -187,7 +187,7 @@ impl<'a, C: AsyncRead + AsyncBufRead + AsyncWrite + Unpin> CopyReader<'a, C> {
         Ok(())
     }
 
-    pub async fn write_to<W: AsyncRead + AsyncBufRead + AsyncWrite + Unpin>(
+    pub async fn write_to<W: AsyncRead + AsyncWrite + Unpin + Send>(
         mut self,
         target: &mut CopyWriter<'_, W>,
     ) -> Result<(), ElefantClientError> {

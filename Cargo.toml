@@ -7,7 +7,7 @@ members = [
     "drop-all-test-databases",
     "benchmark-import-prepare",
     "elefant-client",
-    "codegen", "elefant-client-benchmarks", "elefant-client-profiling"]
+    "codegen"]
 
 
 [profile.dev]

@@ -12,6 +12,8 @@ mod collections;
 mod nullable;
 #[cfg(feature = "time")]
 mod datetime;
+#[cfg(feature = "uuid")]
+mod uuid_type;
 
 use std::error::Error;
 use crate::ElefantClientError;

@@ -117,17 +117,39 @@ Implement the type conversions in the following phases. Each phase corresponds t
 
 **Current Status:** Not started. Type definitions exist but no implementations.
 
+**Sub-Phase Implementation Plan:**
+
+##### **Phase 3A: UUID Support** (Low Complexity - 30 minutes)
+- **Dependencies:** `uuid` crate with feature flag
+- **Implementation:** Simple 16-byte array conversion
+- **Risk Level:** Low - straightforward binary format
+
+##### **Phase 3B: JSON Support** (Medium Complexity - 45 minutes)  
+- **Dependencies:** `serde_json` crate with feature flag
+- **Implementation:** Text-based JSON parsing and serialization
+- **Risk Level:** Medium - text parsing, error handling for invalid JSON
+
+##### **Phase 3C: JSONB Support** (High Complexity - 90+ minutes)
+- **Dependencies:** Uses existing `serde_json` from Phase 3B
+- **Implementation:** PostgreSQL proprietary binary JSON format with version byte
+- **Risk Level:** High - complex binary format, requires format research
+
+##### **Phase 3D: NUMERIC Support** (Very High Complexity - 2+ hours)
+- **Dependencies:** `rust_decimal` crate with feature flag  
+- **Implementation:** PostgreSQL arbitrary precision format with variable encoding
+- **Risk Level:** Very High - most complex format, precision overflow handling
+
 **Tasks:**
 
 | PostgreSQL Type | Rust Type | Task Details | Unit Test Values | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| `UUID` | [`uuid::Uuid`](https://docs.rs/uuid/latest/uuid/struct.Uuid.html) | **FromSql/ToSql:** Convert to/from a 16-byte array. | `0000...-0000`, a random UUID. | ❌ **TODO** - Not implemented |
+| `UUID` | [`uuid::Uuid`](https://docs.rs/uuid/latest/uuid/struct.Uuid.html) | **FromSql/ToSql:** Convert to/from a 16-byte array. | `0000...-0000`, a random UUID. | ✅ **DONE** - Implemented in `uuid_type.rs` |
 | `JSON` | [`serde_json::Value`](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html) | **FromSql:** Parse raw bytes as a UTF-8 string, then use `serde_json`. **ToSql:** Serialize to a string, then get bytes. | `"{}"`, `"[]"`, `"[1, \"a\"]"`, invalid JSON. | ❌ **TODO** - Not implemented |
 | `JSONB` | [`serde_json::Value`](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html) | **FromSql:** Parse the custom binary format (starts with `0x01` version byte). **ToSql:** Implement the binary format serializer. | Same as `JSON`. | ❌ **TODO** - Not implemented |
 | `NUMERIC` | [`rust_decimal::Decimal`](https://docs.rs/rust_decimal/latest/rust_decimal/struct.Decimal.html) | **FromSql/ToSql:** Implement the complex `NUMERIC` binary format. Return an error if a Postgres `NUMERIC` exceeds the precision of `rust_decimal`. | `0`, `1.23`, a value with max `rust_decimal` precision, a value that exceeds it. | ❌ **TODO** - Not implemented |
 
 **Dependency Status:** 
-- ❌ `uuid` crate is not yet added to `Cargo.toml`
+- ✅ `uuid` crate added to `Cargo.toml` with `v4` feature and feature flag
 - ❌ `serde_json` crate is not yet added to `Cargo.toml`
 - ❌ `rust_decimal` crate is not yet added to `Cargo.toml`
 

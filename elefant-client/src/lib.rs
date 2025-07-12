@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod protocol;
 #[cfg(feature = "tokio")]
 pub mod tokio_connection;

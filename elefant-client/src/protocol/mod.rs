@@ -1,7 +1,7 @@
 mod messages;
 mod error;
 mod message_writer;
-#[cfg(test)]
+#[cfg(all(test, feature = "futures"))]
 mod message_tests;
 mod message_reader;
 mod postgres_connection;

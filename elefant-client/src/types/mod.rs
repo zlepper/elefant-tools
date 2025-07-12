@@ -1,7 +1,15 @@
-mod core;
 mod oid;
 mod standard_types;
 mod from_sql_row;
+
+// Refactored type implementations
+mod numbers;
+mod bool;
+mod char;
+mod text;
+mod binary;
+mod collections;
+mod nullable;
 
 use std::error::Error;
 use crate::ElefantClientError;

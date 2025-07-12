@@ -2,6 +2,7 @@ use std::error::Error;
 use std::sync::LazyLock;
 use crate::protocol::FieldDescription;
 use crate::types::{FromSql, ToSql};
+use crate::types::PostgresType;
 use time::{Date, Time, PrimitiveDateTime, OffsetDateTime, Month, format_description};
 
 // PostgreSQL epoch: 2000-01-01
@@ -71,7 +72,7 @@ impl<'a> FromSql<'a> for Date {
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
-        oid == 1082 // DATE OID
+        oid == PostgresType::DATE.oid
     }
 }
 
@@ -121,7 +122,7 @@ impl<'a> FromSql<'a> for Time {
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
-        oid == 1083 // TIME OID
+        oid == PostgresType::TIME.oid
     }
 }
 
@@ -172,7 +173,7 @@ impl<'a> FromSql<'a> for PrimitiveDateTime {
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
-        oid == 1114 // TIMESTAMP OID
+        oid == PostgresType::TIMESTAMP.oid
     }
 }
 
@@ -228,7 +229,7 @@ impl<'a> FromSql<'a> for OffsetDateTime {
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
-        oid == 1184 // TIMESTAMPTZ OID
+        oid == PostgresType::TIMESTAMPTZ.oid
     }
 }
 

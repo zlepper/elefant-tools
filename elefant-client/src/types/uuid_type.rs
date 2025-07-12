@@ -1,6 +1,7 @@
 use std::error::Error;
 use crate::protocol::FieldDescription;
 use crate::types::{FromSql, ToSql};
+use crate::types::PostgresType;
 use uuid::Uuid;
 
 // PostgreSQL UUID type - 16 bytes in big-endian byte order
@@ -28,7 +29,7 @@ impl<'a> FromSql<'a> for Uuid {
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
-        oid == 2950 // UUID OID
+        oid == PostgresType::UUID.oid
     }
 }
 

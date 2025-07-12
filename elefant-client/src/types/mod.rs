@@ -14,6 +14,8 @@ mod nullable;
 mod datetime;
 #[cfg(feature = "uuid")]
 mod uuid_type;
+#[cfg(feature = "json")]
+mod json_type;
 
 use std::error::Error;
 use crate::ElefantClientError;

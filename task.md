@@ -144,13 +144,13 @@ Implement the type conversions in the following phases. Each phase corresponds t
 | PostgreSQL Type | Rust Type | Task Details | Unit Test Values | Status |
 | :--- | :--- | :--- | :--- | :--- |
 | `UUID` | [`uuid::Uuid`](https://docs.rs/uuid/latest/uuid/struct.Uuid.html) | **FromSql/ToSql:** Convert to/from a 16-byte array. | `0000...-0000`, a random UUID. | ✅ **DONE** - Implemented in `uuid_type.rs` |
-| `JSON` | [`serde_json::Value`](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html) | **FromSql:** Parse raw bytes as a UTF-8 string, then use `serde_json`. **ToSql:** Serialize to a string, then get bytes. | `"{}"`, `"[]"`, `"[1, \"a\"]"`, invalid JSON. | ❌ **TODO** - Not implemented |
+| `JSON` | [`serde_json::Value`](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html) | **FromSql:** Parse raw bytes as a UTF-8 string, then use `serde_json`. **ToSql:** Serialize to a string, then get bytes. | `"{}"`, `"[]"`, `"[1, \"a\"]"`, invalid JSON. | ✅ **DONE** - Implemented in `json_type.rs` |
 | `JSONB` | [`serde_json::Value`](https://docs.rs/serde_json/latest/serde_json/value/enum.Value.html) | **FromSql:** Parse the custom binary format (starts with `0x01` version byte). **ToSql:** Implement the binary format serializer. | Same as `JSON`. | ❌ **TODO** - Not implemented |
 | `NUMERIC` | [`rust_decimal::Decimal`](https://docs.rs/rust_decimal/latest/rust_decimal/struct.Decimal.html) | **FromSql/ToSql:** Implement the complex `NUMERIC` binary format. Return an error if a Postgres `NUMERIC` exceeds the precision of `rust_decimal`. | `0`, `1.23`, a value with max `rust_decimal` precision, a value that exceeds it. | ❌ **TODO** - Not implemented |
 
 **Dependency Status:** 
-- ✅ `uuid` crate added to `Cargo.toml` with `v4` feature and feature flag
-- ❌ `serde_json` crate is not yet added to `Cargo.toml`
+- ✅ `uuid` crate added to `Cargo.toml` with feature flag
+- ✅ `serde_json` crate added to `Cargo.toml` with feature flag  
 - ❌ `rust_decimal` crate is not yet added to `Cargo.toml`
 
 **Type Definitions Available:**

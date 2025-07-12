@@ -479,6 +479,7 @@ dependencies = [
  "md-5",
  "monoio",
  "rand 0.9.0",
+ "serde_json",
  "sha2",
  "stringprep",
  "time",

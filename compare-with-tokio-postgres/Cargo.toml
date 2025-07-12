@@ -6,8 +6,8 @@ edition = "2024"
 [dependencies]
 tokio = { version = "1", features = ["full"] }
 tokio-postgres = "0.7"
-postgres-types = "0.2"
-elefant-client = { path = "../elefant-client", features = ["tokio"] }
+monoio = { version = "0.2", features = [] }
+elefant-client = { path = "../elefant-client", features = ["tokio", "monoio"] }
 futures = "0.3"
 
 [dev-dependencies]

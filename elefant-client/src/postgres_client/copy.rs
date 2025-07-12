@@ -148,7 +148,7 @@ pub struct CopyReader<'a, C: ElefantAsyncReadWrite> {
     client: &'a mut PostgresClient<C>,
 }
 
-impl<'a, C: ElefantAsyncReadWrite + Send> CopyReader<'a, C> {
+impl<'a, C: ElefantAsyncReadWrite> CopyReader<'a, C> {
     pub async fn read(&mut self) -> Result<Option<CopyData>, ElefantClientError> {
         let msg = self.client.read_next_backend_message().await?;
         match msg {
@@ -187,7 +187,7 @@ impl<'a, C: ElefantAsyncReadWrite + Send> CopyReader<'a, C> {
         Ok(())
     }
 
-    pub async fn write_to<W: ElefantAsyncReadWrite + Send>(
+    pub async fn write_to<W: ElefantAsyncReadWrite>(
         mut self,
         target: &mut CopyWriter<'_, W>,
     ) -> Result<(), ElefantClientError> {

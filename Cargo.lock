@@ -297,7 +297,7 @@ dependencies = [
  "criterion",
  "elefant-client",
  "futures",
- "postgres-types",
+ "monoio",
  "tokio",
  "tokio-postgres",
 ]

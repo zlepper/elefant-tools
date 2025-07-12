@@ -222,7 +222,7 @@ impl Display for FinalModify {
             FinalModify::Shareable => "shareable",
             FinalModify::ReadWrite => "read_write",
         };
-        write!(f, "{}", str)
+        write!(f, "{str}")
     }
 }
 

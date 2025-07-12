@@ -22,17 +22,17 @@ async fn main() -> Result<()> {
             .parse()?;
 
         for db_name in databases {
-            println!("Dropping database {}", db_name);
+            println!("Dropping database {db_name}");
 
             if version >= 130000 {
-                client.execute_non_query(&format!("drop database {} with (force);", db_name), &[]).await?;
+                client.execute_non_query(&format!("drop database {db_name} with (force);"), &[]).await?;
             } else {
-                client.execute_non_query(&format!("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{}' AND pid != pg_backend_pid()", db_name), &[]).await?;
-                client.execute_non_query(&format!("drop database {};", db_name), &[]).await?;
+                client.execute_non_query(&format!("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}' AND pid != pg_backend_pid()"), &[]).await?;
+                client.execute_non_query(&format!("drop database {db_name};"), &[]).await?;
             }
         }
 
-        println!("Finished port {}", port);
+        println!("Finished port {port}");
     }
 
     Ok(())

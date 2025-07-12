@@ -105,7 +105,7 @@ impl<'a> ByteSliceReader<'a> {
     }
     
     pub fn read_i8(&mut self) -> Result<i8, ByteSliceError> {
-        if self.bytes.len() < 1 {
+        if self.bytes.is_empty() {
             return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(1)));
         }
 
@@ -116,7 +116,7 @@ impl<'a> ByteSliceReader<'a> {
     }
 
     pub fn read_u8(&mut self) -> Result<u8, ByteSliceError> {
-        if self.bytes.len() < 1 {
+        if self.bytes.is_empty() {
             return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(1)));
         }
 

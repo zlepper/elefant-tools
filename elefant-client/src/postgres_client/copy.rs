@@ -16,8 +16,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         match msg {
             BackendMessage::CopyOutResponse(_) => Ok(CopyReader { client: self }),
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                "Expected CopyOutResponse, got {:?}",
-                msg
+                "Expected CopyOutResponse, got {msg:?}"
             ))),
         }
     }
@@ -34,8 +33,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         match msg {
             BackendMessage::CopyInResponse(_) => Ok(CopyWriter::new(self)),
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                "Expected CopyInResponse{:?}",
-                msg
+                "Expected CopyInResponse{msg:?}"
             ))),
         }
     }
@@ -133,8 +131,7 @@ impl<'a, C: ElefantAsyncReadWrite> CopyWriter<'a, C> {
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "Expected CommandComplete or ReadyForQuery, got {:?}",
-                        msg
+                        "Expected CommandComplete or ReadyForQuery, got {msg:?}"
                     )));
                 }
             }
@@ -155,8 +152,7 @@ impl<'a, C: ElefantAsyncReadWrite> CopyReader<'a, C> {
             BackendMessage::CopyData(cd) => Ok(Some(cd)),
             BackendMessage::CopyDone => Ok(None),
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                "Expected CopyData or CopyDone, got {:?}",
-                msg
+                "Expected CopyData or CopyDone, got {msg:?}"
             ))),
         }
     }
@@ -177,8 +173,7 @@ impl<'a, C: ElefantAsyncReadWrite> CopyReader<'a, C> {
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "Expected CommandComplete, ReadyForQuery or CopyData, got {:?}",
-                        msg
+                        "Expected CommandComplete, ReadyForQuery or CopyData, got {msg:?}"
                     )));
                 }
             }

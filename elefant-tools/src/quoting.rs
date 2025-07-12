@@ -65,7 +65,7 @@ impl IdentifierQuoter {
         } else {
             let escaped = identifier.replace('"', r#""""#);
 
-            format!("\"{}\"", escaped)
+            format!("\"{escaped}\"")
         }
     }
 

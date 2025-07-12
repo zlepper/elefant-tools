@@ -75,7 +75,7 @@ mod tests {
             where
                 T: FromSqlOwned + Display + PartialEq + Debug,
             {
-                let sql = format!("select '{}'::{}; ", value, cast_to);
+                let sql = format!("select '{value}'::{cast_to}; ");
 
                 let received_value: T = self.client.read_single_column_and_row_exactly(sql.as_str(), &[]).await;
 

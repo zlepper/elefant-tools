@@ -813,18 +813,16 @@ async fn ensure_survives_many_tables(source: &TestHelper, destination: &TestHelp
 
     for i in 0..50 {
         sql.push_str(&format!(
-            "create table my_table_{}(id serial primary key, name text);\n",
-            i
+            "create table my_table_{i}(id serial primary key, name text);\n"
         ));
         sql.push_str(&format!(
             r#"
-insert into my_table_{} (
+insert into my_table_{i} (
     name
 )
 select
     md5(random()::text)
-from generate_series(1, 1000) s(i);"#,
-            i
+from generate_series(1, 1000) s(i);"#
         ))
     }
 
@@ -832,7 +830,7 @@ from generate_series(1, 1000) s(i);"#,
 
     for i in 0..50 {
         let items = destination
-            .get_results::<(i32, String)>(&format!("select id, name from my_table_{};", i))
+            .get_results::<(i32, String)>(&format!("select id, name from my_table_{i};"))
             .await;
         assert_eq!(items.len(), 1000);
     }

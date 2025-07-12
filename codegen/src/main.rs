@@ -97,7 +97,7 @@ impl PostgresType {
         type_file_content.push_str("    };\n");
     }
 
-    type_file_content.push_str("\n");
+    type_file_content.push('\n');
     type_file_content.push_str("    pub(crate) fn get_by_oid(oid: i32) -> Option<&'static PostgresType> {\n");
     type_file_content.push_str("        match oid {\n");
     for typ in &all_types {

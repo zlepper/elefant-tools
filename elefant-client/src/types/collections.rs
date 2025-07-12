@@ -29,12 +29,12 @@ where T: FromSql<'a>
         let raw_data = &raw[20..];
 
         if dimensions != 1 {
-            return Err(format!("Only one-dimensional arrays are supported. Error occurred when parsing field {:?}", field).into());
+            return Err(format!("Only one-dimensional arrays are supported. Error occurred when parsing field {field:?}").into());
         }
 
 
         if !T::accepts_postgres_type(element_oid) {
-            return Err(format!("Element type of the array is not supported. Error occurred when parsing field {:?}", field).into());
+            return Err(format!("Element type of the array is not supported. Error occurred when parsing field {field:?}").into());
         }
 
         let mut result: Vec<T> = Vec::with_capacity(size_of_first_dimension as usize);

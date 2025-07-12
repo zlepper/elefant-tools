@@ -292,7 +292,7 @@ fn time_copy_operation<F, Fut, R>(
 where
     F: Fn(usize) -> Fut,
     Fut: Future<Output = ()>,
-    R: Fn(Fut) -> (),
+    R: Fn(Fut),
 {
     let mut total_duration = std::time::Duration::ZERO;
 
@@ -312,7 +312,7 @@ where
     total_duration
 }
 
-fn run_block_tokio<Fut>(fut: Fut) -> ()
+fn run_block_tokio<Fut>(fut: Fut)
 where
     Fut: Future<Output = ()>,
 {
@@ -320,7 +320,7 @@ where
     rt.block_on(fut);
 }
 
-fn run_block_monoio<Fut>(fut: Fut) -> ()
+fn run_block_monoio<Fut>(fut: Fut)
 where
     Fut: Future<Output = ()>,
 {
@@ -332,7 +332,8 @@ fn copy_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("copy_operations");
 
     // Test with different data sizes
-    for num_rows in [/*1000, 5000, 10_000, 100_000, 1_000_000,*/ 10_000_000].iter() {
+    {
+        let num_rows = &10_000_000;
         group.sample_size((100_000 / *num_rows).max(10));
 
         // Setup database before benchmarks

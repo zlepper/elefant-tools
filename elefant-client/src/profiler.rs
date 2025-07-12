@@ -35,7 +35,7 @@ impl Profiler {
         items.sort_by(|a, b| a.1.duration.cmp(&b.1.duration).reverse());
 
         for (name, duration) in items {
-            println!("{}: {:?}", name, duration);
+            println!("{name}: {duration:?}");
         }
     }
 

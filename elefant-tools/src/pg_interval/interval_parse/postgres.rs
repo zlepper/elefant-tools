@@ -145,8 +145,7 @@ fn consume_token(
         }
     } else {
         Err(ParseError::from_invalid_interval(&format!(
-            "Unknown or duplicate deliminator \"{}\"",
-            delim
+            "Unknown or duplicate deliminator \"{delim}\""
         )))
     }
 }

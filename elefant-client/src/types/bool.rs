@@ -16,7 +16,7 @@ impl<'a> FromSql<'a> for bool {
         match raw {
             "t" => Ok(true),
             "f" => Ok(false),
-            _ => Err(format!("Invalid value for boolean: {}. Error occurred when parsing field {:?}", raw, field).into())
+            _ => Err(format!("Invalid value for boolean: {raw}. Error occurred when parsing field {field:?}").into())
         }
     }
 
@@ -45,16 +45,16 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let b: bool = client.read_single_value("select 't'::bool;", &[]).await.unwrap();
-            assert_eq!(b, true);
+            assert!(b);
 
             let b: bool = client.read_single_value("select 'f'::bool;", &[]).await.unwrap();
-            assert_eq!(b, false);
+            assert!(!b);
 
             let b: bool = client.read_single_value("select $1::bool;", &[&true]).await.unwrap();
-            assert_eq!(b, true);
+            assert!(b);
 
             let b: bool = client.read_single_value("select $1::bool;", &[&false]).await.unwrap();
-            assert_eq!(b, false);
+            assert!(!b);
         }
     }
 }

@@ -106,8 +106,7 @@ impl<'a> CopyDestination for SequentialSafePostgresInstanceCopyDestinationStorag
             AttemptedKeywordUsage::TypeOrFunctionName,
         );
         let query = format!(
-            "select exists(select 1 from {}.{} limit 1);",
-            schema_name, table_name
+            "select exists(select 1 from {schema_name}.{table_name} limit 1);"
         );
         let result = self.connection.get_single_result::<bool>(&query).await?;
         Ok(result)

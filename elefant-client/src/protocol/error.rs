@@ -32,38 +32,35 @@ impl From<std::io::Error> for PostgresMessageParseError {
 impl Display for PostgresMessageParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostgresMessageParseError::IoError(e) => write!(f, "IO error: {}", e),
-            PostgresMessageParseError::UnknownMessage(m) => write!(f, "Unexpected message: {}", m),
+            PostgresMessageParseError::IoError(e) => write!(f, "IO error: {e}"),
+            PostgresMessageParseError::UnknownMessage(m) => write!(f, "Unexpected message: {m}"),
             PostgresMessageParseError::UnknownSubMessage {
                 message_type,
                 length,
                 sub_message_type,
             } => write!(
                 f,
-                "Unknown sub-message: {} for message {} with length {}",
-                sub_message_type, message_type, length
+                "Unknown sub-message: {sub_message_type} for message {message_type} with length {length}"
             ),
             PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length,
             } => write!(
                 f,
-                "Unexpected message length: {} for {}",
-                length, message_type
+                "Unexpected message length: {length} for {message_type}"
             ),
             PostgresMessageParseError::UnknownValueFormat(code) => write!(
                 f,
-                "Unknown value column format: {}.",
-                code
+                "Unknown value column format: {code}."
             ),
             PostgresMessageParseError::UnknownCloseTarget(code) => {
-                write!(f, "Unknown close target: {}. Expected 'S' or 'P'", code)
+                write!(f, "Unknown close target: {code}. Expected 'S' or 'P'")
             },
             PostgresMessageParseError::UnknownDescribeTarget(code) => {
-                write!(f, "Unknown describe target: {}. Expected 'S' or 'P'", code)
+                write!(f, "Unknown describe target: {code}. Expected 'S' or 'P'")
             },
             PostgresMessageParseError::UnknownTransactionStatus(code) => {
-                write!(f, "Unknown transaction status: {}", code)
+                write!(f, "Unknown transaction status: {code}")
             },
         }
     }

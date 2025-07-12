@@ -445,7 +445,7 @@ async fn write_bool_column<F: AsyncWrite + Unpin + Send + Sync>(
     bytes: &[u8],
 ) -> Result<()> {
     let value = bytes[0] == b't';
-    content.write_all(format!("{}", value).as_bytes()).await?;
+    content.write_all(format!("{value}").as_bytes()).await?;
     Ok(())
 }
 

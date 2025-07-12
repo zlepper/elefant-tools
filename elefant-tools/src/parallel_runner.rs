@@ -157,8 +157,7 @@ mod tests {
 
         assert!(
             took < std::time::Duration::from_millis(200),
-            "Took {:?}",
-            took
+            "Took {took:?}"
         );
     }
 
@@ -181,8 +180,7 @@ mod tests {
         assert!(
             took < std::time::Duration::from_millis(400)
                 && took > std::time::Duration::from_millis(200),
-            "Took {:?}",
-            took
+            "Took {took:?}"
         );
     }
 

@@ -46,7 +46,7 @@ impl<'a> FromSql<'a> for Vec<u8> {
             if chunk.len() == 2 {
                 let hex_byte = std::str::from_utf8(chunk)?;
                 let byte = u8::from_str_radix(hex_byte, 16)
-                    .map_err(|e| format!("Invalid hex byte '{}': {}", hex_byte, e))?;
+                    .map_err(|e| format!("Invalid hex byte '{hex_byte}': {e}"))?;
                 result.push(byte);
             }
         }
@@ -77,7 +77,7 @@ impl<'a> FromSql<'a> for &'a [u8] {
     fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
         // We can't return a borrowed slice from parsed hex data since it would need to be owned
         // So for text format, we'll return an error suggesting to use Vec<u8> instead
-        Err(format!("Cannot create &[u8] from BYTEA text format '{}'. Use Vec<u8> instead for text format parsing. Field: {:?}", raw, field).into())
+        Err(format!("Cannot create &[u8] from BYTEA text format '{raw}'. Use Vec<u8> instead for text format parsing. Field: {field:?}").into())
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {

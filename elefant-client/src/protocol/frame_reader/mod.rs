@@ -120,7 +120,7 @@ impl<S: ElefantAsyncRead> Framed<S>  {
 
     fn fill_buffer_to_capacity(&mut self) {
         let additional = self.read_buffer.capacity() - self.read_buffer.len();
-        self.read_buffer.extend(std::iter::repeat(0).take(additional));
+        self.read_buffer.extend(std::iter::repeat_n(0, additional));
         debug_assert_eq!(self.read_buffer.len(), self.read_buffer.capacity());
     }
 

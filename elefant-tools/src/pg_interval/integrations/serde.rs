@@ -37,8 +37,7 @@ impl Visitor<'_> for IntervalVisitor {
         match Interval::from_postgres(v) {
             Ok(interval) => Ok(interval),
             Err(e) => Err(Error::custom(format!(
-                "Invalid Postgres interval string: {:?}",
-                e
+                "Invalid Postgres interval string: {e:?}"
             ))),
         }
     }

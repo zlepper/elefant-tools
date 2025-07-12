@@ -95,12 +95,12 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                         // Authentication successful, whoop whoop!
                     },
                     _ => {
-                        panic!("Unexpected message: {:?}", msg);
+                        panic!("Unexpected message: {msg:?}");
                     }
                 }
             }
             _ => {
-                panic!("Unexpected message: {:?}", msg);
+                panic!("Unexpected message: {msg:?}");
             }
         }
 
@@ -117,7 +117,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                     break;
                 },
                 _ => {
-                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{:?}", msg)));
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!("{msg:?}")));
                 }
             }
         }
@@ -139,9 +139,9 @@ fn calculate_md5_password_message(settings: &PostgresConnectionSettings, salt: [
     hasher.update(&settings.user);
     let username_password_md5 = hasher.finalize_reset();
     
-    hasher.update(format!("{:x}", username_password_md5));
+    hasher.update(format!("{username_password_md5:x}"));
     hasher.update(salt);
     let password_md5 = hasher.finalize_reset();
 
-    format!("md5{:x}", password_md5)
+    format!("md5{password_md5:x}")
 }

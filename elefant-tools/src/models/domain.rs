@@ -38,10 +38,10 @@ impl PostgresDomain {
         );
 
         if let Some(length) = self.data_type_length {
-            sql.push_str(&format!("({})", length));
+            sql.push_str(&format!("({length})"));
         }
         if let Some(default_value) = &self.default_value {
-            sql.push_str(&format!(" default {}", default_value));
+            sql.push_str(&format!(" default {default_value}"));
         }
         if self.not_null {
             sql.push_str(" not null");

@@ -15,20 +15,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Test tokio-postgres connection
     println!("Testing tokio-postgres connection...");
     let (client, connection) = tokio_postgres::connect(
-        &format!("host={} port={} user={} password={} dbname=postgres", 
-                DB_HOST, DB_PORT, DB_USER, DB_PASSWORD),
+        &format!("host={DB_HOST} port={DB_PORT} user={DB_USER} password={DB_PASSWORD} dbname=postgres"),
         NoTls,
     ).await?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
-            eprintln!("Connection error: {}", e);
+            eprintln!("Connection error: {e}");
         }
     });
 
     let result = client.query_one("SELECT 1 as test", &[]).await?;
     let test_val: i32 = result.get(0);
-    println!("tokio-postgres test query result: {}", test_val);
+    println!("tokio-postgres test query result: {test_val}");
 
     // Test elefant-client connection
     println!("Testing elefant-client connection...");

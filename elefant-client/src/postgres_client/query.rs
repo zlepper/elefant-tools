@@ -79,12 +79,11 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                 trace!("Parse complete");
             }
             BackendMessage::ErrorResponse(er) => {
-                return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                return Err(ElefantClientError::PostgresError(format!("{er:?}")));
             }
             _ => {
                 return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                    "{:?}",
-                    msg
+                    "{msg:?}"
                 )));
             }
         }
@@ -97,12 +96,11 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                     pd
                 }
                 BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                    return Err(ElefantClientError::PostgresError(format!("{er:?}")));
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "{:?}",
-                        msg
+                        "{msg:?}"
                     )));
                 }
             }
@@ -133,12 +131,11 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                     PreparedQueryResult::NoData
                 }
                 BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                    return Err(ElefantClientError::PostgresError(format!("{er:?}")));
                 },
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "{:?}",
-                        msg
+                        "{msg:?}"
                     )));
                 }
             }
@@ -208,15 +205,14 @@ impl<'postgres_client, C: ElefantAsyncReadWrite>
                 }
                 BackendMessage::DataRow(dr) => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "Received DataRow without receiving a RowDescription: {:?}",
-                        dr
+                        "Received DataRow without receiving a RowDescription: {dr:?}"
                     )));
                 }
                 BackendMessage::EmptyQueryResponse => {
                     debug!("Empty query response");
                 }
                 BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{:?}", er)));
+                    return Err(ElefantClientError::PostgresError(format!("{er:?}")));
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
                     self.client.ready_for_query = true;
@@ -225,8 +221,7 @@ impl<'postgres_client, C: ElefantAsyncReadWrite>
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                        "{:?}",
-                        msg
+                        "{msg:?}"
                     )));
                 }
             }
@@ -329,12 +324,11 @@ impl<'postgres_client, 'query_result_set, C: ElefantAsyncReadWrite>
                 Ok(None)
             }
             BackendMessage::ErrorResponse(er) => {
-                Err(ElefantClientError::PostgresError(format!("{:?}", er)))
+                Err(ElefantClientError::PostgresError(format!("{er:?}")))
             }
             _ => {
                 Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                    "{:?}",
-                    msg
+                    "{msg:?}"
                 )))
             }
         }

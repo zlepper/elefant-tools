@@ -24,7 +24,7 @@ fn pad_i64(val: i64) -> String {
     } else {
         val as u64
     };
-    format!("{:02}", num)
+    format!("{num:02}")
 }
 
 #[cfg(test)]

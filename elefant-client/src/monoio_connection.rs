@@ -195,7 +195,7 @@ mod tests {
                 database: "postgres".to_string(),
                 port,
                 password: "passw0rd".to_string(),
-            }).await.unwrap_or_else(|_| panic!("Failed to connect to port {}", port));
+            }).await.unwrap_or_else(|_| panic!("Failed to connect to port {port}"));
         }
     }
 
@@ -244,7 +244,7 @@ mod tests {
 
         // Test multiple sequential queries
         for i in 1..=5 {
-            let mut query_result = client.query(&format!("SELECT {}::int4", i), &[]).await.unwrap();
+            let mut query_result = client.query(&format!("SELECT {i}::int4"), &[]).await.unwrap();
             let result_set = query_result.next_result_set().await.unwrap();
             
             match result_set {

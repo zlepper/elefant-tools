@@ -70,7 +70,7 @@ mod tests {
             if let Err(ElefantClientError::UnexpectedNullValue {postgres_field}) = result {
                 assert_eq!(postgres_field.column_attribute_number, 1);
             } else {
-                panic!("Expected UnexpectedNullValue error, got {:?}", result);
+                panic!("Expected UnexpectedNullValue error, got {result:?}");
             }
 
             client.execute_non_query("delete from test_table;", &[]).await.unwrap();

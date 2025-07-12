@@ -13,8 +13,8 @@ enum TestArgsArg {
 impl TestArgsArg {
     fn get_mod_part_name(&self) -> String {
         match self {
-            TestArgsArg::Postgres(v) => format!("postgres_{}", v),
-            TestArgsArg::TimescaleDb(v) => format!("timescale_{}", v),
+            TestArgsArg::Postgres(v) => format!("postgres_{v}"),
+            TestArgsArg::TimescaleDb(v) => format!("timescale_{v}"),
         }
     }
 

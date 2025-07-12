@@ -66,11 +66,11 @@ pub async fn get_test_helper(name: &str) -> TestHelper {
 pub async fn get_test_helper_on_port(name: &str, port: u16) -> TestHelper {
     let id = Uuid::new_v4().simple().to_string();
 
-    let test_db_name = format!("test_db_{}", id);
+    let test_db_name = format!("test_db_{id}");
     {
         let conn = get_test_connection_on_port("postgres", port).await;
 
-        conn.execute_non_query(&format!("create database {}", test_db_name))
+        conn.execute_non_query(&format!("create database {test_db_name}"))
             .await
             .expect("Failed to create test database");
     }
@@ -93,7 +93,7 @@ impl TestHelper {
         self.get_conn()
             .execute_non_query(sql)
             .await
-            .unwrap_or_else(|e| panic!("Failed to execute non query: {:?}\n{}", e, sql));
+            .unwrap_or_else(|e| panic!("Failed to execute non query: {e:?}\n{sql}"));
     }
 
     /// Executes a query that returns results.
@@ -101,7 +101,7 @@ impl TestHelper {
         self.get_conn()
             .get_results(sql)
             .await
-            .unwrap_or_else(|e| panic!("Failed to get results for query: {:?}\n{}", e, sql))
+            .unwrap_or_else(|e| panic!("Failed to get results for query: {e:?}\n{sql}"))
     }
 
     /// Executes a query that returns a single column.
@@ -173,7 +173,7 @@ pub(crate) async fn get_test_connection_full(
     );
 
     if let Some(schema) = schema {
-        connection_string.push_str(&format!(" options=--search_path={}", schema));
+        connection_string.push_str(&format!(" options=--search_path={schema}"));
     }
 
     PostgresClientWrapper::new(&connection_string)
@@ -190,12 +190,12 @@ async fn cleanup(db_name: &str, port: u16) {
         .parse()
         .unwrap();
     if version >= 130000 {
-        conn.execute_non_query(&format!("drop database {} with (force);", db_name))
+        conn.execute_non_query(&format!("drop database {db_name} with (force);"))
             .await
             .expect("Failed to drop test database");
     } else {
-        conn.execute_non_query(&format!("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{}' AND pid != pg_backend_pid()", db_name)).await.expect("Failed to drop test database");
-        conn.execute_non_query(&format!("drop database {};", db_name))
+        conn.execute_non_query(&format!("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}' AND pid != pg_backend_pid()")).await.expect("Failed to drop test database");
+        conn.execute_non_query(&format!("drop database {db_name};"))
             .await
             .expect("Failed to drop test database");
     }
@@ -219,7 +219,7 @@ pub fn assert_pg_error(result: crate::Result, code: SqlState) {
             assert_eq!(*source.as_db_error().unwrap().code(), code);
         }
         _ => {
-            panic!("Expected PostgresErrorWithQuery, got {:?}", result);
+            panic!("Expected PostgresErrorWithQuery, got {result:?}");
         }
     }
 }

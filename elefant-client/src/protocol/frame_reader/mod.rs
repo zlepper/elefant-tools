@@ -1,4 +1,4 @@
-use futures::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use crate::protocol::async_io::{ElefantAsyncRead, ElefantAsyncWrite};
 
 mod decoder;
 mod encoder;
@@ -35,7 +35,7 @@ impl<S> Framed<S>  {
 
 const KB8: usize = 8192;
 
-impl<S: AsyncRead + Unpin> Framed<S>  {
+impl<S: ElefantAsyncRead> Framed<S>  {
 
     pub async fn read_frame<'a, C: Decoder<'a, M>, M: 'a>(&'a mut self) -> Result<M, C::Error> {
         let _read_frame = Profiler::start("read_frame");
@@ -138,7 +138,7 @@ impl<S: AsyncRead + Unpin> Framed<S>  {
 
 }
 
-impl<W: AsyncWrite + Unpin> Framed<W> {
+impl<W: ElefantAsyncWrite> Framed<W> {
 
     pub async fn write_frame<'a, C: Encoder<'a, M>, M: 'a>(&'a mut self, message: M) -> Result<(), C::Error> {
         let _write_frame = Profiler::start("write_frame");
@@ -160,7 +160,7 @@ impl<W: AsyncWrite + Unpin> Framed<W> {
 
 
 
-#[cfg(test)]
+#[cfg(all(test, feature = "futures"))]
 mod tests {
     use std::borrow::Cow;
     use std::pin::Pin;
@@ -174,7 +174,7 @@ mod tests {
 
     /// A reader that only reads up to a certain limit, even though
     /// the underlying reader might have more data available.
-    struct LimitedReader<R: AsyncRead> {
+    struct LimitedReader<R> {
         reader: R,
         limit: usize,
     }
@@ -188,7 +188,7 @@ mod tests {
         }
     }
 
-    impl<R: AsyncRead + Unpin> AsyncRead for LimitedReader<R> {
+    impl AsyncRead for LimitedReader<Cursor<Vec<u8>>> {
         fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<std::io::Result<usize>> {
             let safe_limit = std::cmp::min(self.limit, buf.len());
 
@@ -198,8 +198,6 @@ mod tests {
             reader.poll_read(cx, buf)
         }
     }
-
-
 
     struct TestCodec;
 
@@ -320,6 +318,7 @@ mod tests {
         assert_eq!(r.get_read_bytes(), 9);
     }
 
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn framed_handles_ints() {
         for buffer_read_limit in 1..50 {
@@ -339,6 +338,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn frame_reader_handles_strings() {
         for buffer_read_limit in 1..50 {
@@ -358,6 +358,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn frame_reader_handles_byte_arrays() {
         for buffer_read_limit in 1..50 {

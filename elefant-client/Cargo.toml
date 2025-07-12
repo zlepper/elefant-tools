@@ -4,9 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futures = "0.3"
+futures = { version = "0.3", optional = true }
 tokio = { version = "1", default-features = false, features = ["net", "io-util"], optional = true }
 tokio-util = { version = "0.7", optional = true, default-features = false, features = ["compat"] }
+monoio = { version = "0.2", optional = true }
 rand = "0.9"
 base64 = "0.22"
 hmac = "0.12"
@@ -19,4 +20,6 @@ tracing = "0.1"
 tokio = { version = "1", features = ["full"] }
 
 [features]
-tokio = ["dep:tokio", "dep:tokio-util"]
+tokio = ["dep:tokio", "dep:tokio-util", "futures"]
+monoio = ["dep:monoio"]
+futures = ["dep:futures"]

@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Please read and maintain the @AGENT-KNOWLEDGE.md file with agent specific knowledge and learning about the project.
+
 ## Project Overview
 
 Elefant Tools is a Rust-based alternative to `pg_dump` and `pg_restore` with advanced features like direct database-to-database copying without temporary files. The project consists of a core library (`elefant-tools`), a CLI binary (`elefant-sync`), and a custom PostgreSQL client implementation (`elefant-client`) for high-performance database operations.
@@ -76,16 +78,25 @@ The `elefant-client` package is a custom PostgreSQL client implementation with s
 
 ### Build Commands
 ```bash
+# Build all packages with all features (RECOMMENDED for most development)
+cargo build --all-features
+
 # Build all packages
 cargo build
 
 # Build release version (required for benchmarks)
-cargo build --release
+cargo build --release --all-features
 
-# Build specific package
-cargo build --package elefant-sync
-cargo build --package elefant-client
+# Build specific package with all features
+cargo build --package elefant-sync --all-features
+cargo build --package elefant-client --all-features
+
+# Build specific features only (for feature-specific verification)
+cargo build --package elefant-client --features tokio
+cargo build --package elefant-client --features monoio
 ```
+
+**Note**: Use `--all-features` for most compilation testing unless you specifically need to verify individual feature combinations. This ensures all code paths are compiled and tested.
 
 ### Testing
 

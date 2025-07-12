@@ -1,6 +1,8 @@
 mod protocol;
 #[cfg(feature = "tokio")]
 pub mod tokio_connection;
+#[cfg(feature = "monoio")]
+pub mod monoio_connection;
 mod postgres_client;
 #[cfg(test)]
 mod test_helpers;

@@ -1,12 +1,31 @@
 use crate::postgres_client::PostgresClient;
 use crate::protocol::PostgresConnection;
+use crate::protocol::async_io::{ElefantAsyncRead, ElefantAsyncWrite};
 use crate::{ElefantClientError, PostgresConnectionSettings};
-use tokio::io::{BufWriter};
+use tokio::io::{AsyncReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufWriter};
 use tokio::net::TcpStream;
-use tokio_util::compat::{Compat, TokioAsyncReadCompatExt};
+use std::io;
 
-pub type TokioPostgresConnection = PostgresConnection<Compat<BufWriter<TcpStream>>>;
-pub type TokioPostgresClient = PostgresClient<Compat<BufWriter<TcpStream>>>;
+pub struct TokioWrapper<T>(T);
+
+impl<T: AsyncRead + Unpin> ElefantAsyncRead for TokioWrapper<T> {
+    async fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        AsyncReadExt::read(&mut self.0, buf).await
+    }
+}
+
+impl<T: AsyncWrite + Unpin> ElefantAsyncWrite for TokioWrapper<T> {
+    async fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        AsyncWriteExt::write_all(&mut self.0, buf).await
+    }
+
+    async fn flush(&mut self) -> io::Result<()> {
+        AsyncWriteExt::flush(&mut self.0).await
+    }
+}
+
+pub type TokioPostgresConnection = PostgresConnection<TokioWrapper<BufWriter<TcpStream>>>;
+pub type TokioPostgresClient = PostgresClient<TokioWrapper<BufWriter<TcpStream>>>;
 
 async fn new_connection(
     settings: &PostgresConnectionSettings,
@@ -16,7 +35,7 @@ async fn new_connection(
 
     let stream = BufWriter::new(stream);
 
-    Ok(PostgresConnection::new(stream.compat()))
+    Ok(PostgresConnection::new(TokioWrapper(stream)))
 }
 
 pub async fn new_client(

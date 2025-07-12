@@ -3,7 +3,7 @@ use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, RowDescription, ValueFormat,
 };
 use crate::{protocol, ElefantClientError, FromSql, FromSqlOwned, FromSqlRowOwned, ToSql};
-use futures::{AsyncRead, AsyncWrite};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -21,7 +21,7 @@ use crate::postgres_client::statements::{PreparedQuery, Statement};
     };
 }
 
-impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
+impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn query(
         &mut self,
         query: &(impl Statement + ?Sized),
@@ -160,7 +160,7 @@ pub struct QueryResult<'postgres_client, C> {
     prepared_query_result: Option<Rc<PreparedQueryResult>>,
 }
 
-impl<'postgres_client, C: AsyncRead + AsyncWrite + Unpin>
+impl<'postgres_client, C: ElefantAsyncReadWrite>
     QueryResult<'postgres_client, C>
 {
     pub(crate) fn new(
@@ -302,7 +302,7 @@ pub struct RowResultReader<'postgres_client, 'query_result_set, C> {
     query_result_res: PhantomData<&'query_result_set QueryResult<'postgres_client, C>>,
 }
 
-impl<'postgres_client, 'query_result_set, C: AsyncRead + AsyncWrite + Unpin>
+impl<'postgres_client, 'query_result_set, C: ElefantAsyncReadWrite>
     RowResultReader<'postgres_client, 'query_result_set, C>
 {
     pub async fn next_row<'row_result_reader>(

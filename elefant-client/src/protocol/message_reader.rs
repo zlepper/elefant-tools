@@ -1,4 +1,4 @@
-use futures::{AsyncRead, AsyncWrite};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, CurrentTransactionStatus, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FieldDescription, FrontendMessage, FrontendPMessage, FunctionCall, FunctionCallResponse, NegotiateProtocolVersion, NotificationResponse, ParameterDescription, ParameterStatus, Parse, PostgresMessageParseError, Query, ReadyForQuery, RowDescription, StartupMessage, StartupMessageParameter, UndecidedFrontendPMessage, ValueFormat};
 use crate::protocol::frame_reader::{DecodeResult, Decoder};
 use crate::protocol::postgres_connection::PostgresConnection;
@@ -818,7 +818,7 @@ impl<'a, 'b> Decoder<'a, FrontendMessage<'a>> for PostgresMessageDecoder<'a, 'b>
 }
 
 
-impl<C: AsyncRead + AsyncWrite + Unpin> PostgresConnection<C> {
+impl<C: ElefantAsyncReadWrite> PostgresConnection<C> {
     pub async fn read_backend_message(
         &mut self,
     ) -> Result<BackendMessage, PostgresMessageParseError> {

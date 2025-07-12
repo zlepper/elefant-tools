@@ -1,7 +1,6 @@
-use futures::{AsyncRead, AsyncWrite};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::postgres_client::{PostgresClient, QueryResultSet};
 use crate::{FromSql, PostgresConnectionSettings, Statement, ToSql};
-use crate::tokio_connection::{new_client, TokioPostgresClient};
 
 pub(crate) fn get_settings() -> PostgresConnectionSettings {
     PostgresConnectionSettings {
@@ -12,11 +11,16 @@ pub(crate) fn get_settings() -> PostgresConnectionSettings {
 }
 
 #[cfg(feature = "tokio")]
-pub(crate) async fn get_tokio_test_client() -> TokioPostgresClient {
-    new_client(get_settings()).await.unwrap()
+pub(crate) async fn get_tokio_test_client() -> crate::tokio_connection::TokioPostgresClient {
+    crate::tokio_connection::new_client(get_settings()).await.unwrap()
 }
 
-impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
+#[cfg(feature = "monoio")]
+pub(crate) async fn get_monoio_test_client() -> crate::monoio_connection::MonoioPostgresClient {
+    crate::monoio_connection::new_client(get_settings()).await.unwrap()
+}
+
+impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn read_single_column_and_row_exactly<'a, S, T>(&'a mut self, sql: &S, parameters: &[&(dyn ToSql)]) -> T
     where T: FromSql<'a>,
         S: Statement + ?Sized

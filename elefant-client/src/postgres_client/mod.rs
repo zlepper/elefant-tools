@@ -5,7 +5,7 @@ mod statements;
 mod copy;
 
 use std::sync::atomic::AtomicU64;
-use futures::{AsyncRead, AsyncWrite};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use tracing::{debug, trace};
 use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSettings};
 use crate::protocol::{BackendMessage, CurrentTransactionStatus, FrontendMessage, PostgresConnection};
@@ -24,7 +24,7 @@ pub struct PostgresClient<C> {
     current_transaction_status: CurrentTransactionStatus
 }
 
-impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
+impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub(crate) async fn start_new_query(&mut self) -> Result<(), ElefantClientError> {
 
         if !self.ready_for_query {

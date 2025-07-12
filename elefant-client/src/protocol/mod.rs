@@ -9,6 +9,7 @@ mod password;
 pub mod sasl;
 mod frontend_p_message;
 mod frame_reader;
+pub(crate) mod async_io;
 
 pub use error::*;
 pub use messages::*;

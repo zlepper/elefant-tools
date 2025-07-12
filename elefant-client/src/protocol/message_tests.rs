@@ -1,10 +1,10 @@
-use crate::protocol::messages::*;
 use futures::io::Cursor;
+use crate::protocol::messages::*;
 use tokio::test;
 use crate::protocol::{FrontendPMessage, PostgresConnection, UndecidedFrontendPMessage};
 
 async fn assert_backend_message_round_trip(input: BackendMessage<'_>) {
-    let mut cursor = Cursor::new(Vec::new());
+    let mut cursor = Cursor::new(Vec::<u8>::new());
     let mut writer = PostgresConnection::new(&mut cursor);
     writer.write_backend_message(&input).await.unwrap();
     writer.flush().await.unwrap();

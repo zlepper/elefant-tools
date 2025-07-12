@@ -1,9 +1,9 @@
 use crate::postgres_client::{PostgresClient, QueryResultSet};
 use crate::{ElefantClientError, FromSql, ToSql};
-use futures::{AsyncRead, AsyncWrite};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::postgres_client::statements::Statement;
 
-impl<C: AsyncRead + AsyncWrite + Unpin> PostgresClient<C> {
+impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn read_single_value<'postgres_client, T>(
         &'postgres_client mut self,
         query: &(impl Statement + ?Sized),

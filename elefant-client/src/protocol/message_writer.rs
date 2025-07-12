@@ -1,5 +1,5 @@
 use crate::protocol::messages::{BackendMessage, Bind, CloseType, CopyResponse, DescribeTarget, ErrorResponse, FrontendMessage};
-use futures::{AsyncRead, AsyncWrite};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::postgres_connection::PostgresConnection;
 use crate::protocol::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, CancelRequest, Close, CommandComplete, CopyData, CopyFail, CurrentTransactionStatus, DataRow, Describe, Execute, FrontendPMessage, FunctionCall, FunctionCallResponse, NegotiateProtocolVersion, NotificationResponse, ParameterDescription, ParameterStatus, Parse, Query, ReadyForQuery, RowDescription, StartupMessage, ValueFormat};
 use crate::protocol::frame_reader::{ByteSliceWriter, Encoder};
@@ -698,7 +698,7 @@ impl<'a, 'b> Encoder<'a, &'a FrontendMessage<'a>> for PostgresMessageEncoder<'a,
 }
 
 
-impl<C: AsyncRead + AsyncWrite + Unpin> PostgresConnection<C> {
+impl<C: ElefantAsyncReadWrite> PostgresConnection<C> {
 
 
     pub async fn write_backend_message(

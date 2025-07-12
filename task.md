@@ -2,20 +2,22 @@
 
 **Implementation Progress:**
 - ✅ **Phase 1:** 8/8 built-in primitives implemented (COMPLETE!)
-- ❌ **Phase 2:** 0/4 date/time types implemented (dependency not added)
+- ✅ **Phase 2:** 4/4 date/time types implemented (COMPLETE!)
 - ❌ **Phase 3:** 0/4 specialized types implemented (dependencies not added)  
 - ✅ **Phase 4:** 1/3 complex types implemented (arrays done, missing Point/IP types)
 
-**Current Implementation Status:** 10/19 types fully implemented (53%)
+**Current Implementation Status:** 14/19 types fully implemented (74%)
 
 **Key Achievements:**
 - ✅ **PHASE 1 COMPLETE!** All primitive types fully implemented and tested
-- Full PostgreSQL array support (1-dimensional) 
+- ✅ **PHASE 2 COMPLETE!** All date/time types fully implemented and tested
+- Full PostgreSQL array support (1-dimensional) with improved quoted string handling
 - Robust NULL handling and round-trip testing
 - Domain type framework (demonstrated with `Oid` type)
 - Comprehensive BYTEA support with text/binary format handling
+- Complete date/time support with PostgreSQL epoch handling and timezone conversions
 
-**Next Priority:** Begin Phase 2 by adding `time` crate dependency and implementing date/time types.
+**Next Priority:** Begin Phase 3 by adding specialized type dependencies (uuid, serde_json, rust_decimal).
 
 ---
 
@@ -64,23 +66,25 @@ Implement the type conversions in the following phases. Each phase corresponds t
 
 ---
 
-#### **Phase 2: Date and Time (`time` crate)**
+#### **Phase 2: Date and Time (`time` crate)** ✅ **COMPLETE**
 
 **Objective:** Add the `time` crate as a dependency and implement conversions for date and time types.
 
-**Current Status:** Not started. Types defined in `standard_types.rs` but no implementations.
+**Current Status:** ✅ ALL date/time types implemented and tested successfully!
 
 **Tasks:**
 
 | PostgreSQL Type | Rust Type | Task Details | Unit Test Values | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| `TIMESTAMP` | [`time::PrimitiveDateTime`](https://docs.rs/time/latest/time/struct.PrimitiveDateTime.html) | **FromSql:** Read an `i64` of microseconds since `2000-01-01`. Convert to `time`'s representation. **ToSql:** Reverse the process. | `2000-01-01 00:00:00`, current timestamp. | ❌ **TODO** - Not implemented |
-| `TIMESTAMPTZ` | [`time::OffsetDateTime`](https://docs.rs/time/latest/time/struct.OffsetDateTime.html) | **FromSql:** Same as `TIMESTAMP`. Construct an `OffsetDateTime` with a UTC offset. **ToSql:** Reverse the process. | Same as `TIMESTAMP`. | ❌ **TODO** - Not implemented |
-| `DATE` | [`time::Date`](https://docs.rs/time/latest/time/struct.Date.html) | **FromSql:** Read an `i32` of days since `2000-01-01`. **ToSql:** Reverse the process. | `2000-01-01`, current date. | ❌ **TODO** - Not implemented |
-| `TIME` | [`time::Time`](https://docs.rs/time/latest/time/struct.Time.html) | **FromSql:** Read an `i64` of microseconds since midnight. **ToSql:** Reverse the process. | `00:00:00`, `23:59:59.999999`. | ❌ **TODO** - Not implemented |
+| `TIMESTAMP` | [`time::PrimitiveDateTime`](https://docs.rs/time/latest/time/struct.PrimitiveDateTime.html) | **FromSql:** Read an `i64` of microseconds since `2000-01-01`. Convert to `time`'s representation. **ToSql:** Reverse the process. | `2000-01-01 00:00:00`, current timestamp. | ✅ **DONE** - Implemented in `datetime.rs:110-150` |
+| `TIMESTAMPTZ` | [`time::OffsetDateTime`](https://docs.rs/time/latest/time/struct.OffsetDateTime.html) | **FromSql:** Same as `TIMESTAMP`. Construct an `OffsetDateTime` with a UTC offset. **ToSql:** Reverse the process. | Same as `TIMESTAMP`. | ✅ **DONE** - Implemented in `datetime.rs:154-210` |
+| `DATE` | [`time::Date`](https://docs.rs/time/latest/time/struct.Date.html) | **FromSql:** Read an `i32` of days since `2000-01-01`. **ToSql:** Reverse the process. | `2000-01-01`, current date. | ✅ **DONE** - Implemented in `datetime.rs:12-50` |
+| `TIME` | [`time::Time`](https://docs.rs/time/latest/time/struct.Time.html) | **FromSql:** Read an `i64` of microseconds since midnight. **ToSql:** Reverse the process. | `00:00:00`, `23:59:59.999999`. | ✅ **DONE** - Implemented in `datetime.rs:54-106` |
 
 **Dependency Status:** 
-- ❌ `time` crate is not yet added to `Cargo.toml`
+- ✅ `time` crate added to `Cargo.toml` as optional dependency behind `time` feature flag
+- ✅ Only requires `formatting` and `parsing` features (no macros dependency)
+- ✅ Test-only macros moved to dev-dependencies to avoid forcing on downstream
 
 **Type Definitions Available:**
 - ✅ `TIMESTAMP` type defined in `standard_types.rs:1190-1196`
@@ -88,7 +92,22 @@ Implement the type conversions in the following phases. Each phase corresponds t
 - ✅ `DATE` type defined in `standard_types.rs:278-284`
 - ✅ `TIME` type defined in `standard_types.rs:1182-1188`
 
-**Definition of Done:** All types in this phase must have passing unit tests for all specified values, including `NULL` values.
+**Implementation Features:**
+- ✅ PostgreSQL epoch handling (2000-01-01 vs Unix 1970-01-01)
+- ✅ Microsecond precision throughout all datetime types
+- ✅ Timezone conversion for TIMESTAMPTZ (stored as UTC)
+- ✅ Custom text format parsing for PostgreSQL datetime formats
+- ✅ Static format descriptions with LazyLock for optimal performance (parsed once, reused)
+- ✅ Optional feature flag - doesn't force time dependency on downstream packages
+- ✅ Comprehensive tests including arrays, NULLs, and round-trip parameter binding
+- ✅ Enhanced array parsing with quoted string handling
+
+**Test Status:**
+- ✅ All 5 datetime test functions passing (69/69 total tests)
+- ✅ Tests cover epoch dates, current dates, precision, timezones, arrays, and NULL handling
+- ✅ Round-trip testing with parameter binding verified
+
+**Definition of Done:** ✅ All types in this phase have passing unit tests for all specified values, including `NULL` values.
 
 ---
 

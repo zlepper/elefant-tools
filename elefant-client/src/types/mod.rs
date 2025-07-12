@@ -10,6 +10,8 @@ mod text;
 mod binary;
 mod collections;
 mod nullable;
+#[cfg(feature = "time")]
+mod datetime;
 
 use std::error::Error;
 use crate::ElefantClientError;

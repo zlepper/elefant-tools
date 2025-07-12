@@ -75,7 +75,14 @@ where T: FromSql<'a>
                 continue;
             }
 
-            result.push(T::from_sql_text(item, field)?);
+            // Strip quotes from array elements if present
+            let clean_item = if item.starts_with('"') && item.ends_with('"') && item.len() >= 2 {
+                &item[1..item.len()-1]
+            } else {
+                item
+            };
+
+            result.push(T::from_sql_text(clean_item, field)?);
         }
 
         Ok(result)

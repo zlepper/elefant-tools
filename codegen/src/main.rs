@@ -91,9 +91,9 @@ impl PostgresType {
         type_file_content.push_str("        is_array: ");
         type_file_content.push_str(&typ.is_array_type.to_string());
         type_file_content.push_str(",\n");
-        type_file_content.push_str("        array_delimiter: \"");
+        type_file_content.push_str("        array_delimiter: '");
         type_file_content.push(typ.delimiter);
-        type_file_content.push_str("\",\n");
+        type_file_content.push_str("',\n");
         type_file_content.push_str("    };\n");
     }
 

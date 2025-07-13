@@ -66,23 +66,56 @@ where T: FromSql<'a>
             return Ok(result);
         }
 
-        let items = narrowed.split(typ.array_delimiter);
-
-        for item in items {
-
-            if item == "NULL" {
-                result.push(T::from_null(field)?);
-                continue;
+        // Parse array elements while respecting quoted boundaries
+        let mut element_start = 0;
+        let mut in_quotes = false;
+        let delimiter_char = typ.array_delimiter;
+        let bytes = narrowed.as_bytes();
+        
+        for (i, &byte) in bytes.iter().enumerate() {
+            let ch = byte as char;
+            match ch {
+                '"' => {
+                    in_quotes = !in_quotes;
+                }
+                c if c == delimiter_char && !in_quotes => {
+                    // End of current element
+                    if i > element_start {
+                        let element = &narrowed[element_start..i];
+                        // Remove quotes if present
+                        let clean_element = if element.starts_with('"') && element.ends_with('"') && element.len() >= 2 {
+                            &element[1..element.len()-1]
+                        } else {
+                            element
+                        };
+                        
+                        if clean_element == "NULL" {
+                            result.push(T::from_null(field)?);
+                        } else {
+                            result.push(T::from_sql_text(clean_element, field)?);
+                        }
+                    }
+                    element_start = i + 1;
+                }
+                _ => {}
             }
-
-            // Strip quotes from array elements if present
-            let clean_item = if item.starts_with('"') && item.ends_with('"') && item.len() >= 2 {
-                &item[1..item.len()-1]
+        }
+        
+        // Handle the last element
+        if element_start < narrowed.len() {
+            let element = &narrowed[element_start..];
+            // Remove quotes if present
+            let clean_element = if element.starts_with('"') && element.ends_with('"') && element.len() >= 2 {
+                &element[1..element.len()-1]
             } else {
-                item
+                element
             };
-
-            result.push(T::from_sql_text(clean_item, field)?);
+            
+            if clean_element == "NULL" {
+                result.push(T::from_null(field)?);
+            } else {
+                result.push(T::from_sql_text(clean_element, field)?);
+            }
         }
 
         Ok(result)

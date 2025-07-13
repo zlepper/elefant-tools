@@ -20,6 +20,10 @@ mod json_type;
 pub use json_type::{Json, Jsonb};
 #[cfg(feature = "decimal")]
 mod numeric_type;
+mod point_type;
+pub use point_type::Point;
+mod network_type;
+pub use network_type::{Inet, Cidr};
 
 use std::error::Error;
 use crate::ElefantClientError;
@@ -114,7 +118,7 @@ pub struct PostgresType {
     /// True if this is an array type
     is_array: bool,
 
-    array_delimiter: &'static str,
+    array_delimiter: char,
 }
 
 impl PostgresType {

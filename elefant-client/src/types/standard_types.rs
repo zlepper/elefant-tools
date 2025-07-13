@@ -8,7 +8,7 @@ impl PostgresType {
         name: "aclitem",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ACLITEM_ARRAY: PostgresType = PostgresType {
@@ -16,7 +16,7 @@ impl PostgresType {
         name: "_aclitem",
         element: Some(&PostgresType::ACLITEM),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANY: PostgresType = PostgresType {
@@ -24,7 +24,7 @@ impl PostgresType {
         name: "any",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYARRAY: PostgresType = PostgresType {
@@ -32,7 +32,7 @@ impl PostgresType {
         name: "anyarray",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYCOMPATIBLE: PostgresType = PostgresType {
@@ -40,7 +40,7 @@ impl PostgresType {
         name: "anycompatible",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYCOMPATIBLEARRAY: PostgresType = PostgresType {
@@ -48,7 +48,7 @@ impl PostgresType {
         name: "anycompatiblearray",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYCOMPATIBLEMULTIRANGE: PostgresType = PostgresType {
@@ -56,7 +56,7 @@ impl PostgresType {
         name: "anycompatiblemultirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYCOMPATIBLENONARRAY: PostgresType = PostgresType {
@@ -64,7 +64,7 @@ impl PostgresType {
         name: "anycompatiblenonarray",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYCOMPATIBLERANGE: PostgresType = PostgresType {
@@ -72,7 +72,7 @@ impl PostgresType {
         name: "anycompatiblerange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYELEMENT: PostgresType = PostgresType {
@@ -80,7 +80,7 @@ impl PostgresType {
         name: "anyelement",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYENUM: PostgresType = PostgresType {
@@ -88,7 +88,7 @@ impl PostgresType {
         name: "anyenum",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYMULTIRANGE: PostgresType = PostgresType {
@@ -96,7 +96,7 @@ impl PostgresType {
         name: "anymultirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYNONARRAY: PostgresType = PostgresType {
@@ -104,7 +104,7 @@ impl PostgresType {
         name: "anynonarray",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const ANYRANGE: PostgresType = PostgresType {
@@ -112,7 +112,7 @@ impl PostgresType {
         name: "anyrange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BIT: PostgresType = PostgresType {
@@ -120,7 +120,7 @@ impl PostgresType {
         name: "bit",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BIT_ARRAY: PostgresType = PostgresType {
@@ -128,7 +128,7 @@ impl PostgresType {
         name: "_bit",
         element: Some(&PostgresType::BIT),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BOOL: PostgresType = PostgresType {
@@ -136,7 +136,7 @@ impl PostgresType {
         name: "bool",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BOOL_ARRAY: PostgresType = PostgresType {
@@ -144,7 +144,7 @@ impl PostgresType {
         name: "_bool",
         element: Some(&PostgresType::BOOL),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BOX: PostgresType = PostgresType {
@@ -152,7 +152,7 @@ impl PostgresType {
         name: "box",
         element: Some(&PostgresType::POINT),
         is_array: false,
-        array_delimiter: ";",
+        array_delimiter: ';',
     };
 
     pub const BOX_ARRAY: PostgresType = PostgresType {
@@ -160,7 +160,7 @@ impl PostgresType {
         name: "_box",
         element: Some(&PostgresType::BOX),
         is_array: true,
-        array_delimiter: ";",
+        array_delimiter: ';',
     };
 
     pub const BPCHAR: PostgresType = PostgresType {
@@ -168,7 +168,7 @@ impl PostgresType {
         name: "bpchar",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BPCHAR_ARRAY: PostgresType = PostgresType {
@@ -176,7 +176,7 @@ impl PostgresType {
         name: "_bpchar",
         element: Some(&PostgresType::BPCHAR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BYTEA: PostgresType = PostgresType {
@@ -184,7 +184,7 @@ impl PostgresType {
         name: "bytea",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const BYTEA_ARRAY: PostgresType = PostgresType {
@@ -192,7 +192,7 @@ impl PostgresType {
         name: "_bytea",
         element: Some(&PostgresType::BYTEA),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CHAR: PostgresType = PostgresType {
@@ -200,7 +200,7 @@ impl PostgresType {
         name: "char",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CHAR_ARRAY: PostgresType = PostgresType {
@@ -208,7 +208,7 @@ impl PostgresType {
         name: "_char",
         element: Some(&PostgresType::CHAR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CID: PostgresType = PostgresType {
@@ -216,7 +216,7 @@ impl PostgresType {
         name: "cid",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CIDR: PostgresType = PostgresType {
@@ -224,7 +224,7 @@ impl PostgresType {
         name: "cidr",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CIDR_ARRAY: PostgresType = PostgresType {
@@ -232,7 +232,7 @@ impl PostgresType {
         name: "_cidr",
         element: Some(&PostgresType::CIDR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CID_ARRAY: PostgresType = PostgresType {
@@ -240,7 +240,7 @@ impl PostgresType {
         name: "_cid",
         element: Some(&PostgresType::CID),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CIRCLE: PostgresType = PostgresType {
@@ -248,7 +248,7 @@ impl PostgresType {
         name: "circle",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CIRCLE_ARRAY: PostgresType = PostgresType {
@@ -256,7 +256,7 @@ impl PostgresType {
         name: "_circle",
         element: Some(&PostgresType::CIRCLE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CSTRING: PostgresType = PostgresType {
@@ -264,7 +264,7 @@ impl PostgresType {
         name: "cstring",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const CSTRING_ARRAY: PostgresType = PostgresType {
@@ -272,7 +272,7 @@ impl PostgresType {
         name: "_cstring",
         element: Some(&PostgresType::CSTRING),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const DATE: PostgresType = PostgresType {
@@ -280,7 +280,7 @@ impl PostgresType {
         name: "date",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const DATEMULTIRANGE: PostgresType = PostgresType {
@@ -288,7 +288,7 @@ impl PostgresType {
         name: "datemultirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const DATEMULTIRANGE_ARRAY: PostgresType = PostgresType {
@@ -296,7 +296,7 @@ impl PostgresType {
         name: "_datemultirange",
         element: Some(&PostgresType::DATEMULTIRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const DATERANGE: PostgresType = PostgresType {
@@ -304,7 +304,7 @@ impl PostgresType {
         name: "daterange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const DATERANGE_ARRAY: PostgresType = PostgresType {
@@ -312,7 +312,7 @@ impl PostgresType {
         name: "_daterange",
         element: Some(&PostgresType::DATERANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const DATE_ARRAY: PostgresType = PostgresType {
@@ -320,7 +320,7 @@ impl PostgresType {
         name: "_date",
         element: Some(&PostgresType::DATE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const EVENT_TRIGGER: PostgresType = PostgresType {
@@ -328,7 +328,7 @@ impl PostgresType {
         name: "event_trigger",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const FDW_HANDLER: PostgresType = PostgresType {
@@ -336,7 +336,7 @@ impl PostgresType {
         name: "fdw_handler",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const FLOAT4: PostgresType = PostgresType {
@@ -344,7 +344,7 @@ impl PostgresType {
         name: "float4",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const FLOAT4_ARRAY: PostgresType = PostgresType {
@@ -352,7 +352,7 @@ impl PostgresType {
         name: "_float4",
         element: Some(&PostgresType::FLOAT4),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const FLOAT8: PostgresType = PostgresType {
@@ -360,7 +360,7 @@ impl PostgresType {
         name: "float8",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const FLOAT8_ARRAY: PostgresType = PostgresType {
@@ -368,7 +368,7 @@ impl PostgresType {
         name: "_float8",
         element: Some(&PostgresType::FLOAT8),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const GTSVECTOR: PostgresType = PostgresType {
@@ -376,7 +376,7 @@ impl PostgresType {
         name: "gtsvector",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const GTSVECTOR_ARRAY: PostgresType = PostgresType {
@@ -384,7 +384,7 @@ impl PostgresType {
         name: "_gtsvector",
         element: Some(&PostgresType::GTSVECTOR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INDEX_AM_HANDLER: PostgresType = PostgresType {
@@ -392,7 +392,7 @@ impl PostgresType {
         name: "index_am_handler",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INET: PostgresType = PostgresType {
@@ -400,7 +400,7 @@ impl PostgresType {
         name: "inet",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INET_ARRAY: PostgresType = PostgresType {
@@ -408,7 +408,7 @@ impl PostgresType {
         name: "_inet",
         element: Some(&PostgresType::INET),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT2: PostgresType = PostgresType {
@@ -416,7 +416,7 @@ impl PostgresType {
         name: "int2",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT2VECTOR: PostgresType = PostgresType {
@@ -424,7 +424,7 @@ impl PostgresType {
         name: "int2vector",
         element: Some(&PostgresType::INT2),
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT2VECTOR_ARRAY: PostgresType = PostgresType {
@@ -432,7 +432,7 @@ impl PostgresType {
         name: "_int2vector",
         element: Some(&PostgresType::INT2VECTOR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT2_ARRAY: PostgresType = PostgresType {
@@ -440,7 +440,7 @@ impl PostgresType {
         name: "_int2",
         element: Some(&PostgresType::INT2),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT4: PostgresType = PostgresType {
@@ -448,7 +448,7 @@ impl PostgresType {
         name: "int4",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT4MULTIRANGE: PostgresType = PostgresType {
@@ -456,7 +456,7 @@ impl PostgresType {
         name: "int4multirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT4MULTIRANGE_ARRAY: PostgresType = PostgresType {
@@ -464,7 +464,7 @@ impl PostgresType {
         name: "_int4multirange",
         element: Some(&PostgresType::INT4MULTIRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT4RANGE: PostgresType = PostgresType {
@@ -472,7 +472,7 @@ impl PostgresType {
         name: "int4range",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT4RANGE_ARRAY: PostgresType = PostgresType {
@@ -480,7 +480,7 @@ impl PostgresType {
         name: "_int4range",
         element: Some(&PostgresType::INT4RANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT4_ARRAY: PostgresType = PostgresType {
@@ -488,7 +488,7 @@ impl PostgresType {
         name: "_int4",
         element: Some(&PostgresType::INT4),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT8: PostgresType = PostgresType {
@@ -496,7 +496,7 @@ impl PostgresType {
         name: "int8",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT8MULTIRANGE: PostgresType = PostgresType {
@@ -504,7 +504,7 @@ impl PostgresType {
         name: "int8multirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT8MULTIRANGE_ARRAY: PostgresType = PostgresType {
@@ -512,7 +512,7 @@ impl PostgresType {
         name: "_int8multirange",
         element: Some(&PostgresType::INT8MULTIRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT8RANGE: PostgresType = PostgresType {
@@ -520,7 +520,7 @@ impl PostgresType {
         name: "int8range",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT8RANGE_ARRAY: PostgresType = PostgresType {
@@ -528,7 +528,7 @@ impl PostgresType {
         name: "_int8range",
         element: Some(&PostgresType::INT8RANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INT8_ARRAY: PostgresType = PostgresType {
@@ -536,7 +536,7 @@ impl PostgresType {
         name: "_int8",
         element: Some(&PostgresType::INT8),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INTERNAL: PostgresType = PostgresType {
@@ -544,7 +544,7 @@ impl PostgresType {
         name: "internal",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INTERVAL: PostgresType = PostgresType {
@@ -552,7 +552,7 @@ impl PostgresType {
         name: "interval",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const INTERVAL_ARRAY: PostgresType = PostgresType {
@@ -560,7 +560,7 @@ impl PostgresType {
         name: "_interval",
         element: Some(&PostgresType::INTERVAL),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const JSON: PostgresType = PostgresType {
@@ -568,7 +568,7 @@ impl PostgresType {
         name: "json",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const JSONB: PostgresType = PostgresType {
@@ -576,7 +576,7 @@ impl PostgresType {
         name: "jsonb",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const JSONB_ARRAY: PostgresType = PostgresType {
@@ -584,7 +584,7 @@ impl PostgresType {
         name: "_jsonb",
         element: Some(&PostgresType::JSONB),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const JSONPATH: PostgresType = PostgresType {
@@ -592,7 +592,7 @@ impl PostgresType {
         name: "jsonpath",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const JSONPATH_ARRAY: PostgresType = PostgresType {
@@ -600,7 +600,7 @@ impl PostgresType {
         name: "_jsonpath",
         element: Some(&PostgresType::JSONPATH),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const JSON_ARRAY: PostgresType = PostgresType {
@@ -608,7 +608,7 @@ impl PostgresType {
         name: "_json",
         element: Some(&PostgresType::JSON),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const LANGUAGE_HANDLER: PostgresType = PostgresType {
@@ -616,7 +616,7 @@ impl PostgresType {
         name: "language_handler",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const LINE: PostgresType = PostgresType {
@@ -624,7 +624,7 @@ impl PostgresType {
         name: "line",
         element: Some(&PostgresType::FLOAT8),
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const LINE_ARRAY: PostgresType = PostgresType {
@@ -632,7 +632,7 @@ impl PostgresType {
         name: "_line",
         element: Some(&PostgresType::LINE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const LSEG: PostgresType = PostgresType {
@@ -640,7 +640,7 @@ impl PostgresType {
         name: "lseg",
         element: Some(&PostgresType::POINT),
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const LSEG_ARRAY: PostgresType = PostgresType {
@@ -648,7 +648,7 @@ impl PostgresType {
         name: "_lseg",
         element: Some(&PostgresType::LSEG),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const MACADDR: PostgresType = PostgresType {
@@ -656,7 +656,7 @@ impl PostgresType {
         name: "macaddr",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const MACADDR8: PostgresType = PostgresType {
@@ -664,7 +664,7 @@ impl PostgresType {
         name: "macaddr8",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const MACADDR8_ARRAY: PostgresType = PostgresType {
@@ -672,7 +672,7 @@ impl PostgresType {
         name: "_macaddr8",
         element: Some(&PostgresType::MACADDR8),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const MACADDR_ARRAY: PostgresType = PostgresType {
@@ -680,7 +680,7 @@ impl PostgresType {
         name: "_macaddr",
         element: Some(&PostgresType::MACADDR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const MONEY: PostgresType = PostgresType {
@@ -688,7 +688,7 @@ impl PostgresType {
         name: "money",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const MONEY_ARRAY: PostgresType = PostgresType {
@@ -696,7 +696,7 @@ impl PostgresType {
         name: "_money",
         element: Some(&PostgresType::MONEY),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NAME: PostgresType = PostgresType {
@@ -704,7 +704,7 @@ impl PostgresType {
         name: "name",
         element: Some(&PostgresType::CHAR),
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NAME_ARRAY: PostgresType = PostgresType {
@@ -712,7 +712,7 @@ impl PostgresType {
         name: "_name",
         element: Some(&PostgresType::NAME),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NUMERIC: PostgresType = PostgresType {
@@ -720,7 +720,7 @@ impl PostgresType {
         name: "numeric",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NUMERIC_ARRAY: PostgresType = PostgresType {
@@ -728,7 +728,7 @@ impl PostgresType {
         name: "_numeric",
         element: Some(&PostgresType::NUMERIC),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NUMMULTIRANGE: PostgresType = PostgresType {
@@ -736,7 +736,7 @@ impl PostgresType {
         name: "nummultirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NUMMULTIRANGE_ARRAY: PostgresType = PostgresType {
@@ -744,7 +744,7 @@ impl PostgresType {
         name: "_nummultirange",
         element: Some(&PostgresType::NUMMULTIRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NUMRANGE: PostgresType = PostgresType {
@@ -752,7 +752,7 @@ impl PostgresType {
         name: "numrange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const NUMRANGE_ARRAY: PostgresType = PostgresType {
@@ -760,7 +760,7 @@ impl PostgresType {
         name: "_numrange",
         element: Some(&PostgresType::NUMRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const OID: PostgresType = PostgresType {
@@ -768,7 +768,7 @@ impl PostgresType {
         name: "oid",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const OIDVECTOR: PostgresType = PostgresType {
@@ -776,7 +776,7 @@ impl PostgresType {
         name: "oidvector",
         element: Some(&PostgresType::OID),
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const OIDVECTOR_ARRAY: PostgresType = PostgresType {
@@ -784,7 +784,7 @@ impl PostgresType {
         name: "_oidvector",
         element: Some(&PostgresType::OIDVECTOR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const OID_ARRAY: PostgresType = PostgresType {
@@ -792,7 +792,7 @@ impl PostgresType {
         name: "_oid",
         element: Some(&PostgresType::OID),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PATH: PostgresType = PostgresType {
@@ -800,7 +800,7 @@ impl PostgresType {
         name: "path",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PATH_ARRAY: PostgresType = PostgresType {
@@ -808,7 +808,7 @@ impl PostgresType {
         name: "_path",
         element: Some(&PostgresType::PATH),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_BRIN_BLOOM_SUMMARY: PostgresType = PostgresType {
@@ -816,7 +816,7 @@ impl PostgresType {
         name: "pg_brin_bloom_summary",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_BRIN_MINMAX_MULTI_SUMMARY: PostgresType = PostgresType {
@@ -824,7 +824,7 @@ impl PostgresType {
         name: "pg_brin_minmax_multi_summary",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_DDL_COMMAND: PostgresType = PostgresType {
@@ -832,7 +832,7 @@ impl PostgresType {
         name: "pg_ddl_command",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_DEPENDENCIES: PostgresType = PostgresType {
@@ -840,7 +840,7 @@ impl PostgresType {
         name: "pg_dependencies",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_LSN: PostgresType = PostgresType {
@@ -848,7 +848,7 @@ impl PostgresType {
         name: "pg_lsn",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_LSN_ARRAY: PostgresType = PostgresType {
@@ -856,7 +856,7 @@ impl PostgresType {
         name: "_pg_lsn",
         element: Some(&PostgresType::PG_LSN),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_MCV_LIST: PostgresType = PostgresType {
@@ -864,7 +864,7 @@ impl PostgresType {
         name: "pg_mcv_list",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_NDISTINCT: PostgresType = PostgresType {
@@ -872,7 +872,7 @@ impl PostgresType {
         name: "pg_ndistinct",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_NODE_TREE: PostgresType = PostgresType {
@@ -880,7 +880,7 @@ impl PostgresType {
         name: "pg_node_tree",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_SNAPSHOT: PostgresType = PostgresType {
@@ -888,7 +888,7 @@ impl PostgresType {
         name: "pg_snapshot",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const PG_SNAPSHOT_ARRAY: PostgresType = PostgresType {
@@ -896,7 +896,7 @@ impl PostgresType {
         name: "_pg_snapshot",
         element: Some(&PostgresType::PG_SNAPSHOT),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const POINT: PostgresType = PostgresType {
@@ -904,7 +904,7 @@ impl PostgresType {
         name: "point",
         element: Some(&PostgresType::FLOAT8),
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const POINT_ARRAY: PostgresType = PostgresType {
@@ -912,7 +912,7 @@ impl PostgresType {
         name: "_point",
         element: Some(&PostgresType::POINT),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const POLYGON: PostgresType = PostgresType {
@@ -920,7 +920,7 @@ impl PostgresType {
         name: "polygon",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const POLYGON_ARRAY: PostgresType = PostgresType {
@@ -928,7 +928,7 @@ impl PostgresType {
         name: "_polygon",
         element: Some(&PostgresType::POLYGON),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const RECORD: PostgresType = PostgresType {
@@ -936,7 +936,7 @@ impl PostgresType {
         name: "record",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const RECORD_ARRAY: PostgresType = PostgresType {
@@ -944,7 +944,7 @@ impl PostgresType {
         name: "_record",
         element: Some(&PostgresType::RECORD),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REFCURSOR: PostgresType = PostgresType {
@@ -952,7 +952,7 @@ impl PostgresType {
         name: "refcursor",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REFCURSOR_ARRAY: PostgresType = PostgresType {
@@ -960,7 +960,7 @@ impl PostgresType {
         name: "_refcursor",
         element: Some(&PostgresType::REFCURSOR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGCLASS: PostgresType = PostgresType {
@@ -968,7 +968,7 @@ impl PostgresType {
         name: "regclass",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGCLASS_ARRAY: PostgresType = PostgresType {
@@ -976,7 +976,7 @@ impl PostgresType {
         name: "_regclass",
         element: Some(&PostgresType::REGCLASS),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGCOLLATION: PostgresType = PostgresType {
@@ -984,7 +984,7 @@ impl PostgresType {
         name: "regcollation",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGCOLLATION_ARRAY: PostgresType = PostgresType {
@@ -992,7 +992,7 @@ impl PostgresType {
         name: "_regcollation",
         element: Some(&PostgresType::REGCOLLATION),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGCONFIG: PostgresType = PostgresType {
@@ -1000,7 +1000,7 @@ impl PostgresType {
         name: "regconfig",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGCONFIG_ARRAY: PostgresType = PostgresType {
@@ -1008,7 +1008,7 @@ impl PostgresType {
         name: "_regconfig",
         element: Some(&PostgresType::REGCONFIG),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGDICTIONARY: PostgresType = PostgresType {
@@ -1016,7 +1016,7 @@ impl PostgresType {
         name: "regdictionary",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGDICTIONARY_ARRAY: PostgresType = PostgresType {
@@ -1024,7 +1024,7 @@ impl PostgresType {
         name: "_regdictionary",
         element: Some(&PostgresType::REGDICTIONARY),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGNAMESPACE: PostgresType = PostgresType {
@@ -1032,7 +1032,7 @@ impl PostgresType {
         name: "regnamespace",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGNAMESPACE_ARRAY: PostgresType = PostgresType {
@@ -1040,7 +1040,7 @@ impl PostgresType {
         name: "_regnamespace",
         element: Some(&PostgresType::REGNAMESPACE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGOPER: PostgresType = PostgresType {
@@ -1048,7 +1048,7 @@ impl PostgresType {
         name: "regoper",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGOPERATOR: PostgresType = PostgresType {
@@ -1056,7 +1056,7 @@ impl PostgresType {
         name: "regoperator",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGOPERATOR_ARRAY: PostgresType = PostgresType {
@@ -1064,7 +1064,7 @@ impl PostgresType {
         name: "_regoperator",
         element: Some(&PostgresType::REGOPERATOR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGOPER_ARRAY: PostgresType = PostgresType {
@@ -1072,7 +1072,7 @@ impl PostgresType {
         name: "_regoper",
         element: Some(&PostgresType::REGOPER),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGPROC: PostgresType = PostgresType {
@@ -1080,7 +1080,7 @@ impl PostgresType {
         name: "regproc",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGPROCEDURE: PostgresType = PostgresType {
@@ -1088,7 +1088,7 @@ impl PostgresType {
         name: "regprocedure",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGPROCEDURE_ARRAY: PostgresType = PostgresType {
@@ -1096,7 +1096,7 @@ impl PostgresType {
         name: "_regprocedure",
         element: Some(&PostgresType::REGPROCEDURE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGPROC_ARRAY: PostgresType = PostgresType {
@@ -1104,7 +1104,7 @@ impl PostgresType {
         name: "_regproc",
         element: Some(&PostgresType::REGPROC),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGROLE: PostgresType = PostgresType {
@@ -1112,7 +1112,7 @@ impl PostgresType {
         name: "regrole",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGROLE_ARRAY: PostgresType = PostgresType {
@@ -1120,7 +1120,7 @@ impl PostgresType {
         name: "_regrole",
         element: Some(&PostgresType::REGROLE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGTYPE: PostgresType = PostgresType {
@@ -1128,7 +1128,7 @@ impl PostgresType {
         name: "regtype",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const REGTYPE_ARRAY: PostgresType = PostgresType {
@@ -1136,7 +1136,7 @@ impl PostgresType {
         name: "_regtype",
         element: Some(&PostgresType::REGTYPE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TABLE_AM_HANDLER: PostgresType = PostgresType {
@@ -1144,7 +1144,7 @@ impl PostgresType {
         name: "table_am_handler",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TEXT: PostgresType = PostgresType {
@@ -1152,7 +1152,7 @@ impl PostgresType {
         name: "text",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TEXT_ARRAY: PostgresType = PostgresType {
@@ -1160,7 +1160,7 @@ impl PostgresType {
         name: "_text",
         element: Some(&PostgresType::TEXT),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TID: PostgresType = PostgresType {
@@ -1168,7 +1168,7 @@ impl PostgresType {
         name: "tid",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TID_ARRAY: PostgresType = PostgresType {
@@ -1176,7 +1176,7 @@ impl PostgresType {
         name: "_tid",
         element: Some(&PostgresType::TID),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIME: PostgresType = PostgresType {
@@ -1184,7 +1184,7 @@ impl PostgresType {
         name: "time",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIMESTAMP: PostgresType = PostgresType {
@@ -1192,7 +1192,7 @@ impl PostgresType {
         name: "timestamp",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIMESTAMPTZ: PostgresType = PostgresType {
@@ -1200,7 +1200,7 @@ impl PostgresType {
         name: "timestamptz",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIMESTAMPTZ_ARRAY: PostgresType = PostgresType {
@@ -1208,7 +1208,7 @@ impl PostgresType {
         name: "_timestamptz",
         element: Some(&PostgresType::TIMESTAMPTZ),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIMESTAMP_ARRAY: PostgresType = PostgresType {
@@ -1216,7 +1216,7 @@ impl PostgresType {
         name: "_timestamp",
         element: Some(&PostgresType::TIMESTAMP),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIMETZ: PostgresType = PostgresType {
@@ -1224,7 +1224,7 @@ impl PostgresType {
         name: "timetz",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIMETZ_ARRAY: PostgresType = PostgresType {
@@ -1232,7 +1232,7 @@ impl PostgresType {
         name: "_timetz",
         element: Some(&PostgresType::TIMETZ),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TIME_ARRAY: PostgresType = PostgresType {
@@ -1240,7 +1240,7 @@ impl PostgresType {
         name: "_time",
         element: Some(&PostgresType::TIME),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TRIGGER: PostgresType = PostgresType {
@@ -1248,7 +1248,7 @@ impl PostgresType {
         name: "trigger",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSMULTIRANGE: PostgresType = PostgresType {
@@ -1256,7 +1256,7 @@ impl PostgresType {
         name: "tsmultirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSMULTIRANGE_ARRAY: PostgresType = PostgresType {
@@ -1264,7 +1264,7 @@ impl PostgresType {
         name: "_tsmultirange",
         element: Some(&PostgresType::TSMULTIRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSM_HANDLER: PostgresType = PostgresType {
@@ -1272,7 +1272,7 @@ impl PostgresType {
         name: "tsm_handler",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSQUERY: PostgresType = PostgresType {
@@ -1280,7 +1280,7 @@ impl PostgresType {
         name: "tsquery",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSQUERY_ARRAY: PostgresType = PostgresType {
@@ -1288,7 +1288,7 @@ impl PostgresType {
         name: "_tsquery",
         element: Some(&PostgresType::TSQUERY),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSRANGE: PostgresType = PostgresType {
@@ -1296,7 +1296,7 @@ impl PostgresType {
         name: "tsrange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSRANGE_ARRAY: PostgresType = PostgresType {
@@ -1304,7 +1304,7 @@ impl PostgresType {
         name: "_tsrange",
         element: Some(&PostgresType::TSRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSTZMULTIRANGE: PostgresType = PostgresType {
@@ -1312,7 +1312,7 @@ impl PostgresType {
         name: "tstzmultirange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSTZMULTIRANGE_ARRAY: PostgresType = PostgresType {
@@ -1320,7 +1320,7 @@ impl PostgresType {
         name: "_tstzmultirange",
         element: Some(&PostgresType::TSTZMULTIRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSTZRANGE: PostgresType = PostgresType {
@@ -1328,7 +1328,7 @@ impl PostgresType {
         name: "tstzrange",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSTZRANGE_ARRAY: PostgresType = PostgresType {
@@ -1336,7 +1336,7 @@ impl PostgresType {
         name: "_tstzrange",
         element: Some(&PostgresType::TSTZRANGE),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSVECTOR: PostgresType = PostgresType {
@@ -1344,7 +1344,7 @@ impl PostgresType {
         name: "tsvector",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TSVECTOR_ARRAY: PostgresType = PostgresType {
@@ -1352,7 +1352,7 @@ impl PostgresType {
         name: "_tsvector",
         element: Some(&PostgresType::TSVECTOR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TXID_SNAPSHOT: PostgresType = PostgresType {
@@ -1360,7 +1360,7 @@ impl PostgresType {
         name: "txid_snapshot",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const TXID_SNAPSHOT_ARRAY: PostgresType = PostgresType {
@@ -1368,7 +1368,7 @@ impl PostgresType {
         name: "_txid_snapshot",
         element: Some(&PostgresType::TXID_SNAPSHOT),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const UNKNOWN: PostgresType = PostgresType {
@@ -1376,7 +1376,7 @@ impl PostgresType {
         name: "unknown",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const UUID: PostgresType = PostgresType {
@@ -1384,7 +1384,7 @@ impl PostgresType {
         name: "uuid",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const UUID_ARRAY: PostgresType = PostgresType {
@@ -1392,7 +1392,7 @@ impl PostgresType {
         name: "_uuid",
         element: Some(&PostgresType::UUID),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const VARBIT: PostgresType = PostgresType {
@@ -1400,7 +1400,7 @@ impl PostgresType {
         name: "varbit",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const VARBIT_ARRAY: PostgresType = PostgresType {
@@ -1408,7 +1408,7 @@ impl PostgresType {
         name: "_varbit",
         element: Some(&PostgresType::VARBIT),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const VARCHAR: PostgresType = PostgresType {
@@ -1416,7 +1416,7 @@ impl PostgresType {
         name: "varchar",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const VARCHAR_ARRAY: PostgresType = PostgresType {
@@ -1424,7 +1424,7 @@ impl PostgresType {
         name: "_varchar",
         element: Some(&PostgresType::VARCHAR),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const VOID: PostgresType = PostgresType {
@@ -1432,7 +1432,7 @@ impl PostgresType {
         name: "void",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const XID: PostgresType = PostgresType {
@@ -1440,7 +1440,7 @@ impl PostgresType {
         name: "xid",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const XID8: PostgresType = PostgresType {
@@ -1448,7 +1448,7 @@ impl PostgresType {
         name: "xid8",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const XID8_ARRAY: PostgresType = PostgresType {
@@ -1456,7 +1456,7 @@ impl PostgresType {
         name: "_xid8",
         element: Some(&PostgresType::XID8),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const XID_ARRAY: PostgresType = PostgresType {
@@ -1464,7 +1464,7 @@ impl PostgresType {
         name: "_xid",
         element: Some(&PostgresType::XID),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const XML: PostgresType = PostgresType {
@@ -1472,7 +1472,7 @@ impl PostgresType {
         name: "xml",
         element: None,
         is_array: false,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
 
     pub const XML_ARRAY: PostgresType = PostgresType {
@@ -1480,9 +1480,9 @@ impl PostgresType {
         name: "_xml",
         element: Some(&PostgresType::XML),
         is_array: true,
-        array_delimiter: ",",
+        array_delimiter: ',',
     };
-    
+
     pub(crate) fn get_by_oid(oid: i32) -> Option<&'static PostgresType> {
         match oid {
             1033 => Some(&PostgresType::ACLITEM),

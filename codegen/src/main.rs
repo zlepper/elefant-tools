@@ -46,7 +46,7 @@ where t.typnamespace = 11
                             name: row.get(1)?,
                             delimiter: row.get(2)?,
                             element_oid: row.get(3)?,
-                            typtype: row.get(4)?,
+                            // typtype: row.get(4)?,
                             is_array_type: row.get::<Option<bool>>(5)?.unwrap_or(false),
                         };
                         types.insert(postgres_type.oid, postgres_type);
@@ -127,7 +127,7 @@ struct PostgresType {
     name: String,
     delimiter: char,
     element_oid: Oid,
-    typtype: char,
+    // typtype: char,
     is_array_type: bool,
 }
 

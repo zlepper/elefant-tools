@@ -1,11 +1,11 @@
-use crate::protocol::async_io::ElefantAsyncReadWrite;
-use std::future::Future;
-use std::borrow::Cow;
-use tracing::{trace};
-use std::rc::Rc;
-use crate::{protocol, ElefantClientError, PostgresClient, QueryResult, ToSql};
 use crate::postgres_client::query::PreparedQueryResult;
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::{BackendMessage, FrontendMessage, Query, ValueFormat};
+use crate::{protocol, ElefantClientError, PostgresClient, QueryResult, ToSql};
+use std::borrow::Cow;
+use std::future::Future;
+use std::rc::Rc;
+use tracing::trace;
 
 pub struct PreparedQuery {
     name: Option<String>,

@@ -80,10 +80,9 @@ async fn do_export(
             .await?;
 
             copy_data(&source, &mut sql_file_destination, copy_data_options).await?;
-        }
-        // Storage::SqlDirectory { path } => Box::new(crate::SqlDirectoryDestination::new(path)),
-        // Storage::ElefantFile { path } => Box::new(crate::ElefantFileDestination::new(path)),
-        // Storage::ElefantDirectory { path } => Box::new(crate::ElefantDirectoryDestination::new(path)),
+        } // Storage::SqlDirectory { path } => Box::new(crate::SqlDirectoryDestination::new(path)),
+          // Storage::ElefantFile { path } => Box::new(crate::ElefantFileDestination::new(path)),
+          // Storage::ElefantDirectory { path } => Box::new(crate::ElefantDirectoryDestination::new(path)),
     }
 
     Ok(())

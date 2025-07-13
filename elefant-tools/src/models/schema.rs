@@ -31,7 +31,10 @@ impl PostgresSchema {
         )
     }
 
-    pub fn get_set_comment_statement(&self, identifier_quoter: &IdentifierQuoter) -> Option<String> {
+    pub fn get_set_comment_statement(
+        &self,
+        identifier_quoter: &IdentifierQuoter,
+    ) -> Option<String> {
         if let Some(comment) = &self.comment {
             let mut sql = String::new();
             sql.push_str("\ncomment on schema ");

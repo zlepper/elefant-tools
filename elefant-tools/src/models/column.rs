@@ -1,8 +1,8 @@
+use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
 use crate::{ElefantToolsError, PostgresSchema, PostgresTable};
 use serde::{Deserialize, Serialize};
 use AttemptedKeywordUsage::Other;
-use crate::postgres_client_wrapper::FromPgChar;
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresColumn {
@@ -77,7 +77,7 @@ pub enum SimplifiedDataType {
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
 pub enum ColumnIdentity {
     GeneratedAlways,
-    GeneratedByDefault
+    GeneratedByDefault,
 }
 
 impl FromPgChar for ColumnIdentity {

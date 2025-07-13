@@ -1,17 +1,17 @@
-mod messages;
+pub(crate) mod async_io;
 mod error;
-mod message_writer;
+mod frame_reader;
+mod frontend_p_message;
+mod message_reader;
 #[cfg(all(test, feature = "futures"))]
 mod message_tests;
-mod message_reader;
-mod postgres_connection;
+mod message_writer;
+mod messages;
 mod password;
+mod postgres_connection;
 pub mod sasl;
-mod frontend_p_message;
-mod frame_reader;
-pub(crate) mod async_io;
 
 pub use error::*;
-pub use messages::*;
 pub use frontend_p_message::*;
+pub use messages::*;
 pub use postgres_connection::*;

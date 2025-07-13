@@ -10,9 +10,7 @@ pub struct ByteSliceWriter<'a> {
 
 impl<'a> ByteSliceWriter<'a> {
     pub fn new(buffer: &'a mut Vec<u8>) -> Self {
-        Self {
-            buffer,
-        }
+        Self { buffer }
     }
 
     pub fn write_null_terminated_string(&mut self, string: &str) {

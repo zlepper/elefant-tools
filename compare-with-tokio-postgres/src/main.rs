@@ -1,7 +1,7 @@
 // Simple test to verify database connectivity before running benchmarks
 
+use elefant_client::{PostgresConnectionSettings, tokio_connection};
 use tokio_postgres::NoTls;
-use elefant_client::{tokio_connection, PostgresConnectionSettings};
 
 const DB_HOST: &str = "localhost";
 const DB_USER: &str = "postgres";
@@ -11,13 +11,16 @@ const DB_PORT: u16 = 5416; // PostgreSQL 16 (latest available)
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing database connectivity...");
-    
+
     // Test tokio-postgres connection
     println!("Testing tokio-postgres connection...");
     let (client, connection) = tokio_postgres::connect(
-        &format!("host={DB_HOST} port={DB_PORT} user={DB_USER} password={DB_PASSWORD} dbname=postgres"),
+        &format!(
+            "host={DB_HOST} port={DB_PORT} user={DB_USER} password={DB_PASSWORD} dbname=postgres"
+        ),
         NoTls,
-    ).await?;
+    )
+    .await?;
 
     tokio::spawn(async move {
         if let Err(e) = connection.await {
@@ -40,13 +43,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let _elefant_client = tokio_connection::new_client(settings).await?;
-    
+
     // For elefant-client, we need to use its query API
     // This is a simplified test just to verify connectivity
     println!("elefant-client connected successfully!");
 
     println!("✅ Both database clients can connect successfully!");
     println!("You can now run: cargo bench");
-    
+
     Ok(())
 }

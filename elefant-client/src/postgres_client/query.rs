@@ -1,16 +1,17 @@
+use crate::postgres_client::statements::{PreparedQuery, Statement};
 use crate::postgres_client::PostgresClient;
+use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, RowDescription, ValueFormat,
 };
 use crate::{protocol, ElefantClientError, FromSql, FromSqlOwned, FromSqlRowOwned, ToSql};
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::rc::Rc;
 use tracing::{debug, trace};
-use crate::postgres_client::statements::{PreparedQuery, Statement};
 
-#[macro_export] macro_rules! reborrow_until_polonius {
+#[macro_export]
+macro_rules! reborrow_until_polonius {
     ($e:expr) => {
         unsafe {
             // This gets around the borrow checker not supporting releasing the borrow because
@@ -92,9 +93,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
             let msg = self.read_next_backend_message().await?;
 
             match msg {
-                BackendMessage::ParameterDescription(pd) => {
-                    pd
-                }
+                BackendMessage::ParameterDescription(pd) => pd,
                 BackendMessage::ErrorResponse(er) => {
                     return Err(ElefantClientError::PostgresError(format!("{er:?}")));
                 }
@@ -127,12 +126,10 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                             .collect(),
                     })
                 }
-                BackendMessage::NoData => {
-                    PreparedQueryResult::NoData
-                }
+                BackendMessage::NoData => PreparedQueryResult::NoData,
                 BackendMessage::ErrorResponse(er) => {
                     return Err(ElefantClientError::PostgresError(format!("{er:?}")));
-                },
+                }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
                         "{msg:?}"
@@ -143,7 +140,12 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
 
         self.ready_for_query = true;
 
-        Ok(PreparedQuery::new(name, self.client_id, parameter_description, row_description))
+        Ok(PreparedQuery::new(
+            name,
+            self.client_id,
+            parameter_description,
+            row_description,
+        ))
     }
 }
 
@@ -157,9 +159,7 @@ pub struct QueryResult<'postgres_client, C> {
     prepared_query_result: Option<Rc<PreparedQueryResult>>,
 }
 
-impl<'postgres_client, C: ElefantAsyncReadWrite>
-    QueryResult<'postgres_client, C>
-{
+impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C> {
     pub(crate) fn new(
         client: &'postgres_client mut PostgresClient<C>,
         prepared_query_result: Option<Rc<PreparedQueryResult>>,
@@ -229,7 +229,8 @@ impl<'postgres_client, C: ElefantAsyncReadWrite>
     }
 
     pub async fn collect_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
-        where T: FromSqlRowOwned
+    where
+        T: FromSqlRowOwned,
     {
         let mut results = Vec::new();
         loop {
@@ -238,26 +239,25 @@ impl<'postgres_client, C: ElefantAsyncReadWrite>
                 QueryResultSet::QueryProcessingComplete => {
                     return Ok(results);
                 }
-                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
-                    loop {
-                        let row = row_result_reader.next_row().await?;
-                        match row {
-                            Some(row) => {
-                                let value = T::from_sql_row(&row)?;
-                                results.push(value);
-                            }
-                            None => {
-                                break;
-                            }
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
+                    let row = row_result_reader.next_row().await?;
+                    match row {
+                        Some(row) => {
+                            let value = T::from_sql_row(&row)?;
+                            results.push(value);
+                        }
+                        None => {
+                            break;
                         }
                     }
-                }
+                },
             }
         }
     }
 
     pub async fn collect_single_column_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
-        where T: FromSqlOwned
+    where
+        T: FromSqlOwned,
     {
         let mut results = Vec::new();
         loop {
@@ -266,20 +266,18 @@ impl<'postgres_client, C: ElefantAsyncReadWrite>
                 QueryResultSet::QueryProcessingComplete => {
                     return Ok(results);
                 }
-                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
-                    loop {
-                        let row = row_result_reader.next_row().await?;
-                        match row {
-                            Some(row) => {
-                                let value: T = row.get(0)?;
-                                results.push(value);
-                            }
-                            None => {
-                                break;
-                            }
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
+                    let row = row_result_reader.next_row().await?;
+                    match row {
+                        Some(row) => {
+                            let value: T = row.get(0)?;
+                            results.push(value);
+                        }
+                        None => {
+                            break;
                         }
                     }
-                }
+                },
             }
         }
     }
@@ -308,12 +306,10 @@ impl<'postgres_client, 'query_result_set, C: ElefantAsyncReadWrite>
         let msg = client.read_next_backend_message().await?;
 
         match msg {
-            BackendMessage::DataRow(dr) => {
-                Ok(Some(PostgresDataRow {
-                    row_description: &self.row_description,
-                    data_row: dr,
-                }))
-            }
+            BackendMessage::DataRow(dr) => Ok(Some(PostgresDataRow {
+                row_description: &self.row_description,
+                data_row: dr,
+            })),
             BackendMessage::CommandComplete(cc) => {
                 debug!("Command complete: {:?}", cc);
                 Ok(None)
@@ -326,11 +322,9 @@ impl<'postgres_client, 'query_result_set, C: ElefantAsyncReadWrite>
             BackendMessage::ErrorResponse(er) => {
                 Err(ElefantClientError::PostgresError(format!("{er:?}")))
             }
-            _ => {
-                Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                    "{msg:?}"
-                )))
-            }
+            _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                "{msg:?}"
+            ))),
         }
     }
 }
@@ -402,4 +396,3 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
         Ok(())
     }
 }
-

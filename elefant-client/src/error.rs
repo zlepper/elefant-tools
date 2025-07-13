@@ -1,7 +1,7 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
 use crate::protocol;
 use crate::protocol::FieldDescription;
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub enum ElefantClientError {
@@ -26,8 +26,6 @@ pub enum ElefantClientError {
         actual: usize,
     },
 }
-
-
 
 impl From<std::io::Error> for ElefantClientError {
     fn from(value: std::io::Error) -> Self {
@@ -56,25 +54,38 @@ impl Display for ElefantClientError {
             ElefantClientError::PostgresError(e) => {
                 write!(f, "Postgres error: {e}")
             }
-            ElefantClientError::UnsupportedFieldType { postgres_field, desired_rust_type } => {
+            ElefantClientError::UnsupportedFieldType {
+                postgres_field,
+                desired_rust_type,
+            } => {
                 write!(f, "Unsupported field type: {postgres_field:?} for desired rust type: {desired_rust_type}")
             }
-            ElefantClientError::DataTypeParseError{column_index, original_error} => {
-                write!(f, "Error while parsing response data: {original_error:?} as index {column_index}")
-            },
+            ElefantClientError::DataTypeParseError {
+                column_index,
+                original_error,
+            } => {
+                write!(
+                    f,
+                    "Error while parsing response data: {original_error:?} as index {column_index}"
+                )
+            }
             ElefantClientError::NoResultsReturned => {
                 write!(f, "No results returned from query.")
-            },
-            ElefantClientError::UnexpectedNullValue {postgres_field} => {
-                write!(f, "Unexpected null value when processing field: {postgres_field:?}.")
-            },
-            ElefantClientError::NotEnoughColumns {desired, actual} => {
-                write!(f, "Not enough columns returned. Desired: {desired}, Actual: {actual}")
+            }
+            ElefantClientError::UnexpectedNullValue { postgres_field } => {
+                write!(
+                    f,
+                    "Unexpected null value when processing field: {postgres_field:?}."
+                )
+            }
+            ElefantClientError::NotEnoughColumns { desired, actual } => {
+                write!(
+                    f,
+                    "Not enough columns returned. Desired: {desired}, Actual: {actual}"
+                )
             }
         }
     }
 }
 
-impl Error for ElefantClientError {
-
-}
+impl Error for ElefantClientError {}

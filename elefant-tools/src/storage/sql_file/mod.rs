@@ -7,7 +7,10 @@ use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
 use crate::storage::data_format::DataFormat;
 use crate::storage::table_data::TableData;
 use crate::storage::{BaseCopyTarget, CopyDestination};
-use crate::{AsyncCleanup, ColumnIdentity, CopyDestinationFactory, ParallelCopyDestinationNotAvailable, PostgresClientWrapper, Result, SequentialOrParallel, SupportedParallelism};
+use crate::{
+    AsyncCleanup, ColumnIdentity, CopyDestinationFactory, ParallelCopyDestinationNotAvailable,
+    PostgresClientWrapper, Result, SequentialOrParallel, SupportedParallelism,
+};
 use bytes::Bytes;
 use futures::{pin_mut, SinkExt, Stream, StreamExt};
 use itertools::Itertools;
@@ -313,7 +316,11 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
                         }
                         file.write_all(b")").await?;
 
-                        if table.columns.iter().any(|c| c.identity == Some(ColumnIdentity::GeneratedAlways)) {
+                        if table
+                            .columns
+                            .iter()
+                            .any(|c| c.identity == Some(ColumnIdentity::GeneratedAlways))
+                        {
                             file.write_all(b" overriding system value").await?;
                         }
 

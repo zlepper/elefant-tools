@@ -256,7 +256,6 @@ async fn apply_pre_copy_structure<D: CopyDestination>(
     let identifier_quoter = destination.get_identifier_quoter();
 
     for schema in &definition.schemas {
-
         let target_schema = target_definition.try_get_schema(&schema.name);
         if target_schema.is_none() {
             destination
@@ -265,7 +264,9 @@ async fn apply_pre_copy_structure<D: CopyDestination>(
         }
 
         if let Some(comment_statement) = schema.get_set_comment_statement(&identifier_quoter) {
-            destination.apply_transactional_statement(&comment_statement).await?;
+            destination
+                .apply_transactional_statement(&comment_statement)
+                .await?;
         }
     }
 
@@ -454,7 +455,7 @@ fn get_post_apply_statement_groups(
                 if !table.is_timescale_table() {
                     let sql = index.get_create_index_command(schema, table, identifier_quoter);
                     group_1.push(sql);
-                } 
+                }
             }
         }
 

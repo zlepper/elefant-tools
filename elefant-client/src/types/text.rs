@@ -1,14 +1,20 @@
-use std::error::Error;
-use crate::PostgresType;
 use crate::protocol::FieldDescription;
 use crate::types::{FromSql, ToSql};
+use crate::PostgresType;
+use std::error::Error;
 
 impl<'a> FromSql<'a> for &'a str {
-    fn from_sql_binary(raw: &'a [u8], _field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+    fn from_sql_binary(
+        raw: &'a [u8],
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(std::str::from_utf8(raw)?)
     }
 
-    fn from_sql_text(raw: &'a str, _field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+    fn from_sql_text(
+        raw: &'a str,
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(raw)
     }
 
@@ -18,11 +24,17 @@ impl<'a> FromSql<'a> for &'a str {
 }
 
 impl<'a> FromSql<'a> for String {
-    fn from_sql_binary(raw: &'a [u8], _field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+    fn from_sql_binary(
+        raw: &'a [u8],
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(std::str::from_utf8(raw)?.to_string())
     }
 
-    fn from_sql_text(raw: &'a str, _field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+    fn from_sql_text(
+        raw: &'a str,
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(raw.to_string())
     }
 
@@ -32,7 +44,10 @@ impl<'a> FromSql<'a> for String {
 }
 
 impl ToSql for String {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
+    fn to_sql_binary(
+        &self,
+        target_buffer: &mut Vec<u8>,
+    ) -> Result<(), Box<dyn Error + Sync + Send>> {
         target_buffer.extend_from_slice(self.as_bytes());
         Ok(())
     }
@@ -50,10 +65,16 @@ mod tests {
         async fn test_text_types() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            let s: &str = client.read_single_value("select 'hello'::text;", &[]).await.unwrap();
+            let s: &str = client
+                .read_single_value("select 'hello'::text;", &[])
+                .await
+                .unwrap();
             assert_eq!(s, "hello");
 
-            let s: String = client.read_single_value("select 'hello'::text;", &[]).await.unwrap();
+            let s: String = client
+                .read_single_value("select 'hello'::text;", &[])
+                .await
+                .unwrap();
             assert_eq!(s, "hello");
         }
     }

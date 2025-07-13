@@ -214,38 +214,34 @@ async fn identity_column_always_generated(helper: &TestHelper) {
                             ..default()
                         },
                     ],
-                    indices: vec![
-                        PostgresIndex {
-                            name: "my_table_pkey".to_string(),
-                            key_columns: vec![PostgresIndexKeyColumn {
-                                name: "id".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Ascending),
-                                nulls_order: Some(PostgresIndexNullsOrder::Last),
-                            }],
-                            index_type: "btree".to_string(),
-                            predicate: None,
-                            included_columns: vec![],
-                            index_constraint_type: PostgresIndexType::PrimaryKey,
-                            ..default()
-                        },
-                    ],
+                    indices: vec![PostgresIndex {
+                        name: "my_table_pkey".to_string(),
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Ascending),
+                            nulls_order: Some(PostgresIndexNullsOrder::Last),
+                        }],
+                        index_type: "btree".to_string(),
+                        predicate: None,
+                        included_columns: vec![],
+                        index_constraint_type: PostgresIndexType::PrimaryKey,
+                        ..default()
+                    }],
                     ..default()
                 }],
-                sequences: vec![
-                    PostgresSequence {
-                        name: "my_table_id_seq".to_string(),
-                        data_type: "int4".to_string(),
-                        start_value: 1,
-                        increment: 1,
-                        cycle: false,
-                        last_value: Some(2),
-                        is_internally_created: true,
-                        author_table: Some("my_table".to_string()),
-                        author_table_column_position: Some(1),
-                        ..default()
-                    }
-                ],
+                sequences: vec![PostgresSequence {
+                    name: "my_table_id_seq".to_string(),
+                    data_type: "int4".to_string(),
+                    start_value: 1,
+                    increment: 1,
+                    cycle: false,
+                    last_value: Some(2),
+                    is_internally_created: true,
+                    author_table: Some("my_table".to_string()),
+                    author_table_column_position: Some(1),
+                    ..default()
+                }],
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),
@@ -295,38 +291,34 @@ async fn identity_column_by_default(helper: &TestHelper) {
                             ..default()
                         },
                     ],
-                    indices: vec![
-                        PostgresIndex {
-                            name: "my_table_pkey".to_string(),
-                            key_columns: vec![PostgresIndexKeyColumn {
-                                name: "id".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Ascending),
-                                nulls_order: Some(PostgresIndexNullsOrder::Last),
-                            }],
-                            index_type: "btree".to_string(),
-                            predicate: None,
-                            included_columns: vec![],
-                            index_constraint_type: PostgresIndexType::PrimaryKey,
-                            ..default()
-                        },
-                    ],
+                    indices: vec![PostgresIndex {
+                        name: "my_table_pkey".to_string(),
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Ascending),
+                            nulls_order: Some(PostgresIndexNullsOrder::Last),
+                        }],
+                        index_type: "btree".to_string(),
+                        predicate: None,
+                        included_columns: vec![],
+                        index_constraint_type: PostgresIndexType::PrimaryKey,
+                        ..default()
+                    }],
                     ..default()
                 }],
-                sequences: vec![
-                    PostgresSequence {
-                        name: "my_table_id_seq".to_string(),
-                        data_type: "int4".to_string(),
-                        start_value: 1,
-                        increment: 1,
-                        cycle: false,
-                        last_value: Some(2),
-                        is_internally_created: true,
-                        author_table: Some("my_table".to_string()),
-                        author_table_column_position: Some(1),
-                        ..default()
-                    }
-                ],
+                sequences: vec![PostgresSequence {
+                    name: "my_table_id_seq".to_string(),
+                    data_type: "int4".to_string(),
+                    start_value: 1,
+                    increment: 1,
+                    cycle: false,
+                    last_value: Some(2),
+                    is_internally_created: true,
+                    author_table: Some("my_table".to_string()),
+                    author_table_column_position: Some(1),
+                    ..default()
+                }],
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),
@@ -376,38 +368,34 @@ async fn identity_column_custom_sequence(helper: &TestHelper) {
                             ..default()
                         },
                     ],
-                    indices: vec![
-                        PostgresIndex {
-                            name: "my_table_pkey".to_string(),
-                            key_columns: vec![PostgresIndexKeyColumn {
-                                name: "id".to_string(),
-                                ordinal_position: 1,
-                                direction: Some(PostgresIndexColumnDirection::Ascending),
-                                nulls_order: Some(PostgresIndexNullsOrder::Last),
-                            }],
-                            index_type: "btree".to_string(),
-                            predicate: None,
-                            included_columns: vec![],
-                            index_constraint_type: PostgresIndexType::PrimaryKey,
-                            ..default()
-                        },
-                    ],
+                    indices: vec![PostgresIndex {
+                        name: "my_table_pkey".to_string(),
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Ascending),
+                            nulls_order: Some(PostgresIndexNullsOrder::Last),
+                        }],
+                        index_type: "btree".to_string(),
+                        predicate: None,
+                        included_columns: vec![],
+                        index_constraint_type: PostgresIndexType::PrimaryKey,
+                        ..default()
+                    }],
                     ..default()
                 }],
-                sequences: vec![
-                    PostgresSequence {
-                        name: "my_table_id_seq".to_string(),
-                        data_type: "int4".to_string(),
-                        start_value: 10,
-                        increment: 10,
-                        cycle: false,
-                        last_value: Some(20),
-                        is_internally_created: true,
-                        author_table: Some("my_table".to_string()),
-                        author_table_column_position: Some(1),
-                        ..default()
-                    }
-                ],
+                sequences: vec![PostgresSequence {
+                    name: "my_table_id_seq".to_string(),
+                    data_type: "int4".to_string(),
+                    start_value: 10,
+                    increment: 10,
+                    cycle: false,
+                    last_value: Some(20),
+                    is_internally_created: true,
+                    author_table: Some("my_table".to_string()),
+                    author_table_column_position: Some(1),
+                    ..default()
+                }],
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),

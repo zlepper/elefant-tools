@@ -3,13 +3,13 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 pub struct Profiler {
-    measurements: Mutex<HashMap<&'static str, Measurement>>
+    measurements: Mutex<HashMap<&'static str, Measurement>>,
 }
 
 #[derive(Debug)]
 pub struct Measurement {
     duration: Duration,
-    count: u64
+    count: u64,
 }
 
 static PROFILER: OnceLock<Profiler> = OnceLock::new();
@@ -17,14 +17,14 @@ static PROFILER: OnceLock<Profiler> = OnceLock::new();
 impl Profiler {
     fn get() -> &'static Profiler {
         PROFILER.get_or_init(|| Profiler {
-            measurements: Mutex::new(HashMap::new())
+            measurements: Mutex::new(HashMap::new()),
         })
     }
 
     pub fn start(name: &'static str) -> ProfilerGuard {
         ProfilerGuard {
             name,
-            start: std::time::Instant::now()
+            start: std::time::Instant::now(),
         }
     }
 
@@ -43,7 +43,6 @@ impl Profiler {
         let mut measurements = Profiler::get().measurements.lock().unwrap();
         measurements.clear();
     }
-
 }
 
 pub struct ProfilerGuard {
@@ -61,11 +60,11 @@ impl Drop for ProfilerGuard {
                 let current = entry.get_mut();
                 current.duration += elapsed;
                 current.count += 1;
-            },
+            }
             std::collections::hash_map::Entry::Vacant(entry) => {
                 entry.insert(Measurement {
                     duration: elapsed,
-                    count: 1
+                    count: 1,
                 });
             }
         }

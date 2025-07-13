@@ -1,12 +1,12 @@
 // From https://github.com/sfackler/rust-postgres/blob/master/postgres-protocol/src/password/mod.rs
 
+use crate::protocol::sasl;
 use base64::display::Base64Display;
 use base64::engine::general_purpose::STANDARD;
 use hmac::{Hmac, Mac};
 use rand::RngCore;
 use sha2::digest::FixedOutput;
 use sha2::{Digest, Sha256};
-use crate::protocol::sasl;
 
 const SCRAM_DEFAULT_ITERATIONS: u32 = 4096;
 const SCRAM_DEFAULT_SALT_LEN: usize = 16;
@@ -81,7 +81,7 @@ pub(crate) fn scram_sha_256_salt(password: &[u8], salt: [u8; SCRAM_DEFAULT_SALT_
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_encrypt_scram_sha_256() {
         // Specify the salt to make the test deterministic. Any bytes will do.

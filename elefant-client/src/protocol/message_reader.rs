@@ -1,15 +1,22 @@
 use crate::protocol::async_io::ElefantAsyncReadWrite;
-use crate::protocol::{AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL, AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind, CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse, CurrentTransactionStatus, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse, Execute, FieldDescription, FrontendMessage, FrontendPMessage, FunctionCall, FunctionCallResponse, NegotiateProtocolVersion, NotificationResponse, ParameterDescription, ParameterStatus, Parse, PostgresMessageParseError, Query, ReadyForQuery, RowDescription, StartupMessage, StartupMessageParameter, UndecidedFrontendPMessage, ValueFormat};
 use crate::protocol::frame_reader::{DecodeResult, Decoder};
 use crate::protocol::postgres_connection::PostgresConnection;
+use crate::protocol::{
+    AuthenticationGSSContinue, AuthenticationMD5Password, AuthenticationSASL,
+    AuthenticationSASLContinue, AuthenticationSASLFinal, BackendKeyData, BackendMessage, Bind,
+    CancelRequest, Close, CloseType, CommandComplete, CopyData, CopyFail, CopyResponse,
+    CurrentTransactionStatus, DataRow, Describe, DescribeTarget, ErrorField, ErrorResponse,
+    Execute, FieldDescription, FrontendMessage, FrontendPMessage, FunctionCall,
+    FunctionCallResponse, NegotiateProtocolVersion, NotificationResponse, ParameterDescription,
+    ParameterStatus, Parse, PostgresMessageParseError, Query, ReadyForQuery, RowDescription,
+    StartupMessage, StartupMessageParameter, UndecidedFrontendPMessage, ValueFormat,
+};
 
 struct PostgresMessageDecoder<'a, 'b> {
     buffer: &'b mut crate::protocol::frame_reader::ByteSliceReader<'a>,
 }
 
-
 impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
-
     fn parse_authentication_message(
         self,
         message_type: u8,
@@ -19,7 +26,8 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length,
-            }.into());
+            }
+            .into());
         }
 
         let sub_message_type = self.buffer.read_i32()?;
@@ -76,13 +84,13 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                 message_type,
                 length,
                 sub_message_type,
-            }.into()),
+            }
+            .into()),
         }
     }
 
-
     fn parse_backend_key_data(
-        mut self
+        mut self,
     ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         self.assert_len_equals(12, b'K')?;
         let process_id = self.buffer.read_i32()?;
@@ -92,7 +100,6 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             secret_key,
         }))
     }
-
 
     fn parse_bind_completed(
         mut self,
@@ -110,19 +117,23 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         Ok(BackendMessage::CloseComplete)
     }
 
-    fn assert_len_equals(&mut self, expected: i32, message_type: u8) -> DecodeResult<(), PostgresMessageParseError> {
+    fn assert_len_equals(
+        &mut self,
+        expected: i32,
+        message_type: u8,
+    ) -> DecodeResult<(), PostgresMessageParseError> {
         let length = self.buffer.read_i32()?;
 
         if length != expected {
             Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length,
-            }.into())
+            }
+            .into())
         } else {
             Ok(())
         }
     }
-
 
     fn parse_command_complete(
         self,
@@ -133,7 +144,8 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into())
+            }
+            .into())
         } else {
             self.buffer.require_bytes(len as usize - 4)?;
             let tag = self.buffer.read_null_terminated_string()?;
@@ -142,24 +154,24 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         }
     }
 
-
     fn parse_copy_data(self) -> DecodeResult<CopyData<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         let len = len as usize - 4;
         let data = self.buffer.read_bytes(len)?;
-        Ok(CopyData {
-            data,
-        })
+        Ok(CopyData { data })
     }
 
-
-    fn parse_error_response(self, message_type: u8) -> DecodeResult<ErrorResponse<'a>, PostgresMessageParseError> {
+    fn parse_error_response(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<ErrorResponse<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         if len < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -173,24 +185,24 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             }
 
             let value = self.buffer.read_null_terminated_string()?;
-            fields.push(ErrorField {
-                field_type,
-                value,
-            });
+            fields.push(ErrorField { field_type, value });
         }
 
         Ok(ErrorResponse { fields })
     }
 
-
-    fn parse_negotiate_protocol_version(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
+    fn parse_negotiate_protocol_version(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
 
         if len < 12 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -202,21 +214,26 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             options.push(self.buffer.read_null_terminated_string()?);
         }
 
-        Ok(BackendMessage::NegotiateProtocolVersion(NegotiateProtocolVersion {
-            newest_protocol_version,
-            protocol_options: options,
-        }))
+        Ok(BackendMessage::NegotiateProtocolVersion(
+            NegotiateProtocolVersion {
+                newest_protocol_version,
+                protocol_options: options,
+            },
+        ))
     }
 
-
-    fn parse_function_call_response(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
+    fn parse_function_call_response(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
 
         if len < 8 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         let length = len as usize - 4;
@@ -224,22 +241,29 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         let result_value_length = self.buffer.read_i32()?;
 
         if result_value_length == -1 {
-            Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse { value: None }))
+            Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse {
+                value: None,
+            }))
         } else {
             let bytes = self.buffer.read_bytes(result_value_length as usize)?;
-            Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse { value: Some(bytes) }))
+            Ok(BackendMessage::FunctionCallResponse(FunctionCallResponse {
+                value: Some(bytes),
+            }))
         }
     }
 
-
-    fn parse_notification_response(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
+    fn parse_notification_response(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
 
         if len < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -255,14 +279,17 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         }))
     }
 
-
-    fn parse_row_description(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
+    fn parse_row_description(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         if len < 6 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -297,15 +324,18 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         Ok(BackendMessage::RowDescription(RowDescription { fields }))
     }
 
-
-    fn parse_copy_response(self, message_type: u8) -> DecodeResult<CopyResponse, PostgresMessageParseError> {
+    fn parse_copy_response(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<CopyResponse, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
 
         if len < (4 + 1 + 2) {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         let format = match self.buffer.read_i8()? {
@@ -333,13 +363,17 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         })
     }
 
-    fn parse_data_row(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
+    fn parse_data_row(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         if len < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -359,15 +393,17 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         Ok(BackendMessage::DataRow(DataRow { values: columns }))
     }
 
-
-    fn parse_parameter_description(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
-
+    fn parse_parameter_description(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         if len < 6 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -385,14 +421,17 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         }))
     }
 
-
-    fn parse_parameter_status(self, message_type: u8) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
+    fn parse_parameter_status(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         if len < 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
@@ -406,17 +445,13 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         }))
     }
 
-
-
-
     fn new(buffer: &'b mut crate::protocol::frame_reader::ByteSliceReader<'a>) -> Self {
-        Self {
-            buffer,
-        }
+        Self { buffer }
     }
 
-    fn decode_backend_message(mut self) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
-
+    fn decode_backend_message(
+        mut self,
+    ) -> DecodeResult<BackendMessage<'a>, PostgresMessageParseError> {
         let message_type = self.buffer.read_u8()?;
 
         match message_type {
@@ -429,49 +464,64 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             b'c' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(BackendMessage::CopyDone)
-            },
-            b'G' => Ok(BackendMessage::CopyInResponse(self.parse_copy_response(message_type)?)),
-            b'H' => Ok(BackendMessage::CopyOutResponse(self.parse_copy_response(message_type)?)),
-            b'W' => Ok(BackendMessage::CopyBothResponse(self.parse_copy_response(message_type)?)),
+            }
+            b'G' => Ok(BackendMessage::CopyInResponse(
+                self.parse_copy_response(message_type)?,
+            )),
+            b'H' => Ok(BackendMessage::CopyOutResponse(
+                self.parse_copy_response(message_type)?,
+            )),
+            b'W' => Ok(BackendMessage::CopyBothResponse(
+                self.parse_copy_response(message_type)?,
+            )),
             b'D' => self.parse_data_row(message_type),
             b'I' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(BackendMessage::EmptyQueryResponse)
-            },
-            b'E' => Ok(BackendMessage::ErrorResponse(self.parse_error_response(message_type)?)),
-            b'N' => Ok(BackendMessage::NoticeResponse(self.parse_error_response(message_type)?)),
+            }
+            b'E' => Ok(BackendMessage::ErrorResponse(
+                self.parse_error_response(message_type)?,
+            )),
+            b'N' => Ok(BackendMessage::NoticeResponse(
+                self.parse_error_response(message_type)?,
+            )),
             b'V' => self.parse_function_call_response(message_type),
             b'v' => self.parse_negotiate_protocol_version(message_type),
             b'n' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(BackendMessage::NoData)
-            },
+            }
             b'A' => self.parse_notification_response(message_type),
             b't' => self.parse_parameter_description(message_type),
             b'S' => self.parse_parameter_status(message_type),
             b'1' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(BackendMessage::ParseComplete)
-            },
+            }
             b's' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(BackendMessage::PortalSuspended)
-            },
+            }
             b'Z' => {
                 self.assert_len_equals(5, message_type)?;
                 let status = match self.buffer.read_u8()? {
                     b'I' => CurrentTransactionStatus::Idle,
                     b'T' => CurrentTransactionStatus::InTransaction,
                     b'E' => CurrentTransactionStatus::InFailedTransaction,
-                    status => return Err(PostgresMessageParseError::UnknownTransactionStatus(status).into()),
+                    status => {
+                        return Err(
+                            PostgresMessageParseError::UnknownTransactionStatus(status).into()
+                        )
+                    }
                 };
-                Ok(BackendMessage::ReadyForQuery(ReadyForQuery { current_transaction_status: status }))
-            },
+                Ok(BackendMessage::ReadyForQuery(ReadyForQuery {
+                    current_transaction_status: status,
+                }))
+            }
             b'T' => self.parse_row_description(message_type),
             _ => Err(PostgresMessageParseError::UnknownMessage(message_type).into()),
         }
     }
-
 
     fn parse_bind_message(self) -> DecodeResult<FrontendMessage<'a>, PostgresMessageParseError> {
         let length = (self.buffer.read_i32()? as usize) - 4;
@@ -487,11 +537,7 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             let format = match format {
                 0 => ValueFormat::Text,
                 1 => ValueFormat::Binary,
-                _ => {
-                    return Err(PostgresMessageParseError::UnknownValueFormat(
-                        format,
-                    ).into())
-                }
+                _ => return Err(PostgresMessageParseError::UnknownValueFormat(format).into()),
             };
             parameter_formats.push(format);
         }
@@ -544,17 +590,21 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
         Ok(FrontendMessage::Close(Close { target, name }))
     }
 
-    fn parse_function_call(self, message_type: u8) -> DecodeResult<FrontendMessage<'a>, PostgresMessageParseError> {
+    fn parse_function_call(
+        self,
+        message_type: u8,
+    ) -> DecodeResult<FrontendMessage<'a>, PostgresMessageParseError> {
         let len = self.buffer.read_i32()?;
         if len <= 4 {
             return Err(PostgresMessageParseError::UnexpectedMessageLength {
                 message_type,
                 length: len,
-            }.into());
+            }
+            .into());
         }
 
         self.buffer.require_bytes(len as usize - 4)?;
-        
+
         let object_id = self.buffer.read_i32()?;
         let argument_format_count = self.buffer.read_i16()?;
         let mut argument_formats = Vec::with_capacity(argument_format_count as usize);
@@ -594,8 +644,10 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             result_format,
         }))
     }
-    
-    fn decode_frontend_message(mut self) -> DecodeResult<FrontendMessage<'a>, PostgresMessageParseError> {
+
+    fn decode_frontend_message(
+        mut self,
+    ) -> DecodeResult<FrontendMessage<'a>, PostgresMessageParseError> {
         let message_type = self.buffer.read_u8()?;
 
         match message_type {
@@ -612,7 +664,8 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 self.buffer.require_bytes(len as usize - 4)?;
@@ -626,7 +679,8 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 self.buffer.require_bytes(len as usize - 4)?;
@@ -639,18 +693,16 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
 
                 let name = self.buffer.read_null_terminated_string()?;
 
-                Ok(FrontendMessage::Describe(Describe {
-                    target: typ,
-                    name,
-                }))
-            },
+                Ok(FrontendMessage::Describe(Describe { target: typ, name }))
+            }
             b'E' => {
                 let len = self.buffer.read_i32()?;
                 if len <= 4 {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 self.buffer.require_bytes(len as usize - 4)?;
@@ -662,44 +714,47 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                     portal_name,
                     max_rows,
                 }))
-            },
+            }
             b'H' => {
                 let len = self.buffer.read_i32()?;
                 if len != 4 {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 Ok(FrontendMessage::Flush)
-            },
+            }
             b'F' => self.parse_function_call(message_type),
-            b'p' =>  {
+            b'p' => {
                 let len = self.buffer.read_i32()?;
                 if len < 4 {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 let data = self.buffer.read_bytes(len as usize - 4)?;
-                Ok(FrontendMessage::FrontendPMessage(FrontendPMessage::Undecided(UndecidedFrontendPMessage {
-                    data,
-                })))
-            },
+                Ok(FrontendMessage::FrontendPMessage(
+                    FrontendPMessage::Undecided(UndecidedFrontendPMessage { data }),
+                ))
+            }
             b'P' => {
                 let len = self.buffer.read_i32()?;
                 if len < 8 {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 self.buffer.require_bytes(len as usize - 4)?;
-                
+
                 let destination = self.buffer.read_null_terminated_string()?;
                 let query = self.buffer.read_null_terminated_string()?;
 
@@ -715,14 +770,15 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                     query,
                     parameter_types,
                 }))
-            },
+            }
             b'Q' => {
                 let len = self.buffer.read_i32()?;
                 if len < 5 {
                     return Err(PostgresMessageParseError::UnexpectedMessageLength {
                         message_type,
                         length: len,
-                    }.into());
+                    }
+                    .into());
                 }
 
                 self.buffer.require_bytes(len as usize - 4)?;
@@ -730,15 +786,15 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                 let query = self.buffer.read_null_terminated_string()?;
 
                 Ok(FrontendMessage::Query(Query { query }))
-            },
+            }
             b'S' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(FrontendMessage::Sync)
-            },
+            }
             b'X' => {
                 self.assert_len_equals(4, message_type)?;
                 Ok(FrontendMessage::Terminate)
-            },
+            }
             _ => {
                 let mut more = [0; 3];
                 self.buffer.read_exact(&mut more)?;
@@ -769,7 +825,7 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
                     if code == 196608 {
                         let len = (length - 8) as usize;
                         self.buffer.require_bytes(len)?;
-                        
+
                         let mut options = Vec::new();
                         loop {
                             let option = self.buffer.read_null_terminated_string()?;
@@ -794,13 +850,14 @@ impl<'a, 'b> PostgresMessageDecoder<'a, 'b> {
             }
         }
     }
-
 }
 
 impl<'a, 'b> Decoder<'a, BackendMessage<'a>> for PostgresMessageDecoder<'a, 'b> {
     type Error = PostgresMessageParseError;
 
-    fn decode(buffer: &mut crate::protocol::frame_reader::ByteSliceReader<'a>) -> DecodeResult<BackendMessage<'a>, Self::Error> {
+    fn decode(
+        buffer: &mut crate::protocol::frame_reader::ByteSliceReader<'a>,
+    ) -> DecodeResult<BackendMessage<'a>, Self::Error> {
         let decoder = PostgresMessageDecoder::new(buffer);
 
         decoder.decode_backend_message()
@@ -810,24 +867,29 @@ impl<'a, 'b> Decoder<'a, BackendMessage<'a>> for PostgresMessageDecoder<'a, 'b> 
 impl<'a, 'b> Decoder<'a, FrontendMessage<'a>> for PostgresMessageDecoder<'a, 'b> {
     type Error = PostgresMessageParseError;
 
-    fn decode(buffer: &mut crate::protocol::frame_reader::ByteSliceReader<'a>) -> DecodeResult<FrontendMessage<'a>, Self::Error> {
+    fn decode(
+        buffer: &mut crate::protocol::frame_reader::ByteSliceReader<'a>,
+    ) -> DecodeResult<FrontendMessage<'a>, Self::Error> {
         let decoder = PostgresMessageDecoder::new(buffer);
 
         decoder.decode_frontend_message()
     }
 }
 
-
 impl<C: ElefantAsyncReadWrite> PostgresConnection<C> {
     pub async fn read_backend_message(
         &mut self,
     ) -> Result<BackendMessage, PostgresMessageParseError> {
-        self.connection.read_frame::<PostgresMessageDecoder, _>().await
+        self.connection
+            .read_frame::<PostgresMessageDecoder, _>()
+            .await
     }
 
     pub async fn parse_frontend_message(
         &mut self,
     ) -> Result<FrontendMessage, PostgresMessageParseError> {
-        self.connection.read_frame::<PostgresMessageDecoder, _>().await
+        self.connection
+            .read_frame::<PostgresMessageDecoder, _>()
+            .await
     }
 }

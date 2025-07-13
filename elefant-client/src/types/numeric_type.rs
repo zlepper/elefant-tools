@@ -1,6 +1,6 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql};
 use crate::types::PostgresType;
+use crate::types::{FromSql, ToSql};
 use rust_decimal::Decimal;
 use std::error::Error;
 
@@ -17,35 +17,40 @@ impl<'a> FromSql<'a> for Decimal {
         // - sign (i16): 0x0000 = positive, 0x4000 = negative, 0xC000 = NaN
         // - dscale (i16): display scale (decimal places)
         // - digits (array of i16): base-10000 digits
-        
+
         if raw.len() < 8 {
             return Err("NUMERIC data too short".into());
         }
-        
+
         // Parse header fields
         let ndigits = i16::from_be_bytes([raw[0], raw[1]]);
         let weight = i16::from_be_bytes([raw[2], raw[3]]);
         let sign = i16::from_be_bytes([raw[4], raw[5]]);
         let _dscale = i16::from_be_bytes([raw[6], raw[7]]);
-        
+
         // Check for NaN
         if sign == 0xC000u16 as i16 {
             return Err("NUMERIC NaN values are not supported by rust_decimal".into());
         }
-        
+
         // Validate sign
         let is_negative = match sign {
             0x0000 => false,
             0x4000 => true,
             _ => return Err(format!("Invalid NUMERIC sign: {sign:#x}").into()),
         };
-        
+
         // Check we have enough data for all digits
         let expected_len = 8 + (ndigits as usize * 2);
         if raw.len() < expected_len {
-            return Err(format!("NUMERIC data too short: expected {} bytes, got {}", expected_len, raw.len()).into());
+            return Err(format!(
+                "NUMERIC data too short: expected {} bytes, got {}",
+                expected_len,
+                raw.len()
+            )
+            .into());
         }
-        
+
         // Parse digits (base-10000)
         let mut digits = Vec::with_capacity(ndigits as usize);
         for i in 0..ndigits {
@@ -56,34 +61,34 @@ impl<'a> FromSql<'a> for Decimal {
             }
             digits.push(digit);
         }
-        
+
         // Convert PostgreSQL base-10000 digits directly to rust_decimal
         // Build up the mantissa value directly without string conversion
         let mut mantissa: i128 = 0;
         let mantissa_scale;
-        
+
         // Calculate the total decimal places this represents
         let digits_before_decimal = (weight + 1) as i32;
         let total_digit_positions = ndigits as i32;
-        
+
         if digits_before_decimal <= 0 {
             // All digits are fractional
             // Scale = leading zeros + all digit positions
             mantissa_scale = (-digits_before_decimal * 4 + total_digit_positions * 4) as u32;
-            
+
             // Build mantissa from the digits
             for &digit in &digits {
                 mantissa = mantissa * 10000 + digit as i128;
             }
         } else if digits_before_decimal >= total_digit_positions {
-            // All digits are before decimal point  
+            // All digits are before decimal point
             mantissa_scale = 0;
-            
+
             // Build mantissa from digits and add trailing zeros
             for &digit in &digits {
                 mantissa = mantissa * 10000 + digit as i128;
             }
-            
+
             // Add trailing zeros for extra weight positions
             let extra_zero_positions = (digits_before_decimal - total_digit_positions) * 4;
             for _ in 0..extra_zero_positions {
@@ -92,18 +97,18 @@ impl<'a> FromSql<'a> for Decimal {
         } else {
             // Mixed: some before, some after decimal point
             mantissa_scale = ((total_digit_positions - digits_before_decimal) * 4) as u32;
-            
+
             // Build mantissa from all digits
             for &digit in &digits {
                 mantissa = mantissa * 10000 + digit as i128;
             }
         }
-        
+
         // Apply sign
         if is_negative {
             mantissa = -mantissa;
         }
-        
+
         // Create Decimal directly from mantissa and scale
         match Decimal::try_from_i128_with_scale(mantissa, mantissa_scale) {
             Ok(decimal) => Ok(decimal),
@@ -137,25 +142,25 @@ impl ToSql for Decimal {
         // Handle zero case efficiently
         if self.is_zero() {
             target_buffer.extend_from_slice(&0i16.to_be_bytes()); // ndigits
-            target_buffer.extend_from_slice(&0i16.to_be_bytes()); // weight 
+            target_buffer.extend_from_slice(&0i16.to_be_bytes()); // weight
             target_buffer.extend_from_slice(&0i16.to_be_bytes()); // sign (positive)
             target_buffer.extend_from_slice(&0i16.to_be_bytes()); // dscale
             return Ok(());
         }
-        
+
         // Work directly with the internal representation
         let mantissa = self.mantissa().abs(); // Get absolute mantissa
         let scale = self.scale() as i16; // dscale value
         let is_negative = self.is_sign_negative();
-        
+
         // The key insight: rust_decimal mantissa represents the number scaled by 10^scale
         // For example: 123.456 has mantissa=123456, scale=3
         // We need to convert this to PostgreSQL's base-10000 representation
-        
+
         // Step 1: Extract decimal digits from mantissa using arithmetic (no strings!)
         let mut decimal_digits = Vec::new();
         let mut temp_mantissa = mantissa;
-        
+
         if temp_mantissa == 0 {
             decimal_digits.push(0);
         } else {
@@ -164,14 +169,14 @@ impl ToSql for Decimal {
                 temp_mantissa /= 10;
             }
         }
-        
+
         // Step 2: Determine how many digits are before decimal point
         let total_decimal_digits = decimal_digits.len() as i16;
         let digits_before_decimal = total_decimal_digits - scale;
-        
+
         // Step 3: Group decimal digits into base-10000 (4 decimal digits per group)
         let mut digits_10000 = Vec::new();
-        
+
         // Process integer part (group from right to left to align with base-10000 boundaries)
         if digits_before_decimal > 0 {
             let mut i = digits_before_decimal as usize;
@@ -185,36 +190,36 @@ impl ToSql for Decimal {
                 i = start;
             }
         }
-        
+
         // Process fractional part (group from left to right)
         if scale > 0 {
-            let fractional_start = if digits_before_decimal > 0 { 
-                digits_before_decimal as usize 
-            } else { 
-                0 
+            let fractional_start = if digits_before_decimal > 0 {
+                digits_before_decimal as usize
+            } else {
+                0
             };
-            
+
             let mut i = fractional_start;
             while i < decimal_digits.len() {
                 let end = std::cmp::min(i + 4, decimal_digits.len());
                 let mut group_value: i16 = 0;
-                
+
                 // Build the group value
                 for digit in decimal_digits.iter().take(end).skip(i) {
                     group_value = group_value * 10 + *digit as i16;
                 }
-                
+
                 // Pad with zeros for fractional part (base-10000 groups must represent 4 decimal places)
                 let digits_in_group = end - i;
                 for _ in digits_in_group..4 {
                     group_value *= 10;
                 }
-                
+
                 digits_10000.push(group_value);
                 i += 4;
             }
         }
-        
+
         // Calculate PostgreSQL weight (position of most significant base-10000 digit)
         let weight = if digits_before_decimal <= 0 {
             // Pure fractional number - weight is negative
@@ -224,25 +229,29 @@ impl ToSql for Decimal {
             // Has integer part
             ((digits_before_decimal + 3) / 4) - 1
         };
-        
+
         // Remove trailing zero digits (but preserve at least one digit for fractional numbers)
         while digits_10000.len() > 1 && digits_10000.last() == Some(&0) {
             digits_10000.pop();
         }
-        
+
         let ndigits = digits_10000.len() as i16;
-        let sign = if is_negative { 0x4000u16 as i16 } else { 0x0000i16 };
-        
+        let sign = if is_negative {
+            0x4000u16 as i16
+        } else {
+            0x0000i16
+        };
+
         // Write PostgreSQL NUMERIC binary format
         target_buffer.extend_from_slice(&ndigits.to_be_bytes());
         target_buffer.extend_from_slice(&weight.to_be_bytes());
         target_buffer.extend_from_slice(&sign.to_be_bytes());
         target_buffer.extend_from_slice(&scale.to_be_bytes()); // dscale
-        
+
         for digit in digits_10000 {
             target_buffer.extend_from_slice(&digit.to_be_bytes());
         }
-        
+
         Ok(())
     }
 }
@@ -300,7 +309,10 @@ mod tests {
                 .read_single_value("select 123456789.123456789::numeric(18,9);", &[])
                 .await
                 .unwrap();
-            assert_eq!(high_precision, "123456789.123456789".parse::<Decimal>().unwrap());
+            assert_eq!(
+                high_precision,
+                "123456789.123456789".parse::<Decimal>().unwrap()
+            );
 
             // Test many decimal places
             let many_decimals: Decimal = client
@@ -326,7 +338,7 @@ mod tests {
                 .read_single_value("select 0.000000001::numeric;", &[])
                 .await
                 .unwrap();
-            
+
             let expected = "0.000000001".parse::<Decimal>().unwrap();
             assert_eq!(small_decimal, expected, "Direct PostgreSQL read failed");
         }
@@ -339,9 +351,12 @@ mod tests {
 
             // Test the failing case
             let test_value = "0.000000001".parse::<Decimal>().unwrap();
-            
+
             client
-                .execute_non_query("insert into test_numeric_debug values ($1);", &[&test_value])
+                .execute_non_query(
+                    "insert into test_numeric_debug values ($1);",
+                    &[&test_value],
+                )
                 .await
                 .unwrap();
 
@@ -349,8 +364,11 @@ mod tests {
                 .read_single_value("select value from test_numeric_debug;", &[])
                 .await
                 .unwrap();
-            
-            assert_eq!(retrieved, test_value, "Small decimal round-trip failed for {test_value}");
+
+            assert_eq!(
+                retrieved, test_value,
+                "Small decimal round-trip failed for {test_value}"
+            );
         }
 
         #[test]
@@ -375,14 +393,20 @@ mod tests {
                     .unwrap();
 
                 let retrieved: Decimal = client
-                    .read_single_value("select value from test_numeric_table order by value desc limit 1;", &[])
+                    .read_single_value(
+                        "select value from test_numeric_table order by value desc limit 1;",
+                        &[],
+                    )
                     .await
                     .unwrap();
-                
+
                 assert_eq!(&retrieved, test_value, "Round-trip failed for {test_value}");
-                
+
                 // Clean up for next iteration
-                client.execute_non_query("delete from test_numeric_table;", &[]).await.unwrap();
+                client
+                    .execute_non_query("delete from test_numeric_table;", &[])
+                    .await
+                    .unwrap();
             }
         }
 
@@ -434,7 +458,7 @@ mod tests {
                 .await;
             // This might succeed or fail depending on rust_decimal's limits - we just want to ensure it doesn't panic
             match large_result {
-                Ok(_) => {}, // Fine if it works
+                Ok(_) => {} // Fine if it works
                 Err(e) => {
                     // Should be a clean error, not a panic
                     println!("Large number error (expected): {e}");
@@ -451,14 +475,14 @@ mod tests {
                 .read_single_value("select ARRAY[0::numeric, 123.456::numeric, -789.012::numeric, 0.000000001::numeric];", &[])
                 .await
                 .unwrap();
-            
+
             let expected = vec![
                 "0".parse::<Decimal>().unwrap(),
                 "123.456".parse::<Decimal>().unwrap(),
                 "-789.012".parse::<Decimal>().unwrap(),
                 "0.000000001".parse::<Decimal>().unwrap(),
             ];
-            
+
             assert_eq!(numeric_array, expected);
         }
     }

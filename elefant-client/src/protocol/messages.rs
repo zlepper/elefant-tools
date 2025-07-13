@@ -1,5 +1,5 @@
-use std::borrow::Cow;
 use crate::protocol::frontend_p_message::FrontendPMessage;
+use std::borrow::Cow;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum BackendMessage<'a> {
@@ -82,7 +82,7 @@ pub struct CopyResponse {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct DataRow<'a> {
-    pub values: Vec<Option<&'a [u8]>>
+    pub values: Vec<Option<&'a [u8]>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -98,13 +98,13 @@ pub struct ErrorField<'a> {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct FunctionCallResponse<'a> {
-    pub value: Option<&'a [u8]>
+    pub value: Option<&'a [u8]>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct NegotiateProtocolVersion<'a> {
     pub newest_protocol_version: i32,
-    pub protocol_options: Vec<Cow<'a, str>>
+    pub protocol_options: Vec<Cow<'a, str>>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -119,10 +119,9 @@ pub struct ParameterDescription {
     pub types: Vec<i32>,
 }
 
-
 #[derive(Debug, PartialEq, Eq)]
 pub struct ReadyForQuery {
-    pub current_transaction_status: CurrentTransactionStatus
+    pub current_transaction_status: CurrentTransactionStatus,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -224,7 +223,6 @@ pub struct Describe<'a> {
     pub target: DescribeTarget,
     pub name: Cow<'a, str>,
 }
-
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DescribeTarget {

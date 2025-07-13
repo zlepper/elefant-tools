@@ -1,8 +1,8 @@
 use crate::Result;
 use bytes::Buf;
+use futures::{pin_mut, TryStreamExt};
 use std::fmt::Display;
 use std::ops::Deref;
-use futures::{pin_mut, TryStreamExt};
 use tokio::task::JoinHandle;
 use tokio_postgres::row::RowIndex;
 use tokio_postgres::types::FromSqlOwned;
@@ -31,7 +31,8 @@ impl PostgresClientWrapper {
         let version = match &client
             .client
             .simple_query("SHOW server_version_num;")
-            .await?.get(1)
+            .await?
+            .get(1)
         {
             Some(tokio_postgres::SimpleQueryMessage::Row(row)) => {
                 let version: i32 = row
@@ -127,12 +128,14 @@ impl PostgresClient {
 
     /// Execute a query that returns results.
     pub async fn get_results<T: FromRow>(&self, sql: &str) -> Result<Vec<T>> {
-        let query_results = self.client.query_raw(sql, Vec::<i32>::new()).await.map_err(|e| {
-            crate::ElefantToolsError::PostgresErrorWithQuery {
+        let query_results = self
+            .client
+            .query_raw(sql, Vec::<i32>::new())
+            .await
+            .map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
                 source: e,
                 query: sql.to_string(),
-            }
-        })?;
+            })?;
 
         pin_mut!(query_results);
 

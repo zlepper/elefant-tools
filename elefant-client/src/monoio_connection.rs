@@ -1,10 +1,10 @@
 use crate::postgres_client::PostgresClient;
-use crate::protocol::PostgresConnection;
 use crate::protocol::async_io::{ElefantAsyncRead, ElefantAsyncWrite};
+use crate::protocol::PostgresConnection;
 use crate::{ElefantClientError, PostgresConnectionSettings};
+use monoio::io::{AsyncReadRent, AsyncWriteRent};
 use monoio::net::TcpStream;
 use std::io;
-use monoio::io::{AsyncReadRent, AsyncWriteRent};
 
 /// Wrapper that implements ElefantAsyncReadWrite for monoio types
 pub struct MonoioWrapper<T>(T);
@@ -50,12 +50,11 @@ async fn new_connection(
     Ok(PostgresConnection::new(MonoioWrapper(stream)))
 }
 
-
 pub async fn new_client(
     settings: PostgresConnectionSettings,
 ) -> Result<MonoioPostgresClient, ElefantClientError> {
     let connection = new_connection(&settings).await?;
-    
+
     let client = PostgresClient::new(connection, settings).await?;
 
     Ok(client)
@@ -64,8 +63,8 @@ pub async fn new_client(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::postgres_client::{QueryResultSet};
-    use crate::test_helpers::{get_settings, get_monoio_test_client};
+    use crate::postgres_client::QueryResultSet;
+    use crate::test_helpers::{get_monoio_test_client, get_settings};
 
     #[monoio::test]
     pub async fn basic_monoio_test() {
@@ -89,7 +88,6 @@ mod tests {
         // If we get here, connection establishment worked
     }
 
-
     #[monoio::test]
     pub async fn test_connection_only() {
         // Test just creating a connection without queries
@@ -97,11 +95,14 @@ mod tests {
         // If we get here, connection establishment worked
     }
 
-    #[monoio::test] 
+    #[monoio::test]
     pub async fn hello_world() {
         let mut client = new_client(get_settings()).await.unwrap();
 
-        let mut query_result = client.query("select 2147483647::int4; select 1::int4", &[]).await.unwrap();
+        let mut query_result = client
+            .query("select 2147483647::int4; select 1::int4", &[])
+            .await
+            .unwrap();
         {
             let query_result_set = query_result.next_result_set().await.unwrap();
             match query_result_set {
@@ -109,7 +110,6 @@ mod tests {
                     panic!("At least two result sets should be returned");
                 }
                 QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
-
                     let row = row_result_reader.next_row().await.unwrap();
                     assert!(row.is_some());
                     let content = row.unwrap();
@@ -118,10 +118,8 @@ mod tests {
                     let bytes = stuff[0].unwrap();
                     assert_eq!(bytes, b"2147483647");
 
-
                     let row = row_result_reader.next_row().await.unwrap();
                     assert!(row.is_none());
-
                 }
             }
         }
@@ -153,7 +151,7 @@ mod tests {
                 }
             }
         }
-        
+
         let mut another_query_result = client.query("select 42::int4", &[]).await.unwrap();
         {
             let query_result_set = another_query_result.next_result_set().await.unwrap();
@@ -195,7 +193,9 @@ mod tests {
                 database: "postgres".to_string(),
                 port,
                 password: "passw0rd".to_string(),
-            }).await.unwrap_or_else(|_| panic!("Failed to connect to port {port}"));
+            })
+            .await
+            .unwrap_or_else(|_| panic!("Failed to connect to port {port}"));
         }
     }
 
@@ -204,29 +204,59 @@ mod tests {
         let mut client = get_monoio_test_client().await;
 
         // Create test table
-        client.query("DROP TABLE IF EXISTS monoio_query_test", &[]).await.unwrap();
-        client.query("CREATE TABLE monoio_query_test (id INTEGER, data TEXT)", &[]).await.unwrap();
+        client
+            .query("DROP TABLE IF EXISTS monoio_query_test", &[])
+            .await
+            .unwrap();
+        client
+            .query(
+                "CREATE TABLE monoio_query_test (id INTEGER, data TEXT)",
+                &[],
+            )
+            .await
+            .unwrap();
 
         // Insert test data using regular query
-        client.query("INSERT INTO monoio_query_test VALUES (1, 'test data 1'), (2, 'test data 2')", &[]).await.unwrap();
+        client
+            .query(
+                "INSERT INTO monoio_query_test VALUES (1, 'test data 1'), (2, 'test data 2')",
+                &[],
+            )
+            .await
+            .unwrap();
 
         // Test SELECT query
-        let mut query_result = client.query("SELECT id, data FROM monoio_query_test ORDER BY id", &[]).await.unwrap();
+        let mut query_result = client
+            .query("SELECT id, data FROM monoio_query_test ORDER BY id", &[])
+            .await
+            .unwrap();
         let result_set = query_result.next_result_set().await.unwrap();
-        
+
         match result_set {
             QueryResultSet::RowDescriptionReceived(mut row_reader) => {
                 // Read first row
                 let row1 = row_reader.next_row().await.unwrap().unwrap();
                 let row1_data = row1.get_some_bytes();
-                assert_eq!(String::from_utf8(row1_data[0].unwrap().to_vec()).unwrap(), "1");
-                assert_eq!(String::from_utf8(row1_data[1].unwrap().to_vec()).unwrap(), "test data 1");
+                assert_eq!(
+                    String::from_utf8(row1_data[0].unwrap().to_vec()).unwrap(),
+                    "1"
+                );
+                assert_eq!(
+                    String::from_utf8(row1_data[1].unwrap().to_vec()).unwrap(),
+                    "test data 1"
+                );
 
                 // Read second row
                 let row2 = row_reader.next_row().await.unwrap().unwrap();
                 let row2_data = row2.get_some_bytes();
-                assert_eq!(String::from_utf8(row2_data[0].unwrap().to_vec()).unwrap(), "2");
-                assert_eq!(String::from_utf8(row2_data[1].unwrap().to_vec()).unwrap(), "test data 2");
+                assert_eq!(
+                    String::from_utf8(row2_data[0].unwrap().to_vec()).unwrap(),
+                    "2"
+                );
+                assert_eq!(
+                    String::from_utf8(row2_data[1].unwrap().to_vec()).unwrap(),
+                    "test data 2"
+                );
 
                 // Verify no more rows
                 assert!(row_reader.next_row().await.unwrap().is_none());
@@ -235,7 +265,10 @@ mod tests {
         }
 
         // Clean up
-        client.query("DROP TABLE monoio_query_test", &[]).await.unwrap();
+        client
+            .query("DROP TABLE monoio_query_test", &[])
+            .await
+            .unwrap();
     }
 
     #[monoio::test]
@@ -244,9 +277,12 @@ mod tests {
 
         // Test multiple sequential queries
         for i in 1..=5 {
-            let mut query_result = client.query(&format!("SELECT {i}::int4"), &[]).await.unwrap();
+            let mut query_result = client
+                .query(&format!("SELECT {i}::int4"), &[])
+                .await
+                .unwrap();
             let result_set = query_result.next_result_set().await.unwrap();
-            
+
             match result_set {
                 QueryResultSet::RowDescriptionReceived(mut row_reader) => {
                     let row = row_reader.next_row().await.unwrap().unwrap();
@@ -265,9 +301,12 @@ mod tests {
 
         // Test that the same connection can be used multiple times
         for _ in 0..3 {
-            let mut query_result = client.query("SELECT 'connection_test'::text", &[]).await.unwrap();
+            let mut query_result = client
+                .query("SELECT 'connection_test'::text", &[])
+                .await
+                .unwrap();
             let result_set = query_result.next_result_set().await.unwrap();
-            
+
             match result_set {
                 QueryResultSet::RowDescriptionReceived(mut row_reader) => {
                     let row = row_reader.next_row().await.unwrap().unwrap();

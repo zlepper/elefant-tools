@@ -2,7 +2,6 @@
 use crate::PostgresType;
 
 impl PostgresType {
-
     pub const ACLITEM: PostgresType = PostgresType {
         oid: 1033,
         name: "aclitem",

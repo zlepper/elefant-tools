@@ -1,21 +1,21 @@
+mod from_sql_row;
 mod oid;
 mod standard_types;
-mod from_sql_row;
 
 // Refactored type implementations
-mod numbers;
+mod binary;
 mod bool;
 mod char;
-mod text;
-mod binary;
 mod collections;
-mod nullable;
 #[cfg(feature = "time")]
 mod datetime;
-#[cfg(feature = "uuid")]
-mod uuid_type;
 #[cfg(feature = "json")]
 mod json_type;
+mod nullable;
+mod numbers;
+mod text;
+#[cfg(feature = "uuid")]
+mod uuid_type;
 #[cfg(feature = "json")]
 pub use json_type::{Json, Jsonb};
 #[cfg(feature = "decimal")]
@@ -23,13 +23,13 @@ mod numeric_type;
 mod point_type;
 pub use point_type::Point;
 mod network_type;
-pub use network_type::{Inet, Cidr};
+pub use network_type::{Cidr, Inet};
 
-use std::error::Error;
-use crate::ElefantClientError;
 use crate::protocol::FieldDescription;
-pub use oid::*;
+use crate::ElefantClientError;
 pub use from_sql_row::*;
+pub use oid::*;
+use std::error::Error;
 
 pub trait FromSql<'a>: Sized {
     fn from_sql_binary(
@@ -62,7 +62,10 @@ pub trait FromSqlOwned: for<'owned> FromSql<'owned> {}
 impl<T> FromSqlOwned for T where T: for<'a> FromSql<'a> {}
 
 pub trait ToSql {
-    fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>>;
+    fn to_sql_binary(
+        &self,
+        target_buffer: &mut Vec<u8>,
+    ) -> Result<(), Box<dyn Error + Sync + Send>>;
     fn is_null(&self) -> bool {
         false
     }
@@ -80,20 +83,27 @@ pub trait DomainType {
     fn accepts(field: &FieldDescription) -> bool {
         Self::accepts_postgres_type(field.data_type_oid)
     }
-    
+
     fn accepts_postgres_type(oid: i32) -> bool;
 }
 
-#[macro_export] macro_rules! impl_from_sql_for_domain_type {
+#[macro_export]
+macro_rules! impl_from_sql_for_domain_type {
     ($typ: ty) => {
         impl<'a> FromSql<'a> for $typ {
-            fn from_sql_binary(raw: &'a [u8], field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+            fn from_sql_binary(
+                raw: &'a [u8],
+                field: &FieldDescription,
+            ) -> Result<Self, Box<dyn Error + Sync + Send>> {
                 let inner = <Self as DomainType>::Inner::from_sql_binary(raw, field)?;
 
                 Ok(Self::from_inner(inner))
             }
 
-            fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
+            fn from_sql_text(
+                raw: &'a str,
+                field: &FieldDescription,
+            ) -> Result<Self, Box<dyn Error + Sync + Send>> {
                 let inner = <Self as DomainType>::Inner::from_sql_text(raw, field)?;
 
                 Ok(Self::from_inner(inner))

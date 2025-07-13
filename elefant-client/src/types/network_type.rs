@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql, PostgresType};
+use crate::types::{FromSql, PostgresType, ToSql};
 use std::error::Error;
 use std::net::IpAddr;
 
@@ -12,11 +12,17 @@ pub struct Inet {
 
 impl Inet {
     pub fn new(ip: IpAddr) -> Self {
-        Inet { ip, prefix_len: None }
+        Inet {
+            ip,
+            prefix_len: None,
+        }
     }
-    
+
     pub fn with_prefix(ip: IpAddr, prefix_len: u8) -> Self {
-        Inet { ip, prefix_len: Some(prefix_len) }
+        Inet {
+            ip,
+            prefix_len: Some(prefix_len),
+        }
     }
 }
 
@@ -59,15 +65,29 @@ impl<'a> FromSql<'a> for Inet {
         let addr_size = raw[3];
 
         if raw.len() < 4 + addr_size as usize {
-            return Err(format!("INET binary data incomplete: expected {addr_size} address bytes").into());
+            return Err(
+                format!("INET binary data incomplete: expected {addr_size} address bytes").into(),
+            );
         }
 
         let addr_bytes = &raw[4..4 + addr_size as usize];
-        
+
         // Determine prefix length - if bits equals full address size, no CIDR prefix
         let prefix_len = match family {
-            2 => if bits == 32 { None } else { Some(bits) }, // IPv4
-            3 => if bits == 128 { None } else { Some(bits) }, // IPv6
+            2 => {
+                if bits == 32 {
+                    None
+                } else {
+                    Some(bits)
+                }
+            } // IPv4
+            3 => {
+                if bits == 128 {
+                    None
+                } else {
+                    Some(bits)
+                }
+            } // IPv6
             _ => return Err(format!("Unknown address family: {family}").into()),
         };
 
@@ -77,7 +97,8 @@ impl<'a> FromSql<'a> for Inet {
                 if addr_size != 4 {
                     return Err(format!("Invalid IPv4 address size: {addr_size}").into());
                 }
-                let ipv4_bytes: [u8; 4] = addr_bytes.try_into()
+                let ipv4_bytes: [u8; 4] = addr_bytes
+                    .try_into()
                     .map_err(|_| "Failed to convert IPv4 bytes")?;
                 IpAddr::V4(std::net::Ipv4Addr::from(ipv4_bytes))
             }
@@ -86,7 +107,8 @@ impl<'a> FromSql<'a> for Inet {
                 if addr_size != 16 {
                     return Err(format!("Invalid IPv6 address size: {addr_size}").into());
                 }
-                let ipv6_bytes: [u8; 16] = addr_bytes.try_into()
+                let ipv6_bytes: [u8; 16] = addr_bytes
+                    .try_into()
                     .map_err(|_| "Failed to convert IPv6 bytes")?;
                 IpAddr::V6(std::net::Ipv6Addr::from(ipv6_bytes))
             }
@@ -116,36 +138,36 @@ impl ToSql for Inet {
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
         // Implement PostgreSQL INET binary format
         // Format: [family][bits][is_cidr][addr_size][address_bytes...]
-        
+
         match self.ip {
             IpAddr::V4(ipv4) => {
                 target_buffer.push(2); // Family: IPv4 = 2
-                
+
                 // Bits: use prefix_len if present, otherwise 32 for full address
                 let bits = self.prefix_len.unwrap_or(32);
                 target_buffer.push(bits);
-                
+
                 target_buffer.push(0); // is_cidr flag (always 0 based on observations)
                 target_buffer.push(4); // Address size: IPv4 = 4 bytes
-                
+
                 // IPv4 address bytes
                 target_buffer.extend_from_slice(&ipv4.octets());
             }
             IpAddr::V6(ipv6) => {
                 target_buffer.push(3); // Family: IPv6 = 3
-                
+
                 // Bits: use prefix_len if present, otherwise 128 for full address
                 let bits = self.prefix_len.unwrap_or(128);
                 target_buffer.push(bits);
-                
+
                 target_buffer.push(0); // is_cidr flag (always 0 based on observations)
                 target_buffer.push(16); // Address size: IPv6 = 16 bytes
-                
+
                 // IPv6 address bytes
                 target_buffer.extend_from_slice(&ipv6.octets());
             }
         }
-        
+
         Ok(())
     }
 }
@@ -277,10 +299,12 @@ mod tests {
         #[test]
         async fn test_inet_binary_format() {
             let mut client = new_client(get_settings()).await.unwrap();
-            
+
             // Create a table for testing binary format
             client.execute_non_query("drop table if exists test_inet_binary; create table test_inet_binary(id int, addr inet);", &[]).await.unwrap();
-            client.execute_non_query("
+            client
+                .execute_non_query(
+                    "
                 insert into test_inet_binary values 
                 (1, '127.0.0.1'),
                 (2, '192.168.1.1/24'), 
@@ -288,8 +312,12 @@ mod tests {
                 (4, '2001:db8::/32'),
                 (5, '10.0.0.0/8'),
                 (6, 'fe80::/64');
-            ", &[]).await.unwrap();
-            
+            ",
+                    &[],
+                )
+                .await
+                .unwrap();
+
             // Test reading with binary format (forced by parameter binding on ID)
             let test_cases = vec![
                 (1, "127.0.0.1", None),
@@ -299,25 +327,31 @@ mod tests {
                 (5, "10.0.0.0", Some(8u8)),
                 (6, "fe80::", Some(64u8)),
             ];
-            
+
             for (id, expected_ip_str, expected_prefix) in test_cases {
-                let result: Inet = client.read_single_value("select addr from test_inet_binary where id = $1;", &[&id]).await.unwrap();
-                
+                let result: Inet = client
+                    .read_single_value("select addr from test_inet_binary where id = $1;", &[&id])
+                    .await
+                    .unwrap();
+
                 // Verify IP address
                 let expected_ip: IpAddr = expected_ip_str.parse().unwrap();
                 assert_eq!(result.ip, expected_ip, "IP address mismatch for ID {id}");
-                
+
                 // Verify prefix length
-                assert_eq!(result.prefix_len, expected_prefix, "Prefix length mismatch for ID {id}");
+                assert_eq!(
+                    result.prefix_len, expected_prefix,
+                    "Prefix length mismatch for ID {id}"
+                );
             }
         }
 
         #[test]
         async fn test_inet_round_trip_binary() {
             let mut client = new_client(get_settings()).await.unwrap();
-            
+
             client.execute_non_query("drop table if exists test_inet_roundtrip; create table test_inet_roundtrip(addr inet);", &[]).await.unwrap();
-            
+
             let test_values: Vec<Inet> = vec![
                 "127.0.0.1".parse().unwrap(),
                 "192.168.1.1/24".parse().unwrap(),
@@ -325,19 +359,37 @@ mod tests {
                 "2001:db8::/32".parse().unwrap(),
                 "10.0.0.0/8".parse().unwrap(),
             ];
-            
+
             for test_value in &test_values {
                 // Insert using parameter binding (binary format)
-                client.execute_non_query("insert into test_inet_roundtrip values ($1);", &[test_value]).await.unwrap();
-                
+                client
+                    .execute_non_query(
+                        "insert into test_inet_roundtrip values ($1);",
+                        &[test_value],
+                    )
+                    .await
+                    .unwrap();
+
                 // Read back using parameter binding (binary format)
-                let retrieved: Inet = client.read_single_value("select addr from test_inet_roundtrip where addr = $1;", &[test_value]).await.unwrap();
-                
+                let retrieved: Inet = client
+                    .read_single_value(
+                        "select addr from test_inet_roundtrip where addr = $1;",
+                        &[test_value],
+                    )
+                    .await
+                    .unwrap();
+
                 assert_eq!(retrieved.ip, test_value.ip, "Round-trip IP mismatch");
-                assert_eq!(retrieved.prefix_len, test_value.prefix_len, "Round-trip prefix mismatch");
-                
+                assert_eq!(
+                    retrieved.prefix_len, test_value.prefix_len,
+                    "Round-trip prefix mismatch"
+                );
+
                 // Clean up for next iteration
-                client.execute_non_query("delete from test_inet_roundtrip;", &[]).await.unwrap();
+                client
+                    .execute_non_query("delete from test_inet_roundtrip;", &[])
+                    .await
+                    .unwrap();
             }
         }
     }

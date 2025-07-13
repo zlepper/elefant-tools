@@ -1,7 +1,7 @@
-use futures::io::Cursor;
 use crate::protocol::messages::*;
-use tokio::test;
 use crate::protocol::{FrontendPMessage, PostgresConnection, UndecidedFrontendPMessage};
+use futures::io::Cursor;
+use tokio::test;
 
 async fn assert_backend_message_round_trip(input: BackendMessage<'_>) {
     let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -38,13 +38,15 @@ async fn test_parse_backend_message() {
 async fn test_parse_authentication_sasl_1_mechanism() {
     assert_backend_message_round_trip(BackendMessage::AuthenticationSASL(AuthenticationSASL {
         mechanisms: vec!["foo".into()],
-    })).await;
+    }))
+    .await;
 }
 #[test]
 async fn test_parse_authentication_sasl_2_mechanisms() {
     assert_backend_message_round_trip(BackendMessage::AuthenticationSASL(AuthenticationSASL {
         mechanisms: vec!["foo".into(), "bar".into()],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]
@@ -525,7 +527,8 @@ async fn round_trip_startup_message() {
                 value: "foo3".into(),
             },
         ],
-    })).await;
+    }))
+    .await;
 }
 
 #[test]

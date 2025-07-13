@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql, PostgresType};
+use crate::types::{FromSql, PostgresType, ToSql};
 use std::error::Error;
 
 /// PostgreSQL POINT geometric type representing x,y coordinates
@@ -24,16 +24,18 @@ impl<'a> FromSql<'a> for Point {
         if raw.len() != 16 {
             return Err(format!("Expected 16 bytes for POINT, got {}", raw.len()).into());
         }
-        
+
         // Extract two big-endian f64 values (x, y coordinates)
-        let x_bytes: [u8; 8] = raw[0..8].try_into()
+        let x_bytes: [u8; 8] = raw[0..8]
+            .try_into()
             .map_err(|e| format!("Failed to extract x coordinate bytes: {e}"))?;
-        let y_bytes: [u8; 8] = raw[8..16].try_into()
+        let y_bytes: [u8; 8] = raw[8..16]
+            .try_into()
             .map_err(|e| format!("Failed to extract y coordinate bytes: {e}"))?;
-        
+
         let x = f64::from_be_bytes(x_bytes);
         let y = f64::from_be_bytes(y_bytes);
-        
+
         Ok(Point { x, y })
     }
 
@@ -41,32 +43,43 @@ impl<'a> FromSql<'a> for Point {
         raw: &'a str,
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        // PostgreSQL POINT text format: (x,y) 
+        // PostgreSQL POINT text format: (x,y)
         // In arrays, points may be quoted: "(x,y)"
         let trimmed = raw.trim();
-        
+
         // Handle quoted points in arrays by stripping outer quotes
         let unquoted = if trimmed.starts_with('"') && trimmed.ends_with('"') && trimmed.len() >= 2 {
-            &trimmed[1..trimmed.len()-1]
+            &trimmed[1..trimmed.len() - 1]
         } else {
             trimmed
         };
-        
+
         if !unquoted.starts_with('(') || !unquoted.ends_with(')') {
-            return Err(format!("Invalid POINT text format: '{raw}' - expected format: (x,y)").into());
+            return Err(
+                format!("Invalid POINT text format: '{raw}' - expected format: (x,y)").into(),
+            );
         }
-        
-        let inner = &unquoted[1..unquoted.len()-1];
+
+        let inner = &unquoted[1..unquoted.len() - 1];
         let parts: Vec<&str> = inner.split(',').collect();
         if parts.len() != 2 {
-            return Err(format!("POINT must have exactly 2 coordinates, got {} in '{}'", parts.len(), raw).into());
+            return Err(format!(
+                "POINT must have exactly 2 coordinates, got {} in '{}'",
+                parts.len(),
+                raw
+            )
+            .into());
         }
-        
-        let x: f64 = parts[0].trim().parse()
+
+        let x: f64 = parts[0]
+            .trim()
+            .parse()
             .map_err(|e| format!("Failed to parse x coordinate '{}': {}", parts[0].trim(), e))?;
-        let y: f64 = parts[1].trim().parse()
+        let y: f64 = parts[1]
+            .trim()
+            .parse()
             .map_err(|e| format!("Failed to parse y coordinate '{}': {}", parts[1].trim(), e))?;
-        
+
         Ok(Point { x, y })
     }
 
@@ -86,7 +99,6 @@ impl ToSql for Point {
         Ok(())
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -181,15 +193,26 @@ mod tests {
                     .read_single_value("select location from test_point_table order by location <-> point(0,0) limit 1;", &[])
                     .await
                     .unwrap();
-                
+
                 // Use approximate equality for floating point comparison
-                assert!((retrieved.x - test_point.x).abs() < f64::EPSILON, 
-                       "X coordinate mismatch: {} != {}", retrieved.x, test_point.x);
-                assert!((retrieved.y - test_point.y).abs() < f64::EPSILON,
-                       "Y coordinate mismatch: {} != {}", retrieved.y, test_point.y);
-                
+                assert!(
+                    (retrieved.x - test_point.x).abs() < f64::EPSILON,
+                    "X coordinate mismatch: {} != {}",
+                    retrieved.x,
+                    test_point.x
+                );
+                assert!(
+                    (retrieved.y - test_point.y).abs() < f64::EPSILON,
+                    "Y coordinate mismatch: {} != {}",
+                    retrieved.y,
+                    test_point.y
+                );
+
                 // Clean up for next iteration
-                client.execute_non_query("delete from test_point_table;", &[]).await.unwrap();
+                client
+                    .execute_non_query("delete from test_point_table;", &[])
+                    .await
+                    .unwrap();
             }
         }
 
@@ -213,11 +236,13 @@ mod tests {
                 .read_single_value("select ARRAY[point(0,0), point(1,1), point(-1,-1)];", &[])
                 .await
                 .unwrap();
-            
-            let expected = [Point::new(0.0, 0.0),
+
+            let expected = [
+                Point::new(0.0, 0.0),
                 Point::new(1.0, 1.0),
-                Point::new(-1.0, -1.0)];
-            
+                Point::new(-1.0, -1.0),
+            ];
+
             assert_eq!(point_array.len(), expected.len());
             for (actual, expected) in point_array.iter().zip(expected.iter()) {
                 assert!((actual.x - expected.x).abs() < f64::EPSILON);

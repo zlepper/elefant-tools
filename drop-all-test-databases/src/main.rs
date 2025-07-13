@@ -12,9 +12,17 @@ async fn main() -> Result<()> {
             database: "postgres".to_string(),
             port,
             password: "passw0rd".to_string(),
-        }).await?;
+        })
+        .await?;
 
-        let databases = client.query("select datname from pg_database where datname like 'test_db_%'", &[]).await?.collect_single_column_to_vec::<String>().await?;
+        let databases = client
+            .query(
+                "select datname from pg_database where datname like 'test_db_%'",
+                &[],
+            )
+            .await?
+            .collect_single_column_to_vec::<String>()
+            .await?;
 
         let version: i32 = client
             .read_single_value::<String>("show server_version_num;", &[])
@@ -25,10 +33,14 @@ async fn main() -> Result<()> {
             println!("Dropping database {db_name}");
 
             if version >= 130000 {
-                client.execute_non_query(&format!("drop database {db_name} with (force);"), &[]).await?;
+                client
+                    .execute_non_query(&format!("drop database {db_name} with (force);"), &[])
+                    .await?;
             } else {
                 client.execute_non_query(&format!("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}' AND pid != pg_backend_pid()"), &[]).await?;
-                client.execute_non_query(&format!("drop database {db_name};"), &[]).await?;
+                client
+                    .execute_non_query(&format!("drop database {db_name};"), &[])
+                    .await?;
             }
         }
 

@@ -160,9 +160,7 @@ impl<'a> CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<
             &self.identifier_quoter,
             AttemptedKeywordUsage::TypeOrFunctionName,
         );
-        let query = format!(
-            "select exists(select 1 from {schema_name}.{table_name} limit 1);"
-        );
+        let query = format!("select exists(select 1 from {schema_name}.{table_name} limit 1);");
         let result = self
             .main_connection
             .get_single_result::<bool>(&query)

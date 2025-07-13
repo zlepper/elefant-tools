@@ -9,8 +9,6 @@ pub trait Decoder<'a, O: 'a> {
 
 pub type DecodeResult<T, E> = Result<T, DecodeError<E>>;
 
-
-
 #[derive(Debug)]
 pub enum DecodeError<E> {
     NeedsMoreData(Option<NonZeroUsize>),
@@ -25,7 +23,7 @@ impl<E> From<ByteSliceError> for DecodeError<E> {
     }
 }
 
-pub trait DecodeErrorError{}
+pub trait DecodeErrorError {}
 
 impl<E: DecodeErrorError> From<E> for DecodeError<E> {
     fn from(value: E) -> Self {
@@ -79,12 +77,8 @@ impl<'a> ByteSliceReader<'a> {
             return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(4)));
         }
 
-        let result = i32::from_be_bytes([
-            self.bytes[0],
-            self.bytes[1],
-            self.bytes[2],
-            self.bytes[3],
-        ]);
+        let result =
+            i32::from_be_bytes([self.bytes[0], self.bytes[1], self.bytes[2], self.bytes[3]]);
         self.bytes = &self.bytes[4..];
         self.read_bytes += 4;
         Ok(result)
@@ -95,15 +89,12 @@ impl<'a> ByteSliceReader<'a> {
             return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(2)));
         }
 
-        let result = i16::from_be_bytes([
-            self.bytes[0],
-            self.bytes[1],
-        ]);
+        let result = i16::from_be_bytes([self.bytes[0], self.bytes[1]]);
         self.bytes = &self.bytes[2..];
         self.read_bytes += 2;
         Ok(result)
     }
-    
+
     pub fn read_i8(&mut self) -> Result<i8, ByteSliceError> {
         if self.bytes.is_empty() {
             return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(1)));
@@ -130,33 +121,35 @@ impl<'a> ByteSliceReader<'a> {
         if n == 0 {
             return Ok(&[]);
         }
-        
+
         match self.bytes.split_at_checked(n) {
             Some((byt, remaining)) => {
                 self.bytes = remaining;
                 self.read_bytes += n;
                 Ok(byt)
-            },
+            }
             None => Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(n))),
         }
     }
-    
+
     pub fn read_exact(&mut self, slice: &mut [u8]) -> Result<(), ByteSliceError> {
         if slice.is_empty() {
             return Ok(());
         }
-        
+
         match self.bytes.split_at_checked(slice.len()) {
             Some((byt, remaining)) => {
                 slice.copy_from_slice(byt);
                 self.bytes = remaining;
                 self.read_bytes += slice.len();
                 Ok(())
-            },
-            None => Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(slice.len()))),
+            }
+            None => Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(
+                slice.len(),
+            ))),
         }
     }
-    
+
     pub fn require_bytes(&self, required: usize) -> Result<(), ByteSliceError> {
         if self.bytes.len() < required {
             Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(required)))

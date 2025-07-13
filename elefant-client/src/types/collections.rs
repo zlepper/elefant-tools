@@ -1,13 +1,16 @@
-use std::error::Error;
-use crate::PostgresType;
 use crate::protocol::FieldDescription;
 use crate::types::FromSql;
+use crate::PostgresType;
+use std::error::Error;
 
 impl<'a, T> FromSql<'a> for Vec<T>
-where T: FromSql<'a>
+where
+    T: FromSql<'a>,
 {
-    fn from_sql_binary(raw: &'a [u8], field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
-
+    fn from_sql_binary(
+        raw: &'a [u8],
+        field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         if raw.len() < 12 {
             return Err(format!("Invalid length for array. Expected at least 12 bytes, got {} bytes instead. Error occurred when parsing field {:?}", raw.len(), field).into());
         }
@@ -32,7 +35,6 @@ where T: FromSql<'a>
             return Err(format!("Only one-dimensional arrays are supported. Error occurred when parsing field {field:?}").into());
         }
 
-
         if !T::accepts_postgres_type(element_oid) {
             return Err(format!("Element type of the array is not supported. Error occurred when parsing field {field:?}").into());
         }
@@ -55,8 +57,12 @@ where T: FromSql<'a>
         Ok(result)
     }
 
-    fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        let typ = PostgresType::get_by_oid(field.data_type_oid).ok_or_else(|| format!("Unknown type oid: {}", field.data_type_oid))?;
+    fn from_sql_text(
+        raw: &'a str,
+        field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        let typ = PostgresType::get_by_oid(field.data_type_oid)
+            .ok_or_else(|| format!("Unknown type oid: {}", field.data_type_oid))?;
 
         let mut result = Vec::new();
 
@@ -71,7 +77,7 @@ where T: FromSql<'a>
         let mut in_quotes = false;
         let delimiter_char = typ.array_delimiter;
         let bytes = narrowed.as_bytes();
-        
+
         for (i, &byte) in bytes.iter().enumerate() {
             let ch = byte as char;
             match ch {
@@ -83,12 +89,15 @@ where T: FromSql<'a>
                     if i > element_start {
                         let element = &narrowed[element_start..i];
                         // Remove quotes if present
-                        let clean_element = if element.starts_with('"') && element.ends_with('"') && element.len() >= 2 {
-                            &element[1..element.len()-1]
+                        let clean_element = if element.starts_with('"')
+                            && element.ends_with('"')
+                            && element.len() >= 2
+                        {
+                            &element[1..element.len() - 1]
                         } else {
                             element
                         };
-                        
+
                         if clean_element == "NULL" {
                             result.push(T::from_null(field)?);
                         } else {
@@ -100,17 +109,18 @@ where T: FromSql<'a>
                 _ => {}
             }
         }
-        
+
         // Handle the last element
         if element_start < narrowed.len() {
             let element = &narrowed[element_start..];
             // Remove quotes if present
-            let clean_element = if element.starts_with('"') && element.ends_with('"') && element.len() >= 2 {
-                &element[1..element.len()-1]
-            } else {
-                element
-            };
-            
+            let clean_element =
+                if element.starts_with('"') && element.ends_with('"') && element.len() >= 2 {
+                    &element[1..element.len() - 1]
+                } else {
+                    element
+                };
+
             if clean_element == "NULL" {
                 result.push(T::from_null(field)?);
             } else {
@@ -128,10 +138,10 @@ where T: FromSql<'a>
                 if !t.is_array {
                     return false;
                 }
-                
+
                 match t.element {
                     None => false,
-                    Some(element_type) => T::accepts_postgres_type(element_type.oid)
+                    Some(element_type) => T::accepts_postgres_type(element_type.oid),
                 }
             }
         }
@@ -150,37 +160,69 @@ mod tests {
         async fn test_array_types() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            client.execute_non_query(r#"
+            client
+                .execute_non_query(
+                    r#"
                 drop table if exists test_array_table;
                 create table test_array_table(value int2[]);
-                "#, &[]).await.unwrap();
+                "#,
+                    &[],
+                )
+                .await
+                .unwrap();
 
-            let prepared = client.prepare_query("select value from test_array_table;").await.unwrap();
+            let prepared = client
+                .prepare_query("select value from test_array_table;")
+                .await
+                .unwrap();
 
-            client.execute_non_query("insert into test_array_table values ('{1,2,3}');", &[]).await.unwrap();
+            client
+                .execute_non_query("insert into test_array_table values ('{1,2,3}');", &[])
+                .await
+                .unwrap();
 
-            let mut value: Vec<i16> = client.read_single_value("select value from test_array_table;", &[]).await.unwrap();
+            let mut value: Vec<i16> = client
+                .read_single_value("select value from test_array_table;", &[])
+                .await
+                .unwrap();
             assert_eq!(value, vec![1, 2, 3]);
             value = client.read_single_value(&prepared, &[]).await.unwrap();
             assert_eq!(value, vec![1, 2, 3]);
 
-            client.execute_non_query("update test_array_table set value = '{}'", &[]).await.unwrap();
+            client
+                .execute_non_query("update test_array_table set value = '{}'", &[])
+                .await
+                .unwrap();
 
-            value = client.read_single_value("select value from test_array_table;", &[]).await.unwrap();
+            value = client
+                .read_single_value("select value from test_array_table;", &[])
+                .await
+                .unwrap();
             assert_eq!(value, Vec::<i16>::new());
             value = client.read_single_value(&prepared, &[]).await.unwrap();
             assert_eq!(value, Vec::<i16>::new());
 
+            client
+                .execute_non_query("update test_array_table set value = '{1,null,3}'", &[])
+                .await
+                .unwrap();
 
-            client.execute_non_query("update test_array_table set value = '{1,null,3}'", &[]).await.unwrap();
-
-            let mut value: Vec<Option<i16>> = client.read_single_value("select value from test_array_table;", &[]).await.unwrap();
+            let mut value: Vec<Option<i16>> = client
+                .read_single_value("select value from test_array_table;", &[])
+                .await
+                .unwrap();
             assert_eq!(value, vec![Some(1), None, Some(3)]);
             value = client.read_single_value(&prepared, &[]).await.unwrap();
             assert_eq!(value, vec![Some(1), None, Some(3)]);
 
-            client.execute_non_query("update test_array_table set value = '{null}'", &[]).await.unwrap();
-            let mut value: Vec<Option<i16>> = client.read_single_value("select value from test_array_table;", &[]).await.unwrap();
+            client
+                .execute_non_query("update test_array_table set value = '{null}'", &[])
+                .await
+                .unwrap();
+            let mut value: Vec<Option<i16>> = client
+                .read_single_value("select value from test_array_table;", &[])
+                .await
+                .unwrap();
             assert_eq!(value, vec![None]);
             value = client.read_single_value(&prepared, &[]).await.unwrap();
             assert_eq!(value, vec![None]);

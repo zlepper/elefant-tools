@@ -21,11 +21,9 @@ pub trait ElefantAsyncWrite {
 
 /// Custom trait that abstracts over async I/O operations needed by elefant-client.
 /// This allows us to support both tokio and monoio runtimes with a unified interface.
-pub trait ElefantAsyncReadWrite: ElefantAsyncWrite + ElefantAsyncRead + Unpin {
-}
+pub trait ElefantAsyncReadWrite: ElefantAsyncWrite + ElefantAsyncRead + Unpin {}
 
-impl <T: ElefantAsyncRead + ElefantAsyncWrite + Unpin> ElefantAsyncReadWrite for T {}
-
+impl<T: ElefantAsyncRead + ElefantAsyncWrite + Unpin> ElefantAsyncReadWrite for T {}
 
 #[cfg(feature = "futures")]
 mod futures_support {
@@ -57,4 +55,3 @@ mod futures_support {
     //     }
     // }
 }
-

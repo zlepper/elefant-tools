@@ -1,10 +1,10 @@
 use crate::postgres_client::PostgresClient;
-use crate::protocol::PostgresConnection;
 use crate::protocol::async_io::{ElefantAsyncRead, ElefantAsyncWrite};
+use crate::protocol::PostgresConnection;
 use crate::{ElefantClientError, PostgresConnectionSettings};
-use tokio::io::{AsyncReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufWriter};
-use tokio::net::TcpStream;
 use std::io;
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufWriter};
+use tokio::net::TcpStream;
 
 pub struct TokioWrapper<T>(T);
 
@@ -42,7 +42,7 @@ pub async fn new_client(
     settings: PostgresConnectionSettings,
 ) -> Result<TokioPostgresClient, ElefantClientError> {
     let connection = new_connection(&settings).await?;
-    
+
     let client = PostgresClient::new(connection, settings).await?;
 
     Ok(client)
@@ -51,15 +51,18 @@ pub async fn new_client(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::postgres_client::{QueryResultSet};
-    use tokio::test;
+    use crate::postgres_client::QueryResultSet;
     use crate::test_helpers::get_settings;
+    use tokio::test;
 
     #[test]
     pub async fn hello_world() {
         let mut client = new_client(get_settings()).await.unwrap();
 
-        let mut query_result = client.query("select 2147483647::int4; select 1::int4", &[]).await.unwrap();
+        let mut query_result = client
+            .query("select 2147483647::int4; select 1::int4", &[])
+            .await
+            .unwrap();
         {
             let query_result_set = query_result.next_result_set().await.unwrap();
             match query_result_set {
@@ -67,7 +70,6 @@ mod tests {
                     panic!("At least two result sets should be returned");
                 }
                 QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
-
                     let row = row_result_reader.next_row().await.unwrap();
                     assert!(row.is_some());
                     let content = row.unwrap();
@@ -76,10 +78,8 @@ mod tests {
                     let bytes = stuff[0].unwrap();
                     assert_eq!(bytes, b"2147483647");
 
-
                     let row = row_result_reader.next_row().await.unwrap();
                     assert!(row.is_none());
-
                 }
             }
         }
@@ -111,7 +111,7 @@ mod tests {
                 }
             }
         }
-        
+
         let mut another_query_result = client.query("select 42::int4", &[]).await.unwrap();
         {
             let query_result_set = another_query_result.next_result_set().await.unwrap();
@@ -153,7 +153,9 @@ mod tests {
                 database: "postgres".to_string(),
                 port,
                 password: "passw0rd".to_string(),
-            }).await.unwrap_or_else(|_| panic!("Failed to connect to port {port}"));
+            })
+            .await
+            .unwrap_or_else(|_| panic!("Failed to connect to port {port}"));
         }
     }
 }

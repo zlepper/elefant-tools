@@ -12,4 +12,3 @@ impl<C: ElefantAsyncReadWrite> PostgresConnection<C> {
         }
     }
 }
-

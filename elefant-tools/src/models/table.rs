@@ -12,7 +12,7 @@ use crate::quoting::{
     quote_value_string, AttemptedKeywordUsage, IdentifierQuoter, Quotable, QuotableIter,
 };
 use crate::storage::DataFormat;
-use crate::{ColumnIdentity, default, ElefantToolsError, HypertableCompression, PostgresIndexType};
+use crate::{default, ColumnIdentity, ElefantToolsError, HypertableCompression, PostgresIndexType};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -97,11 +97,14 @@ impl PostgresTable {
                     sql.push_str(" generated ");
                     match identity {
                         ColumnIdentity::GeneratedAlways => sql.push_str("always"),
-                        ColumnIdentity::GeneratedByDefault => sql.push_str("by default")
+                        ColumnIdentity::GeneratedByDefault => sql.push_str("by default"),
                     }
                     sql.push_str(" as identity");
 
-                    if let Some(seq) = &schema.sequences.iter().find(|s| s.author_table.as_ref().is_some_and(|t| *t == self.name) && s.author_table_column_position == Some(column_position)) {
+                    if let Some(seq) = &schema.sequences.iter().find(|s| {
+                        s.author_table.as_ref().is_some_and(|t| *t == self.name)
+                            && s.author_table_column_position == Some(column_position)
+                    }) {
                         sql.push_str(" ( sequence name ");
                         sql.push_str(&seq.name.quote(identifier_quoter, TypeOrFunctionName));
                         sql.push_str(" )");
@@ -235,18 +238,18 @@ impl PostgresTable {
                     continue;
                 }
 
-                let create_index_sql = index.get_create_index_command(schema, self, identifier_quoter);
+                let create_index_sql =
+                    index.get_create_index_command(schema, self, identifier_quoter);
                 sql.push_str(&create_index_sql);
             }
 
             for constraint in &self.constraints {
                 if let PostgresConstraint::Unique(uk) = constraint {
-                    let create_constraint_sql = uk.get_create_statement(self, schema, identifier_quoter);
+                    let create_constraint_sql =
+                        uk.get_create_statement(self, schema, identifier_quoter);
                     sql.push_str(&create_constraint_sql);
                 }
             }
-
-
 
             // We don't need timescale to create the indices as we do it later on again based on what was exported.
             for (idx, dim) in dimensions.iter().enumerate() {

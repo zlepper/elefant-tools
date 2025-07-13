@@ -1,6 +1,6 @@
+use crate::protocol::frame_reader::DecodeErrorError;
 use std::error::Error;
 use std::fmt::Display;
-use crate::protocol::frame_reader::DecodeErrorError;
 
 #[derive(Debug)]
 pub enum PostgresMessageParseError {

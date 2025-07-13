@@ -50,7 +50,6 @@ impl PostgresSequence {
         schema: &PostgresSchema,
         identifier_quoter: &IdentifierQuoter,
     ) -> String {
-
         let mut sql = String::new();
         if self.is_internally_created {
             sql.push_str("alter sequence ")

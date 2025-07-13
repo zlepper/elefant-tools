@@ -324,7 +324,9 @@ fn run_block_monoio<Fut>(fut: Fut)
 where
     Fut: Future<Output = ()>,
 {
-    let mut rt = monoio::RuntimeBuilder::<IoUringDriver>::new().build().unwrap();
+    let mut rt = monoio::RuntimeBuilder::<IoUringDriver>::new()
+        .build()
+        .unwrap();
     rt.block_on(fut);
 }
 
@@ -353,11 +355,11 @@ fn copy_benchmarks(c: &mut Criterion) {
             num_rows,
             |b, &num_rows| {
                 b.iter_custom(|iters| {
-                   time_copy_operation(
+                    time_copy_operation(
                         iters,
                         num_rows,
                         tokio_postgres_copy_benchmark,
-                        run_block_tokio
+                        run_block_tokio,
                     )
                 });
             },
@@ -372,7 +374,7 @@ fn copy_benchmarks(c: &mut Criterion) {
                         iters,
                         num_rows,
                         elefant_client_tokio_copy_benchmark,
-                        run_block_tokio
+                        run_block_tokio,
                     )
                 });
             },
@@ -387,7 +389,7 @@ fn copy_benchmarks(c: &mut Criterion) {
                         iters,
                         num_rows,
                         elefant_client_monoio_copy_benchmark,
-                        run_block_monoio
+                        run_block_monoio,
                     )
                 });
             },

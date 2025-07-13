@@ -1,7 +1,7 @@
-use std::error::Error;
-use crate::PostgresType;
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql, PostgresNamedType};
+use crate::types::{FromSql, PostgresNamedType, ToSql};
+use crate::PostgresType;
+use std::error::Error;
 
 macro_rules! impl_number {
     ($typ: ty, $standard_type: expr) => {
@@ -55,11 +55,11 @@ impl_number!(f64, PostgresType::FLOAT8);
 mod tests {
     #[cfg(feature = "tokio")]
     mod tokio_connection {
-        use std::fmt::{Debug, Display};
         use crate::test_helpers::get_settings;
         use crate::tokio_connection::{new_client, TokioPostgresClient};
-        use tokio::test;
         use crate::types::*;
+        use std::fmt::{Debug, Display};
+        use tokio::test;
 
         struct DataReaderTest {
             client: TokioPostgresClient,
@@ -77,13 +77,19 @@ mod tests {
             {
                 let sql = format!("select '{value}'::{cast_to}; ");
 
-                let received_value: T = self.client.read_single_column_and_row_exactly(sql.as_str(), &[]).await;
+                let received_value: T = self
+                    .client
+                    .read_single_column_and_row_exactly(sql.as_str(), &[])
+                    .await;
 
                 assert_eq!(received_value, value);
 
                 let prepared_query = self.client.prepare_query(&sql).await.unwrap();
 
-                let received_value: T = self.client.read_single_column_and_row_exactly(&prepared_query, &[]).await;
+                let received_value: T = self
+                    .client
+                    .read_single_column_and_row_exactly(&prepared_query, &[])
+                    .await;
 
                 assert_eq!(received_value, value);
             }
@@ -96,11 +102,18 @@ mod tests {
             }
 
             pub async fn test_round_trip<T>(&mut self, value: T)
-            where T: FromSqlOwned + Display + PartialEq + Debug + ToSql + PostgresNamedType
+            where
+                T: FromSqlOwned + Display + PartialEq + Debug + ToSql + PostgresNamedType,
             {
-                let sql = format!("select t.f::{0} from (select b.f::text from (select $1::{0} as f) as b) as t ", T::PG_NAME);
+                let sql = format!(
+                    "select t.f::{0} from (select b.f::text from (select $1::{0} as f) as b) as t ",
+                    T::PG_NAME
+                );
 
-                let received_value: T = self.client.read_single_column_and_row_exactly(sql.as_str(), &[&value]).await;
+                let received_value: T = self
+                    .client
+                    .read_single_column_and_row_exactly(sql.as_str(), &[&value])
+                    .await;
 
                 assert_eq!(received_value, value);
             }
@@ -155,10 +168,21 @@ mod tests {
                     helper.test_round_trip::<$typ>(<$typ>::INFINITY).await;
                     helper.test_round_trip::<$typ>(<$typ>::NEG_INFINITY).await;
 
-                    let should_be_nan: $typ = helper.client.read_single_value(&format!("select 'NaN'::{} ", <$typ>::PG_NAME), &[]).await.unwrap();
+                    let should_be_nan: $typ = helper
+                        .client
+                        .read_single_value(&format!("select 'NaN'::{} ", <$typ>::PG_NAME), &[])
+                        .await
+                        .unwrap();
                     assert!(should_be_nan.is_nan());
 
-                    let should_be_nan: $typ = helper.client.read_single_value(&format!("select $1::{} ", <$typ>::PG_NAME), &[&<$typ>::NAN]).await.unwrap();
+                    let should_be_nan: $typ = helper
+                        .client
+                        .read_single_value(
+                            &format!("select $1::{} ", <$typ>::PG_NAME),
+                            &[&<$typ>::NAN],
+                        )
+                        .await
+                        .unwrap();
                     assert!(should_be_nan.is_nan());
                 };
             }

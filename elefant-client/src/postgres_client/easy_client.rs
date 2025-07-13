@@ -1,7 +1,7 @@
-use crate::postgres_client::{PostgresClient, QueryResultSet};
-use crate::{ElefantClientError, FromSql, ToSql};
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::postgres_client::statements::Statement;
+use crate::postgres_client::{PostgresClient, QueryResultSet};
+use crate::protocol::async_io::ElefantAsyncReadWrite;
+use crate::{ElefantClientError, FromSql, ToSql};
 
 impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn read_single_value<'postgres_client, T>(

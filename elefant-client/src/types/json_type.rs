@@ -1,6 +1,6 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql};
 use crate::types::PostgresType;
+use crate::types::{FromSql, ToSql};
 use serde_json::Value;
 use std::error::Error;
 
@@ -27,12 +27,12 @@ impl<'a> FromSql<'a> for Value {
             if raw.is_empty() {
                 return Err("JSONB data cannot be empty".into());
             }
-            
+
             let version = raw[0];
             if version != 1 {
                 return Err(format!("Unsupported JSONB version number: {version}").into());
             }
-            
+
             let json_text = &raw[1..];
             serde_json::from_slice(json_text).map_err(|e| {
                 format!(
@@ -432,11 +432,11 @@ mod tests {
             // Insert the same JSON with extra whitespace and different key order
             let json_with_spaces = r#"{ "z_last": 3 , "a_first":   1,  "middle": 2 }"#;
             let json_value: Value = serde_json::from_str(json_with_spaces).unwrap();
-            
+
             // Use wrapper types for proper parameter binding
             let json_param = Json(json_value.clone());
             let jsonb_param = Jsonb(json_value.clone());
-            
+
             client
                 .execute_non_query(
                     "insert into test_jsonb_vs_json values (1, $1, $2);",
@@ -451,7 +451,10 @@ mod tests {
                 .await
                 .unwrap();
             let jsonb_val: Value = client
-                .read_single_value("select jsonb_val from test_jsonb_vs_json where id = 1;", &[])
+                .read_single_value(
+                    "select jsonb_val from test_jsonb_vs_json where id = 1;",
+                    &[],
+                )
                 .await
                 .unwrap();
 
@@ -478,7 +481,10 @@ mod tests {
 
             let jsonb_param = Jsonb(json_array_value.clone());
             client
-                .execute_non_query("insert into test_jsonb_arrays values ($1);", &[&jsonb_param])
+                .execute_non_query(
+                    "insert into test_jsonb_arrays values ($1);",
+                    &[&jsonb_param],
+                )
                 .await
                 .unwrap();
 
@@ -509,7 +515,10 @@ mod tests {
             let test_json = json!({"version_test": true, "data": [1, 2, 3]});
             let jsonb_param = Jsonb(test_json.clone());
             client
-                .execute_non_query("insert into test_jsonb_version values ($1);", &[&jsonb_param])
+                .execute_non_query(
+                    "insert into test_jsonb_version values ($1);",
+                    &[&jsonb_param],
+                )
                 .await
                 .unwrap();
 
@@ -549,11 +558,17 @@ mod tests {
 
             // Retrieve both and verify they work correctly
             let json_result: Value = client
-                .read_single_value("select json_col from test_json_jsonb_params where id = 1;", &[])
+                .read_single_value(
+                    "select json_col from test_json_jsonb_params where id = 1;",
+                    &[],
+                )
                 .await
                 .unwrap();
             let jsonb_result: Value = client
-                .read_single_value("select jsonb_col from test_json_jsonb_params where id = 1;", &[])
+                .read_single_value(
+                    "select jsonb_col from test_json_jsonb_params where id = 1;",
+                    &[],
+                )
                 .await
                 .unwrap();
 
@@ -669,7 +684,10 @@ mod tests {
                 .unwrap();
 
             let retrieved: Value = client
-                .read_single_value("select jsonb_col from test_default_behavior where id = 1;", &[])
+                .read_single_value(
+                    "select jsonb_col from test_default_behavior where id = 1;",
+                    &[],
+                )
                 .await
                 .unwrap();
             assert_eq!(retrieved, test_value);

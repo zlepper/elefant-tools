@@ -14,5 +14,5 @@ futures = "0.3"
 criterion = { version = "0.6", features = ["async_tokio"] }
 
 [[bench]]
-name = "my_benchmark"
+name = "binary_copy"
 harness = false

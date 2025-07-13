@@ -18,6 +18,8 @@ mod uuid_type;
 mod json_type;
 #[cfg(feature = "json")]
 pub use json_type::{Json, Jsonb};
+#[cfg(feature = "decimal")]
+mod numeric_type;
 
 use std::error::Error;
 use crate::ElefantClientError;

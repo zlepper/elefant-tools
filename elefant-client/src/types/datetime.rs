@@ -58,7 +58,7 @@ impl<'a> FromSql<'a> for Date {
         
         // PostgreSQL epoch is 2000-01-01
         let pg_epoch = Date::from_calendar_date(2000, Month::January, 1)
-            .map_err(|e| format!("Failed to create PostgreSQL epoch date: {}", e))?;
+            .map_err(|e| format!("Failed to create PostgreSQL epoch date: {e}"))?;
         
         let result_date = pg_epoch + time::Duration::days(days_since_pg_epoch as i64);
         
@@ -68,7 +68,7 @@ impl<'a> FromSql<'a> for Date {
     fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
         // PostgreSQL DATE format: YYYY-MM-DD
         Date::parse(raw, &DATE_FORMAT)
-            .map_err(|e| format!("Failed to parse DATE from text '{}': {}. Error occurred when parsing field {:?}", raw, e, field).into())
+            .map_err(|e| format!("Failed to parse DATE from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
@@ -79,7 +79,7 @@ impl<'a> FromSql<'a> for Date {
 impl ToSql for Date {
     fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
         let pg_epoch = Date::from_calendar_date(2000, Month::January, 1)
-            .map_err(|e| format!("Failed to create PostgreSQL epoch date: {}", e))?;
+            .map_err(|e| format!("Failed to create PostgreSQL epoch date: {e}"))?;
         
         let duration_since_epoch = *self - pg_epoch;
         let days = duration_since_epoch.whole_days() as i32;
@@ -107,7 +107,7 @@ impl<'a> FromSql<'a> for Time {
         let seconds = (total_seconds % 60) as u8;
         
         Time::from_hms_nano(hours, minutes, seconds, remaining_nanoseconds)
-            .map_err(|e| format!("Failed to create TIME from components: {}. Error occurred when parsing field {:?}", e, field).into())
+            .map_err(|e| format!("Failed to create TIME from components: {e}. Error occurred when parsing field {field:?}").into())
     }
 
     fn from_sql_text(raw: &'a str, field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
@@ -118,7 +118,7 @@ impl<'a> FromSql<'a> for Time {
             &TIME_FORMAT
         };
         Time::parse(raw, format)
-            .map_err(|e| format!("Failed to parse TIME from text '{}': {}. Error occurred when parsing field {:?}", raw, e, field).into())
+            .map_err(|e| format!("Failed to parse TIME from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
@@ -151,9 +151,9 @@ impl<'a> FromSql<'a> for PrimitiveDateTime {
         // PostgreSQL epoch is 2000-01-01 00:00:00
         let pg_epoch = PrimitiveDateTime::new(
             Date::from_calendar_date(2000, Month::January, 1)
-                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {}", e))?,
+                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {e}"))?,
             Time::from_hms(0, 0, 0)
-                .map_err(|e| format!("Failed to create midnight time: {}", e))?
+                .map_err(|e| format!("Failed to create midnight time: {e}"))?
         );
         
         let result_datetime = pg_epoch + time::Duration::microseconds(microseconds_since_pg_epoch);
@@ -169,7 +169,7 @@ impl<'a> FromSql<'a> for PrimitiveDateTime {
             &TIMESTAMP_FORMAT
         };
         PrimitiveDateTime::parse(raw, format)
-            .map_err(|e| format!("Failed to parse TIMESTAMP from text '{}': {}. Error occurred when parsing field {:?}", raw, e, field).into())
+            .map_err(|e| format!("Failed to parse TIMESTAMP from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
@@ -181,9 +181,9 @@ impl ToSql for PrimitiveDateTime {
     fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
         let pg_epoch = PrimitiveDateTime::new(
             Date::from_calendar_date(2000, Month::January, 1)
-                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {}", e))?,
+                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {e}"))?,
             Time::from_hms(0, 0, 0)
-                .map_err(|e| format!("Failed to create midnight time: {}", e))?
+                .map_err(|e| format!("Failed to create midnight time: {e}"))?
         );
         
         let duration_since_epoch = *self - pg_epoch;
@@ -206,9 +206,9 @@ impl<'a> FromSql<'a> for OffsetDateTime {
         // PostgreSQL TIMESTAMPTZ is stored as UTC microseconds since 2000-01-01 00:00:00 UTC
         let pg_epoch = OffsetDateTime::new_utc(
             Date::from_calendar_date(2000, Month::January, 1)
-                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {}", e))?,
+                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {e}"))?,
             Time::from_hms(0, 0, 0)
-                .map_err(|e| format!("Failed to create midnight time: {}", e))?
+                .map_err(|e| format!("Failed to create midnight time: {e}"))?
         );
         
         let result_datetime = pg_epoch + time::Duration::microseconds(microseconds_since_pg_epoch);
@@ -225,7 +225,7 @@ impl<'a> FromSql<'a> for OffsetDateTime {
             &TIMESTAMPTZ_FORMAT
         };
         OffsetDateTime::parse(raw, format)
-            .map_err(|e| format!("Failed to parse TIMESTAMPTZ from text '{}': {}. Error occurred when parsing field {:?}", raw, e, field).into())
+            .map_err(|e| format!("Failed to parse TIMESTAMPTZ from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
@@ -237,9 +237,9 @@ impl ToSql for OffsetDateTime {
     fn to_sql_binary(&self, target_buffer: &mut Vec<u8>) -> Result<(), Box<dyn Error + Sync + Send>> {
         let pg_epoch = OffsetDateTime::new_utc(
             Date::from_calendar_date(2000, Month::January, 1)
-                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {}", e))?,
+                .map_err(|e| format!("Failed to create PostgreSQL epoch date: {e}"))?,
             Time::from_hms(0, 0, 0)
-                .map_err(|e| format!("Failed to create midnight time: {}", e))?
+                .map_err(|e| format!("Failed to create midnight time: {e}"))?
         );
         
         // Convert to UTC for storage (PostgreSQL stores TIMESTAMPTZ as UTC)

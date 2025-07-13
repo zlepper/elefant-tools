@@ -23,8 +23,7 @@ impl<'a> FromSql<'a> for Uuid {
         // PostgreSQL UUID text format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
         Uuid::parse_str(raw)
             .map_err(|e| format!(
-                "Failed to parse UUID from text '{}': {}. Error occurred when parsing field {:?}", 
-                raw, e, field
+                "Failed to parse UUID from text '{raw}': {e}. Error occurred when parsing field {field:?}"
             ).into())
     }
 

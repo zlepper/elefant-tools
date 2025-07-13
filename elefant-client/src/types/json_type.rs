@@ -30,14 +30,13 @@ impl<'a> FromSql<'a> for Value {
             
             let version = raw[0];
             if version != 1 {
-                return Err(format!("Unsupported JSONB version number: {}", version).into());
+                return Err(format!("Unsupported JSONB version number: {version}").into());
             }
             
             let json_text = &raw[1..];
             serde_json::from_slice(json_text).map_err(|e| {
                 format!(
-                    "Failed to parse JSONB from binary data: {}. Error occurred when parsing field {:?}",
-                    e, field
+                    "Failed to parse JSONB from binary data: {e}. Error occurred when parsing field {field:?}"
                 )
                 .into()
             })
@@ -45,8 +44,7 @@ impl<'a> FromSql<'a> for Value {
             // JSON in binary format is stored as UTF-8 text - parse directly from bytes
             serde_json::from_slice(raw).map_err(|e| {
                 format!(
-                    "Failed to parse JSON from binary data: {}. Error occurred when parsing field {:?}",
-                    e, field
+                    "Failed to parse JSON from binary data: {e}. Error occurred when parsing field {field:?}"
                 )
                 .into()
             })
@@ -60,8 +58,7 @@ impl<'a> FromSql<'a> for Value {
         // Both JSON and JSONB text format is direct JSON string
         serde_json::from_str(raw).map_err(|e| {
             format!(
-                "Failed to parse JSON/JSONB from text '{}': {}. Error occurred when parsing field {:?}",
-                raw, e, field
+                "Failed to parse JSON/JSONB from text '{raw}': {e}. Error occurred when parsing field {field:?}"
             )
             .into()
         })
@@ -82,7 +79,7 @@ impl ToSql for Value {
         // Use explicit Json wrapper for JSON columns if needed
         target_buffer.push(1); // JSONB version byte
         serde_json::to_writer(target_buffer, self)
-            .map_err(|e| format!("Failed to serialize JSON/JSONB to binary: {}", e).into())
+            .map_err(|e| format!("Failed to serialize JSON/JSONB to binary: {e}").into())
     }
 }
 
@@ -94,7 +91,7 @@ impl ToSql for Json {
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
         // JSON columns expect plain UTF-8 JSON text
         serde_json::to_writer(target_buffer, &self.0)
-            .map_err(|e| format!("Failed to serialize JSON to binary: {}", e).into())
+            .map_err(|e| format!("Failed to serialize JSON to binary: {e}").into())
     }
 }
 
@@ -107,7 +104,7 @@ impl ToSql for Jsonb {
         // JSONB columns expect version byte (0x01) + UTF-8 JSON text
         target_buffer.push(1); // JSONB version byte
         serde_json::to_writer(target_buffer, &self.0)
-            .map_err(|e| format!("Failed to serialize JSONB to binary: {}", e).into())
+            .map_err(|e| format!("Failed to serialize JSONB to binary: {e}").into())
     }
 }
 
@@ -264,7 +261,7 @@ mod tests {
                     )
                     .await
                     .unwrap();
-                assert_eq!(&retrieved, expected_json, "Failed for ID {}", expected_id);
+                assert_eq!(&retrieved, expected_json, "Failed for ID {expected_id}");
             }
         }
 
@@ -317,8 +314,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(
                     &retrieved, expected_json,
-                    "JSON escaping failed for test case ID {}",
-                    expected_id
+                    "JSON escaping failed for test case ID {expected_id}"
                 );
             }
 
@@ -614,8 +610,7 @@ mod tests {
                     .unwrap();
                 assert_eq!(
                     &retrieved, expected_json,
-                    "JSONB escaping failed for test case ID {}",
-                    expected_id
+                    "JSONB escaping failed for test case ID {expected_id}"
                 );
             }
 

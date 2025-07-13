@@ -214,11 +214,9 @@ mod tests {
                 .await
                 .unwrap();
             
-            let expected = vec![
-                Point::new(0.0, 0.0),
+            let expected = [Point::new(0.0, 0.0),
                 Point::new(1.0, 1.0),
-                Point::new(-1.0, -1.0),
-            ];
+                Point::new(-1.0, -1.0)];
             
             assert_eq!(point_array.len(), expected.len());
             for (actual, expected) in point_array.iter().zip(expected.iter()) {

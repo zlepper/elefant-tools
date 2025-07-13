@@ -305,10 +305,10 @@ mod tests {
                 
                 // Verify IP address
                 let expected_ip: IpAddr = expected_ip_str.parse().unwrap();
-                assert_eq!(result.ip, expected_ip, "IP address mismatch for ID {}", id);
+                assert_eq!(result.ip, expected_ip, "IP address mismatch for ID {id}");
                 
                 // Verify prefix length
-                assert_eq!(result.prefix_len, expected_prefix, "Prefix length mismatch for ID {}", id);
+                assert_eq!(result.prefix_len, expected_prefix, "Prefix length mismatch for ID {id}");
             }
         }
 

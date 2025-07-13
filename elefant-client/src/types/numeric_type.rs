@@ -178,8 +178,8 @@ impl ToSql for Decimal {
             while i > 0 {
                 let start = i.saturating_sub(4);
                 let mut group_value: i16 = 0;
-                for digit_idx in start..i {
-                    group_value = group_value * 10 + decimal_digits[digit_idx] as i16;
+                for digit in decimal_digits.iter().take(i).skip(start) {
+                    group_value = group_value * 10 + *digit as i16;
                 }
                 digits_10000.insert(0, group_value);
                 i = start;
@@ -200,8 +200,8 @@ impl ToSql for Decimal {
                 let mut group_value: i16 = 0;
                 
                 // Build the group value
-                for digit_idx in i..end {
-                    group_value = group_value * 10 + decimal_digits[digit_idx] as i16;
+                for digit in decimal_digits.iter().take(end).skip(i) {
+                    group_value = group_value * 10 + *digit as i16;
                 }
                 
                 // Pad with zeros for fractional part (base-10000 groups must represent 4 decimal places)

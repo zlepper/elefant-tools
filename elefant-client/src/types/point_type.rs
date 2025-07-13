@@ -27,9 +27,9 @@ impl<'a> FromSql<'a> for Point {
         
         // Extract two big-endian f64 values (x, y coordinates)
         let x_bytes: [u8; 8] = raw[0..8].try_into()
-            .map_err(|e| format!("Failed to extract x coordinate bytes: {}", e))?;
+            .map_err(|e| format!("Failed to extract x coordinate bytes: {e}"))?;
         let y_bytes: [u8; 8] = raw[8..16].try_into()
-            .map_err(|e| format!("Failed to extract y coordinate bytes: {}", e))?;
+            .map_err(|e| format!("Failed to extract y coordinate bytes: {e}"))?;
         
         let x = f64::from_be_bytes(x_bytes);
         let y = f64::from_be_bytes(y_bytes);
@@ -53,7 +53,7 @@ impl<'a> FromSql<'a> for Point {
         };
         
         if !unquoted.starts_with('(') || !unquoted.ends_with(')') {
-            return Err(format!("Invalid POINT text format: '{}' - expected format: (x,y)", raw).into());
+            return Err(format!("Invalid POINT text format: '{raw}' - expected format: (x,y)").into());
         }
         
         let inner = &unquoted[1..unquoted.len()-1];

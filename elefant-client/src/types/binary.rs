@@ -11,14 +11,14 @@ impl<'a> FromSql<'a> for Vec<u8> {
     fn from_sql_text(raw: &'a str, _field: &FieldDescription) -> Result<Self, Box<dyn Error + Sync + Send>> {
         // PostgreSQL BYTEA text format uses \x prefix for hex encoding
         // Handle both direct \x format and escaped \\x format
-        let hex_str = if raw.starts_with("\\x") {
-            &raw[2..]
+        let hex_str = if let Some(stripped) = raw.strip_prefix("\\x") {
+            stripped
         } else if raw.starts_with("\"\\\\x") && raw.ends_with("\"") {
             // Handle escaped format in quotes: "\\x48656C6C6F" 
             &raw[4..raw.len()-1]
-        } else if raw.starts_with("\\\\x") {
+        } else if let Some(stripped) = raw.strip_prefix("\\\\x") {
             // Handle escaped format: \\x48656C6C6F
-            &raw[3..]
+            stripped
         } else {
             // For array elements, PostgreSQL might return the raw hex without escapes
             // Let's try direct hex parsing

@@ -18,17 +18,6 @@ impl Inet {
     pub fn with_prefix(ip: IpAddr, prefix_len: u8) -> Self {
         Inet { ip, prefix_len: Some(prefix_len) }
     }
-    
-    pub fn from_str(s: &str) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        if let Some((ip_str, prefix_str)) = s.split_once('/') {
-            let ip: IpAddr = ip_str.parse()?;
-            let prefix_len: u8 = prefix_str.parse()?;
-            Ok(Inet::with_prefix(ip, prefix_len))
-        } else {
-            let ip: IpAddr = s.parse()?;
-            Ok(Inet::new(ip))
-        }
-    }
 }
 
 impl std::fmt::Display for Inet {
@@ -36,6 +25,21 @@ impl std::fmt::Display for Inet {
         match self.prefix_len {
             Some(prefix) => write!(f, "{}/{}", self.ip, prefix),
             None => write!(f, "{}", self.ip),
+        }
+    }
+}
+
+impl std::str::FromStr for Inet {
+    type Err = Box<dyn Error + Sync + Send>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if let Some((ip_str, prefix_str)) = s.split_once('/') {
+            let ip: IpAddr = ip_str.parse()?;
+            let prefix_len: u8 = prefix_str.parse()?;
+            Ok(Inet::with_prefix(ip, prefix_len))
+        } else {
+            let ip: IpAddr = s.parse()?;
+            Ok(Inet::new(ip))
         }
     }
 }
@@ -55,7 +59,7 @@ impl<'a> FromSql<'a> for Inet {
         let addr_size = raw[3];
 
         if raw.len() < 4 + addr_size as usize {
-            return Err(format!("INET binary data incomplete: expected {} address bytes", addr_size).into());
+            return Err(format!("INET binary data incomplete: expected {addr_size} address bytes").into());
         }
 
         let addr_bytes = &raw[4..4 + addr_size as usize];
@@ -64,14 +68,14 @@ impl<'a> FromSql<'a> for Inet {
         let prefix_len = match family {
             2 => if bits == 32 { None } else { Some(bits) }, // IPv4
             3 => if bits == 128 { None } else { Some(bits) }, // IPv6
-            _ => return Err(format!("Unknown address family: {}", family).into()),
+            _ => return Err(format!("Unknown address family: {family}").into()),
         };
 
         let ip = match family {
             2 => {
                 // IPv4
                 if addr_size != 4 {
-                    return Err(format!("Invalid IPv4 address size: {}", addr_size).into());
+                    return Err(format!("Invalid IPv4 address size: {addr_size}").into());
                 }
                 let ipv4_bytes: [u8; 4] = addr_bytes.try_into()
                     .map_err(|_| "Failed to convert IPv4 bytes")?;
@@ -80,13 +84,13 @@ impl<'a> FromSql<'a> for Inet {
             3 => {
                 // IPv6
                 if addr_size != 16 {
-                    return Err(format!("Invalid IPv6 address size: {}", addr_size).into());
+                    return Err(format!("Invalid IPv6 address size: {addr_size}").into());
                 }
                 let ipv6_bytes: [u8; 16] = addr_bytes.try_into()
                     .map_err(|_| "Failed to convert IPv6 bytes")?;
                 IpAddr::V6(std::net::Ipv6Addr::from(ipv6_bytes))
             }
-            _ => return Err(format!("Unsupported address family: {}", family).into()),
+            _ => return Err(format!("Unsupported address family: {family}").into()),
         };
 
         Ok(Inet { ip, prefix_len })
@@ -97,7 +101,7 @@ impl<'a> FromSql<'a> for Inet {
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         // PostgreSQL INET text format: "IP" or "IP/prefix"
-        Inet::from_str(raw.trim())
+        raw.trim().parse()
     }
 
     fn accepts_postgres_type(oid: i32) -> bool {
@@ -314,12 +318,12 @@ mod tests {
             
             client.execute_non_query("drop table if exists test_inet_roundtrip; create table test_inet_roundtrip(addr inet);", &[]).await.unwrap();
             
-            let test_values = vec![
-                Inet::from_str("127.0.0.1").unwrap(),
-                Inet::from_str("192.168.1.1/24").unwrap(),
-                Inet::from_str("::1").unwrap(),
-                Inet::from_str("2001:db8::/32").unwrap(),
-                Inet::from_str("10.0.0.0/8").unwrap(),
+            let test_values: Vec<Inet> = vec![
+                "127.0.0.1".parse().unwrap(),
+                "192.168.1.1/24".parse().unwrap(),
+                "::1".parse().unwrap(),
+                "2001:db8::/32".parse().unwrap(),
+                "10.0.0.0/8".parse().unwrap(),
             ];
             
             for test_value in &test_values {

@@ -16,6 +16,8 @@ mod datetime;
 mod uuid_type;
 #[cfg(feature = "json")]
 mod json_type;
+#[cfg(feature = "json")]
+pub use json_type::{Json, Jsonb};
 
 use std::error::Error;
 use crate::ElefantClientError;

@@ -32,10 +32,7 @@ pub struct CopyDataOptions {
     pub differential: bool,
 }
 
-const NON_ZERO_USIZE1: NonZeroUsize = unsafe {
-    // SAFETY: 1 is not zero
-    NonZeroUsize::new_unchecked(1)
-};
+const NON_ZERO_USIZE1: NonZeroUsize = NonZeroUsize::new(1).unwrap();
 
 impl CopyDataOptions {
     fn get_max_parallel_or_1(&self) -> NonZeroUsize {

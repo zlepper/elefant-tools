@@ -32,7 +32,7 @@ impl<'a> SequentialSafePostgresInstanceCopySourceStorage<'a> {
     }
 }
 
-impl<'a> CopySource for SequentialSafePostgresInstanceCopySourceStorage<'a> {
+impl CopySource for SequentialSafePostgresInstanceCopySourceStorage<'_> {
     type DataStream = MapErr<CopyOutStream, fn(tokio_postgres::Error) -> ElefantToolsError>;
     type Cleanup = ();
 

@@ -54,7 +54,7 @@ impl<'a> ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
     }
 }
 
-impl<'a> CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
+impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> {
     async fn apply_data<S: Stream<Item = crate::Result<Bytes>> + Send, C: AsyncCleanup>(
         &mut self,
         schema: &PostgresSchema,

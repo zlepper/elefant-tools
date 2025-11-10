@@ -30,7 +30,7 @@ impl<'a> SequentialSafePostgresInstanceCopyDestinationStorage<'a> {
     }
 }
 
-impl<'a> CopyDestination for SequentialSafePostgresInstanceCopyDestinationStorage<'a> {
+impl CopyDestination for SequentialSafePostgresInstanceCopyDestinationStorage<'_> {
     async fn apply_data<S: Stream<Item = crate::Result<Bytes>> + Send, C: AsyncCleanup>(
         &mut self,
         schema: &PostgresSchema,

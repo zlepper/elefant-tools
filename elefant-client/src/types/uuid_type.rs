@@ -71,17 +71,13 @@ mod tests {
             // Test nil UUID (all zeros)
             let nil_uuid = Uuid::nil();
             let value: Uuid = client
-                .read_single_value("select '00000000-0000-0000-0000-000000000000'::uuid;", &[])
-                .await
-                .unwrap();
+                .read_single_value("select '00000000-0000-0000-0000-000000000000'::uuid;", &[]).await;
             assert_eq!(value, nil_uuid);
 
             // Test a specific UUID
             let test_uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
             let value: Uuid = client
-                .read_single_value_dual_mode("select '550e8400-e29b-41d4-a716-446655440000'::uuid")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select '550e8400-e29b-41d4-a716-446655440000'::uuid").await;
             assert_eq!(value, test_uuid);
 
             // Test round-trip with parameter binding
@@ -91,15 +87,11 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: Uuid = client
-                .read_single_value("select value from test_uuid_table;", &[])
-                .await
-                .unwrap();
+                .read_single_value("select value from test_uuid_table;", &[]).await;
             assert_eq!(retrieved, test_uuid);
 
             let null_value: Option<Uuid> = client
-                .read_single_value_dual_mode("select null::uuid")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select null::uuid").await;
             assert_eq!(null_value, None);
 
             // Test another specific UUID for round-trip
@@ -112,9 +104,7 @@ mod tests {
                 .read_single_value(
                     "select value from test_uuid_table order by value desc limit 1;",
                     &[],
-                )
-                .await
-                .unwrap();
+                ).await;
             assert_eq!(retrieved_another, another_uuid);
         }
 
@@ -131,7 +121,7 @@ mod tests {
             let value: Vec<Uuid> = client.read_single_value(
                 "select '{00000000-0000-0000-0000-000000000000,550e8400-e29b-41d4-a716-446655440000,6ba7b810-9dad-11d1-80b4-00c04fd430c8}'::uuid[];", 
                 &[]
-            ).await.unwrap();
+            ).await;
             assert_eq!(value, uuids);
 
             // Test UUID array with NULLs
@@ -143,7 +133,7 @@ mod tests {
             let value: Vec<Option<Uuid>> = client.read_single_value(
                 "select '{00000000-0000-0000-0000-000000000000,null,550e8400-e29b-41d4-a716-446655440000}'::uuid[];", 
                 &[]
-            ).await.unwrap();
+            ).await;
             assert_eq!(value, uuids_with_nulls);
         }
     }

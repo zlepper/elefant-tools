@@ -58,15 +58,11 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let c: char = client
-                .read_single_value_dual_mode("select 'a'::\"char\"")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 'a'::\"char\"").await;
             assert_eq!(c, 'a');
 
             let c: char = client
-                .read_single_value("select $1::\"char\";", &[&'A'])
-                .await
-                .unwrap();
+                .read_single_value("select $1::\"char\";", &[&'A']).await;
             assert_eq!(c, 'A');
         }
     }

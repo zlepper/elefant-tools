@@ -19,9 +19,9 @@ pub(crate) async fn get_tokio_test_client() -> crate::tokio_connection::TokioPos
 }
 
 impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
-    /// Read a single value using binary mode (with prepared statements)
+    /// Read a single value using binary mode (with prepared statements), returning Result
     /// Test helper method - enforces at compile time that T supports binary format parsing
-    pub async fn read_single_value<'postgres_client, T>(
+    pub async fn try_read_single_value<'postgres_client, T>(
         &'postgres_client mut self,
         query: &(impl Statement + ?Sized),
         parameters: &[&(dyn ToSql)],
@@ -46,9 +46,22 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         }
     }
 
-    /// Read a single value using simple query mode (text format, no parameters)
+    /// Read a single value using binary mode (with prepared statements)
+    /// Test helper method - panics on error
+    pub async fn read_single_value<'postgres_client, T>(
+        &'postgres_client mut self,
+        query: &(impl Statement + ?Sized),
+        parameters: &[&(dyn ToSql)],
+    ) -> T
+    where
+        T: FromSqlBinary<'postgres_client>,
+    {
+        self.try_read_single_value(query, parameters).await.unwrap()
+    }
+
+    /// Read a single value using simple query mode (text format, no parameters), returning Result
     /// Test helper method - enforces at compile time that T supports text format parsing
-    pub async fn read_single_value_simple<'postgres_client, T>(
+    pub async fn try_read_single_value_simple<'postgres_client, T>(
         &'postgres_client mut self,
         query: &str,
     ) -> Result<T, ElefantClientError>
@@ -72,6 +85,55 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         }
     }
 
+    /// Read a single value using simple query mode (text format, no parameters)
+    /// Test helper method - panics on error
+    pub async fn read_single_value_simple<'postgres_client, T>(
+        &'postgres_client mut self,
+        query: &str,
+    ) -> T
+    where
+        T: FromSqlText<'postgres_client>,
+    {
+        self.try_read_single_value_simple(query).await.unwrap()
+    }
+
+    /// Read a single value using both binary and text protocol modes,
+    /// validating that both modes produce identical results. Returns Result.
+    ///
+    /// This test helper executes the query twice:
+    /// 1. As a simple query (text protocol)
+    /// 2. As a prepared statement (binary protocol)
+    ///
+    /// Returns error if the two modes produce different values.
+    ///
+    /// # Limitations
+    /// - Only supports literal SQL values (no $1, $2 parameters)
+    /// - Type T must implement FromSqlOwned (both binary and text modes, without borrowing)
+    /// - Type T must implement PartialEq + Debug + Clone for comparison
+    pub async fn try_read_single_value_dual_mode<T>(
+        &mut self,
+        query: &str,
+    ) -> Result<T, ElefantClientError>
+    where
+        T: FromSqlOwned + PartialEq + Debug + Clone,
+    {
+        // Execute both modes and clone the first value to avoid borrow conflicts
+        let text_value_original: T = self.try_read_single_value_simple(query).await?;
+        let text_value = text_value_original.clone();
+        drop(text_value_original); // Explicitly drop to end the borrow
+
+        // Execute as prepared statement (binary mode)
+        let binary_value: T = self.try_read_single_value(query, &[]).await?;
+
+        // Assert they match
+        assert_eq!(
+            binary_value, text_value,
+            "Binary and text protocol results differ for query: {query}\nBinary: {binary_value:?}\nText: {text_value:?}"
+        );
+
+        Ok(binary_value)
+    }
+
     /// Read a single value using both binary and text protocol modes,
     /// validating that both modes produce identical results.
     ///
@@ -88,25 +150,11 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn read_single_value_dual_mode<T>(
         &mut self,
         query: &str,
-    ) -> Result<T, ElefantClientError>
+    ) -> T
     where
         T: FromSqlOwned + PartialEq + Debug + Clone,
     {
-        // Execute both modes and clone the first value to avoid borrow conflicts
-        let text_value_original: T = self.read_single_value_simple(query).await?;
-        let text_value = text_value_original.clone();
-        drop(text_value_original); // Explicitly drop to end the borrow
-
-        // Execute as prepared statement (binary mode)
-        let binary_value: T = self.read_single_value(query, &[]).await?;
-
-        // Assert they match
-        assert_eq!(
-            binary_value, text_value,
-            "Binary and text protocol results differ for query: {query}\nBinary: {binary_value:?}\nText: {text_value:?}"
-        );
-
-        Ok(binary_value)
+        self.try_read_single_value_dual_mode(query).await.unwrap()
     }
 
     pub async fn read_single_column_and_row_exactly<'a, S, T>(

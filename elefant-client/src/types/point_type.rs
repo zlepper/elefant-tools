@@ -118,23 +118,20 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let large: Point = client
-                .read_single_value_dual_mode("select '(1e10, -1e10)'::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Point>("select '(1e10, -1e10)'::point")
+                .await;
             assert_eq!(large.x, 1e10);
             assert_eq!(large.y, -1e10);
 
             let small: Point = client
-                .read_single_value_dual_mode("select '(1e-10, -1e-10)'::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Point>("select '(1e-10, -1e-10)'::point")
+                .await;
             assert_eq!(small.x, 1e-10);
             assert_eq!(small.y, -1e-10);
 
             let infinity: Point = client
-                .read_single_value_dual_mode("select '(Infinity, -Infinity)'::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Point>("select '(Infinity, -Infinity)'::point")
+                .await;
             assert!(infinity.x.is_infinite() && infinity.x.is_sign_positive());
             assert!(infinity.y.is_infinite() && infinity.y.is_sign_negative());
         }
@@ -144,23 +141,20 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let origin: Point = client
-                .read_single_value_dual_mode("select '(0, 0)'::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Point>("select '(0, 0)'::point")
+                .await;
             assert_eq!(origin.x, 0.0);
             assert_eq!(origin.y, 0.0);
 
             let positive: Point = client
-                .read_single_value_dual_mode("select '(1.5, 2.5)'::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Point>("select '(1.5, 2.5)'::point")
+                .await;
             assert_eq!(positive.x, 1.5);
             assert_eq!(positive.y, 2.5);
 
             let negative: Point = client
-                .read_single_value_dual_mode("select '(-3.17, -2.71)'::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Point>("select '(-3.17, -2.71)'::point")
+                .await;
             assert_eq!(negative.x, -3.17);
             assert_eq!(negative.y, -2.71);
         }
@@ -187,8 +181,7 @@ mod tests {
 
                 let retrieved: Point = client
                     .read_single_value("select location from test_point_table order by location <-> point(0,0) limit 1;", &[])
-                    .await
-                    .unwrap();
+                    .await;
 
                 // Use approximate equality for floating point comparison
                 assert!(
@@ -217,9 +210,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_point: Option<Point> = client
-                .read_single_value_dual_mode("select null::point")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select null::point").await;
             assert_eq!(null_point, None);
         }
 
@@ -228,9 +219,8 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let point_array: Vec<Point> = client
-                .read_single_value_dual_mode("select ARRAY[point(0,0), point(1,1), point(-1,-1)]")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Vec<Point>>("select ARRAY[point(0,0), point(1,1), point(-1,-1)]")
+                .await;
 
             let expected = [
                 Point::new(0.0, 0.0),

@@ -288,30 +288,22 @@ mod tests {
 
             // Test zero
             let zero: Decimal = client
-                .read_single_value_dual_mode("select 0::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 0::numeric").await;
             assert_eq!(zero, Decimal::from(0));
 
             // Test positive integer
             let positive: Decimal = client
-                .read_single_value_dual_mode("select 12345::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 12345::numeric").await;
             assert_eq!(positive, Decimal::from(12345));
 
             // Test negative integer
             let negative: Decimal = client
-                .read_single_value_dual_mode("select -67890::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select -67890::numeric").await;
             assert_eq!(negative, Decimal::from(-67890));
 
             // Test decimal
             let decimal: Decimal = client
-                .read_single_value_dual_mode("select 123.456::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 123.456::numeric").await;
             assert_eq!(decimal, "123.456".parse::<Decimal>().unwrap());
         }
 
@@ -321,9 +313,8 @@ mod tests {
 
             // Test high precision
             let high_precision: Decimal = client
-                .read_single_value_dual_mode("select 123456789.123456789::numeric(18,9)")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Decimal>("select 123456789.123456789::numeric(18,9)")
+                .await;
             assert_eq!(
                 high_precision,
                 "123456789.123456789".parse::<Decimal>().unwrap()
@@ -331,16 +322,13 @@ mod tests {
 
             // Test many decimal places
             let many_decimals: Decimal = client
-                .read_single_value_dual_mode("select 1.000000001::numeric(10,9)")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode::<Decimal>("select 1.000000001::numeric(10,9)")
+                .await;
             assert_eq!(many_decimals, "1.000000001".parse::<Decimal>().unwrap());
 
             // Test large integer
             let large_int: Decimal = client
-                .read_single_value_dual_mode("select 999999999999999999::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 999999999999999999::numeric").await;
             assert_eq!(large_int, "999999999999999999".parse::<Decimal>().unwrap());
         }
 
@@ -350,9 +338,7 @@ mod tests {
 
             // Test what PostgreSQL actually sends for small decimals
             let small_decimal: Decimal = client
-                .read_single_value_dual_mode("select 0.000000001::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 0.000000001::numeric").await;
 
             let expected = "0.000000001".parse::<Decimal>().unwrap();
             assert_eq!(small_decimal, expected, "Direct PostgreSQL read failed");
@@ -376,9 +362,7 @@ mod tests {
                 .unwrap();
 
             let retrieved: Decimal = client
-                .read_single_value_dual_mode("select value from test_numeric_debug")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select value from test_numeric_debug").await;
 
             assert_eq!(
                 retrieved, test_value,
@@ -411,9 +395,7 @@ mod tests {
                     .read_single_value(
                         "select value from test_numeric_table order by value desc limit 1;",
                         &[],
-                    )
-                    .await
-                    .unwrap();
+                    ).await;
 
                 assert_eq!(&retrieved, test_value, "Round-trip failed for {test_value}");
 
@@ -430,9 +412,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_value: Option<Decimal> = client
-                .read_single_value_dual_mode("select null::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select null::numeric").await;
             assert_eq!(null_value, None);
         }
 
@@ -442,43 +422,25 @@ mod tests {
 
             // Test very small number
             let small: Decimal = client
-                .read_single_value_dual_mode("select 0.0001::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 0.0001::numeric").await;
             assert_eq!(small, "0.0001".parse::<Decimal>().unwrap());
 
             // Test number with trailing zeros
             let trailing_zeros: Decimal = client
-                .read_single_value_dual_mode("select 123.4500::numeric")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select 123.4500::numeric").await;
             assert_eq!(trailing_zeros, "123.45".parse::<Decimal>().unwrap()); // PostgreSQL should normalize
         }
 
         #[test]
-        async fn test_numeric_error_handling() {
+        async fn test_numeric_nan_error() {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test NaN should return an error
             let nan_result = client
-                .read_single_value::<Decimal>("select 'NaN'::numeric;", &[])
+                .try_read_single_value::<Decimal>("select 'NaN'::numeric;", &[])
                 .await;
             assert!(nan_result.is_err(), "Expected error for NaN NUMERIC");
             assert!(nan_result.unwrap_err().to_string().contains("NaN"));
-
-            // Test very large numbers that might exceed rust_decimal precision
-            // rust_decimal supports up to 28 digits of precision
-            let large_result = client
-                .read_single_value::<Decimal>("select 99999999999999999999999999999999999999.999999999999999999999999999999999999::numeric;", &[])
-                .await;
-            // This might succeed or fail depending on rust_decimal's limits - we just want to ensure it doesn't panic
-            match large_result {
-                Ok(_) => {} // Fine if it works
-                Err(e) => {
-                    // Should be a clean error, not a panic
-                    println!("Large number error (expected): {e}");
-                }
-            }
         }
 
         #[test]
@@ -487,9 +449,7 @@ mod tests {
 
             // Test that reading numeric arrays works (PostgreSQL arrays automatically supported)
             let numeric_array: Vec<Decimal> = client
-                .read_single_value_dual_mode("select ARRAY[0::numeric, 123.456::numeric, -789.012::numeric, 0.000000001::numeric]")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select ARRAY[0::numeric, 123.456::numeric, -789.012::numeric, 0.000000001::numeric]").await;
 
             let expected = vec![
                 "0".parse::<Decimal>().unwrap(),

@@ -175,15 +175,13 @@ mod tests {
                     let nan_text: $typ = helper
                         .client
                         .read_single_value_simple(&format!("select 'NaN'::{} ", <$typ>::PG_NAME))
-                        .await
-                        .unwrap();
+                        .await;
                     assert!(nan_text.is_nan());
 
                     let nan_binary: $typ = helper
                         .client
                         .read_single_value(&format!("select 'NaN'::{} ", <$typ>::PG_NAME), &[])
-                        .await
-                        .unwrap();
+                        .await;
                     assert!(nan_binary.is_nan());
 
                     let should_be_nan: $typ = helper
@@ -192,8 +190,7 @@ mod tests {
                             &format!("select $1::{} ", <$typ>::PG_NAME),
                             &[&<$typ>::NAN],
                         )
-                        .await
-                        .unwrap();
+                        .await;
                     assert!(should_be_nan.is_nan());
                 };
             }

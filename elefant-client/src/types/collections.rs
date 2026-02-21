@@ -191,11 +191,9 @@ mod tests {
                 .unwrap();
 
             let mut value: Vec<i16> = client
-                .read_single_value("select value from test_array_table;", &[])
-                .await
-                .unwrap();
+                .read_single_value("select value from test_array_table;", &[]).await;
             assert_eq!(value, vec![1, 2, 3]);
-            value = client.read_single_value(&prepared, &[]).await.unwrap();
+            value = client.read_single_value(&prepared, &[]).await;
             assert_eq!(value, vec![1, 2, 3]);
 
             client
@@ -204,11 +202,9 @@ mod tests {
                 .unwrap();
 
             value = client
-                .read_single_value("select value from test_array_table;", &[])
-                .await
-                .unwrap();
+                .read_single_value("select value from test_array_table;", &[]).await;
             assert_eq!(value, Vec::<i16>::new());
-            value = client.read_single_value(&prepared, &[]).await.unwrap();
+            value = client.read_single_value(&prepared, &[]).await;
             assert_eq!(value, Vec::<i16>::new());
 
             client
@@ -217,11 +213,9 @@ mod tests {
                 .unwrap();
 
             let mut value: Vec<Option<i16>> = client
-                .read_single_value("select value from test_array_table;", &[])
-                .await
-                .unwrap();
+                .read_single_value("select value from test_array_table;", &[]).await;
             assert_eq!(value, vec![Some(1), None, Some(3)]);
-            value = client.read_single_value(&prepared, &[]).await.unwrap();
+            value = client.read_single_value(&prepared, &[]).await;
             assert_eq!(value, vec![Some(1), None, Some(3)]);
 
             client
@@ -229,11 +223,9 @@ mod tests {
                 .await
                 .unwrap();
             let mut value: Vec<Option<i16>> = client
-                .read_single_value("select value from test_array_table;", &[])
-                .await
-                .unwrap();
+                .read_single_value("select value from test_array_table;", &[]).await;
             assert_eq!(value, vec![None]);
-            value = client.read_single_value(&prepared, &[]).await.unwrap();
+            value = client.read_single_value(&prepared, &[]).await;
             assert_eq!(value, vec![None]);
         }
     }

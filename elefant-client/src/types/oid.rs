@@ -31,9 +31,7 @@ mod tests {
             let mut client = get_tokio_test_client().await;
 
             let oid: Oid = client
-                .read_single_value_dual_mode("select '26'::oid")
-                .await
-                .unwrap();
+                .read_single_value_dual_mode("select '26'::oid").await;
 
             assert_eq!(oid, Oid(26));
         }

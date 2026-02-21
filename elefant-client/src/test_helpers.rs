@@ -1,5 +1,5 @@
+use crate::pool::ConnectionFactory;
 use crate::postgres_client::{PostgresClient, QueryResultSet};
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::{ElefantClientError, FromSql, FromSqlBinary, FromSqlOwned, FromSqlText, PostgresConnectionSettings, Statement, ToSql};
 use std::fmt::Debug;
 
@@ -18,7 +18,7 @@ pub(crate) async fn get_tokio_test_client() -> crate::tokio_connection::TokioPos
         .unwrap()
 }
 
-impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+impl<F: ConnectionFactory> PostgresClient<F> {
     /// Read a single value using binary mode (with prepared statements), returning Result
     /// Test helper method - enforces at compile time that T supports binary format parsing
     pub async fn try_read_single_value<'postgres_client, T>(

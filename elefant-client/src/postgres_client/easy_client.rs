@@ -1,9 +1,9 @@
+use crate::pool::ConnectionFactory;
 use crate::postgres_client::statements::Statement;
 use crate::postgres_client::{PostgresClient, QueryResultSet};
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::{ElefantClientError, ToSql};
 
-impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+impl<F: ConnectionFactory> PostgresClient<F> {
     /// Execute a non-query statement using binary mode (with prepared statements)
     pub async fn execute_non_query<S>(
         &mut self,

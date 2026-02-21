@@ -211,7 +211,7 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
 
     #[instrument(skip_all)]
     async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
-        if self.current_command_count % self.options.max_commands_per_chunk == 0 {
+        if self.current_command_count.is_multiple_of(self.options.max_commands_per_chunk) {
             if !self.is_empty {
                 self.file.write_all(b"\n\n").await?;
             }

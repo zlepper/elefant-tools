@@ -87,7 +87,7 @@ impl<'a> FromSqlBinary<'a> for Decimal {
                 mantissa = mantissa
                     .checked_mul(10000)
                     .and_then(|m| m.checked_add(digit as i128))
-                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
+                    .ok_or("Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
             }
         } else if digits_before_decimal >= total_digit_positions {
             // All digits are before decimal point
@@ -98,7 +98,7 @@ impl<'a> FromSqlBinary<'a> for Decimal {
                 mantissa = mantissa
                     .checked_mul(10000)
                     .and_then(|m| m.checked_add(digit as i128))
-                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
+                    .ok_or("Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
             }
 
             // Add trailing zeros for extra weight positions
@@ -106,7 +106,7 @@ impl<'a> FromSqlBinary<'a> for Decimal {
             for _ in 0..extra_zero_positions {
                 mantissa = mantissa
                     .checked_mul(10)
-                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (trailing zeros overflow)")?;
+                    .ok_or("Numeric value exceeds rust_decimal precision (trailing zeros overflow)")?;
             }
         } else {
             // Mixed: some before, some after decimal point
@@ -117,7 +117,7 @@ impl<'a> FromSqlBinary<'a> for Decimal {
                 mantissa = mantissa
                     .checked_mul(10000)
                     .and_then(|m| m.checked_add(digit as i128))
-                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
+                    .ok_or("Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
             }
         }
 

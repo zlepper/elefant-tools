@@ -1,5 +1,5 @@
+use crate::pool::ConnectionFactory;
 use crate::postgres_client::query::PreparedQueryResult;
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::{BackendMessage, FrontendMessage, ValueFormat};
 use crate::{protocol, ElefantClientError, PostgresClient, QueryResult, ToSql};
 use std::borrow::Cow;
@@ -30,11 +30,11 @@ impl PreparedQuery {
     }
 
     /// Execute this prepared statement with parameters, returning a binary mode result
-    pub async fn execute<'postgres_client, C: ElefantAsyncReadWrite>(
+    pub async fn execute<'postgres_client, F: ConnectionFactory>(
         &self,
-        client: &'postgres_client mut PostgresClient<C>,
+        client: &'postgres_client mut PostgresClient<F>,
         parameters: &[&dyn ToSql],
-    ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> {
+    ) -> Result<QueryResult<'postgres_client, F>, ElefantClientError> {
         client.start_new_query().await?;
         client.sync_required = true;
 
@@ -117,18 +117,18 @@ trait Sealed {}
 
 #[allow(private_bounds)]
 pub trait Statement: Sealed {
-    fn prepare<C: ElefantAsyncReadWrite>(
+    fn prepare<F: ConnectionFactory>(
         &self,
-        client: &mut PostgresClient<C>,
+        client: &mut PostgresClient<F>,
     ) -> impl Future<Output = Result<PreparedQuery, ElefantClientError>>;
 }
 
 impl Sealed for PreparedQuery {}
 
 impl Statement for PreparedQuery {
-    async fn prepare<C: ElefantAsyncReadWrite>(
+    async fn prepare<F: ConnectionFactory>(
         &self,
-        _client: &mut PostgresClient<C>,
+        _client: &mut PostgresClient<F>,
     ) -> Result<PreparedQuery, ElefantClientError> {
         // PreparedQuery is already prepared, so just clone it
         Ok(PreparedQuery {
@@ -143,9 +143,9 @@ impl Statement for PreparedQuery {
 impl Sealed for str {}
 
 impl Statement for str {
-    async fn prepare<C: ElefantAsyncReadWrite>(
+    async fn prepare<F: ConnectionFactory>(
         &self,
-        client: &mut PostgresClient<C>,
+        client: &mut PostgresClient<F>,
     ) -> Result<PreparedQuery, ElefantClientError> {
         client.prepare_with_name(self, None).await
     }
@@ -154,9 +154,9 @@ impl Statement for str {
 impl Sealed for String {}
 
 impl Statement for String {
-    async fn prepare<C: ElefantAsyncReadWrite>(
+    async fn prepare<F: ConnectionFactory>(
         &self,
-        client: &mut PostgresClient<C>,
+        client: &mut PostgresClient<F>,
     ) -> Result<PreparedQuery, ElefantClientError> {
         self.as_str().prepare(client).await
     }

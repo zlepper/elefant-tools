@@ -1,5 +1,5 @@
+use crate::pool::ConnectionFactory;
 use crate::postgres_client::PostgresClient;
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::sasl::ChannelBinding;
 use crate::protocol::{
     sasl, BackendMessage, FrontendMessage, FrontendPMessage, PasswordMessage, SASLInitialResponse,
@@ -9,13 +9,14 @@ use crate::{ElefantClientError, PostgresConnectionSettings};
 use md5::Digest;
 use std::borrow::Cow;
 
-impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+impl<F: ConnectionFactory> PostgresClient<F> {
     pub(crate) async fn establish(&mut self) -> Result<(), ElefantClientError> {
+        let settings = self.pool.settings().clone();
         self.connection
             .write_frontend_message(&FrontendMessage::StartupMessage(StartupMessage {
                 parameters: vec![
-                    StartupMessageParameter::new("user", &self.settings.user),
-                    StartupMessageParameter::new("database", &self.settings.database),
+                    StartupMessageParameter::new("user", &settings.user),
+                    StartupMessageParameter::new("database", &settings.database),
                     StartupMessageParameter::new("client_encoding", "UTF8"),
                 ],
             }))
@@ -43,7 +44,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                 match supported_mechanism {
                     Some(SaslMechanism::ScramSha256) => {
                         let mut sas = sasl::ScramSha256::new(
-                            self.settings.password.as_bytes(),
+                            settings.password.as_bytes(),
                             ChannelBinding::unsupported(),
                         );
 
@@ -98,7 +99,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                 }
             }
             BackendMessage::AuthenticationMD5Password(md5_pw) => {
-                let pw = calculate_md5_password_message(&self.settings, md5_pw.salt);
+                let pw = calculate_md5_password_message(&settings, md5_pw.salt);
                 self.connection
                     .write_frontend_message(&FrontendMessage::FrontendPMessage(
                         FrontendPMessage::PasswordMessage(PasswordMessage {

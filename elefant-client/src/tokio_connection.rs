@@ -1,3 +1,4 @@
+use crate::pool::{ConnectionFactory, PostgresPool};
 use crate::postgres_client::PostgresClient;
 use crate::protocol::async_io::{ElefantAsyncRead, ElefantAsyncWrite};
 use crate::protocol::PostgresConnection;
@@ -24,28 +25,31 @@ impl<T: AsyncWrite + Unpin> ElefantAsyncWrite for TokioWrapper<T> {
     }
 }
 
-pub type TokioPostgresConnection = PostgresConnection<TokioWrapper<BufWriter<TcpStream>>>;
-pub type TokioPostgresClient = PostgresClient<TokioWrapper<BufWriter<TcpStream>>>;
+pub struct TokioConnectionFactory;
 
-async fn new_connection(
-    settings: &PostgresConnectionSettings,
-) -> Result<TokioPostgresConnection, ElefantClientError> {
-    let stream = TcpStream::connect(format!("{}:{}", settings.host, settings.port)).await?;
-    stream.set_nodelay(true)?;
+impl ConnectionFactory for TokioConnectionFactory {
+    type Connection = TokioWrapper<BufWriter<TcpStream>>;
 
-    let stream = BufWriter::new(stream);
-
-    Ok(PostgresConnection::new(TokioWrapper(stream)))
+    async fn create_connection(
+        &self,
+        settings: &PostgresConnectionSettings,
+    ) -> Result<PostgresConnection<Self::Connection>, ElefantClientError> {
+        let stream = TcpStream::connect(format!("{}:{}", settings.host, settings.port)).await?;
+        stream.set_nodelay(true)?;
+        let stream = BufWriter::new(stream);
+        Ok(PostgresConnection::new(TokioWrapper(stream)))
+    }
 }
+
+pub type TokioPostgresConnection = PostgresConnection<TokioWrapper<BufWriter<TcpStream>>>;
+pub type TokioPostgresClient = PostgresClient<TokioConnectionFactory>;
+pub type TokioPostgresPool = PostgresPool<TokioConnectionFactory>;
 
 pub async fn new_client(
     settings: PostgresConnectionSettings,
 ) -> Result<TokioPostgresClient, ElefantClientError> {
-    let connection = new_connection(&settings).await?;
-
-    let client = PostgresClient::new(connection, settings).await?;
-
-    Ok(client)
+    let pool = PostgresPool::new(TokioConnectionFactory, settings);
+    pool.get_client().await
 }
 
 #[cfg(test)]

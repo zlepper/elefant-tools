@@ -1,14 +1,14 @@
-use crate::protocol::async_io::ElefantAsyncReadWrite;
+use crate::pool::ConnectionFactory;
 use crate::protocol::{BackendMessage, CopyData};
 use crate::{ElefantClientError, PostgresClient, Statement, ToSql};
 use tracing::debug;
 
-impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+impl<F: ConnectionFactory> PostgresClient<F> {
     pub async fn copy_out(
         &mut self,
         query: &(impl Statement + ?Sized),
         parameters: &[&dyn ToSql],
-    ) -> Result<CopyReader<'_, C>, ElefantClientError> {
+    ) -> Result<CopyReader<'_, F>, ElefantClientError> {
         let prepared = query.prepare(self).await?;
         prepared.execute(self, parameters).await?;
 
@@ -26,7 +26,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         &mut self,
         query: &(impl Statement + ?Sized),
         parameters: &[&dyn ToSql],
-    ) -> Result<CopyWriter<'_, C>, ElefantClientError> {
+    ) -> Result<CopyWriter<'_, F>, ElefantClientError> {
         let prepared = query.prepare(self).await?;
         prepared.execute(self, parameters).await?;
 
@@ -41,14 +41,14 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     }
 }
 
-pub struct CopyWriter<'a, C: ElefantAsyncReadWrite> {
-    client: &'a mut PostgresClient<C>,
+pub struct CopyWriter<'a, F: ConnectionFactory> {
+    client: &'a mut PostgresClient<F>,
     data_buffer: Vec<u8>,
     cursor: usize,
 }
 
-impl<'a, C: ElefantAsyncReadWrite> CopyWriter<'a, C> {
-    fn new(client: &'a mut PostgresClient<C>) -> Self {
+impl<'a, F: ConnectionFactory> CopyWriter<'a, F> {
+    fn new(client: &'a mut PostgresClient<F>) -> Self {
         Self {
             client,
             data_buffer: vec![0; 8192],
@@ -136,11 +136,11 @@ impl<'a, C: ElefantAsyncReadWrite> CopyWriter<'a, C> {
     }
 }
 
-pub struct CopyReader<'a, C: ElefantAsyncReadWrite> {
-    client: &'a mut PostgresClient<C>,
+pub struct CopyReader<'a, F: ConnectionFactory> {
+    client: &'a mut PostgresClient<F>,
 }
 
-impl<'a, C: ElefantAsyncReadWrite> CopyReader<'a, C> {
+impl<'a, F: ConnectionFactory> CopyReader<'a, F> {
     pub async fn read(&mut self) -> Result<Option<CopyData<'_>>, ElefantClientError> {
         let msg = self.client.read_next_backend_message().await?;
         match msg {
@@ -174,7 +174,7 @@ impl<'a, C: ElefantAsyncReadWrite> CopyReader<'a, C> {
         Ok(())
     }
 
-    pub async fn write_to<W: ElefantAsyncReadWrite>(
+    pub async fn write_to<W: ConnectionFactory>(
         mut self,
         target: &mut CopyWriter<'_, W>,
     ) -> Result<(), ElefantClientError> {

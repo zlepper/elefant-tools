@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod error;
+pub mod pool;
 mod postgres_client;
 pub mod profiler;
 mod protocol;
@@ -11,6 +12,7 @@ pub mod tokio_connection;
 mod types;
 
 pub use error::ElefantClientError;
+pub use pool::{ConnectionFactory, PostgresPool};
 pub use postgres_client::*;
 pub use types::*;
 

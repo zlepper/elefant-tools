@@ -4,20 +4,20 @@ mod establish;
 mod query;
 mod statements;
 
-use crate::protocol::async_io::ElefantAsyncReadWrite;
+use crate::pool::{ConnectionFactory, PostgresPool};
 use crate::protocol::{
     BackendMessage, CurrentTransactionStatus, FrontendMessage, PostgresConnection,
 };
-use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSettings};
+use crate::{reborrow_until_polonius, ElefantClientError};
 use std::sync::atomic::AtomicU64;
 use tracing::{debug, trace};
 
 pub use query::{PostgresDataRow, QueryResult, SimpleQueryResult, QueryResultSet, RowResultReader};
 pub use statements::*;
 
-pub struct PostgresClient<C> {
-    pub(crate) connection: PostgresConnection<C>,
-    pub(crate) settings: PostgresConnectionSettings,
+pub struct PostgresClient<F: ConnectionFactory> {
+    pub(crate) connection: PostgresConnection<F::Connection>,
+    pub(crate) pool: PostgresPool<F>,
     pub(crate) ready_for_query: bool,
     write_buffer: Vec<u8>,
     pub(crate) client_id: u64,
@@ -26,7 +26,7 @@ pub struct PostgresClient<C> {
     current_transaction_status: CurrentTransactionStatus,
 }
 
-impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+impl<F: ConnectionFactory> PostgresClient<F> {
     pub(crate) async fn start_new_query(&mut self) -> Result<(), ElefantClientError> {
         if !self.ready_for_query {
             if self.sync_required {
@@ -89,12 +89,12 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     }
 
     pub(crate) async fn new(
-        connection: PostgresConnection<C>,
-        settings: PostgresConnectionSettings,
+        connection: PostgresConnection<F::Connection>,
+        pool: PostgresPool<F>,
     ) -> Result<Self, ElefantClientError> {
         let mut client = Self {
             connection,
-            settings,
+            pool,
             ready_for_query: false,
             write_buffer: Vec::new(),
             client_id: CLIENT_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
@@ -108,12 +108,16 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         Ok(client)
     }
 
+    pub fn pool(&self) -> &PostgresPool<F> {
+        &self.pool
+    }
+
     /// Helper method for reading backend messages while ignoring and handling "async" messages.
     pub(crate) async fn read_next_backend_message(
         &mut self,
     ) -> Result<BackendMessage<'_>, ElefantClientError> {
         loop {
-            let connection: &mut PostgresConnection<C> =
+            let connection: &mut PostgresConnection<F::Connection> =
                 reborrow_until_polonius!(&mut self.connection);
             let msg = connection.read_backend_message().await?;
             match msg {

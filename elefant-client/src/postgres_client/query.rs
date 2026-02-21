@@ -1,6 +1,6 @@
+use crate::pool::ConnectionFactory;
 use crate::postgres_client::statements::{PreparedQuery, Statement};
 use crate::postgres_client::PostgresClient;
-use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, RowDescription, ValueFormat,
 };
@@ -22,13 +22,13 @@ macro_rules! reborrow_until_polonius {
     };
 }
 
-impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+impl<F: ConnectionFactory> PostgresClient<F> {
     /// Execute a query in binary mode - always uses prepared statements
     pub async fn query(
         &mut self,
         query: &(impl Statement + ?Sized),
         parameters: &[&dyn ToSql],
-    ) -> Result<QueryResult<'_, C>, ElefantClientError> {
+    ) -> Result<QueryResult<'_, F>, ElefantClientError> {
         let prepared = query.prepare(self).await?;
         prepared.execute(self, parameters).await
     }
@@ -37,7 +37,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn query_simple(
         &mut self,
         query: &str,
-    ) -> Result<SimpleQueryResult<'_, C>, ElefantClientError> {
+    ) -> Result<SimpleQueryResult<'_, F>, ElefantClientError> {
         self.start_new_query().await?;
         self.connection
             .write_frontend_message(&FrontendMessage::Query(protocol::Query {
@@ -173,24 +173,24 @@ pub(crate) enum PreparedQueryResult {
 }
 
 // Shared base structure for common query result functionality
-pub struct QueryResultBase<'postgres_client, C> {
-    client: &'postgres_client mut PostgresClient<C>,
+pub struct QueryResultBase<'postgres_client, F: ConnectionFactory> {
+    client: &'postgres_client mut PostgresClient<F>,
     prepared_query_result: Option<Rc<PreparedQueryResult>>,
 }
 
 // Binary mode query result - enforces FromSqlBinary constraint
-pub struct QueryResult<'postgres_client, C> {
-    base: QueryResultBase<'postgres_client, C>,
+pub struct QueryResult<'postgres_client, F: ConnectionFactory> {
+    base: QueryResultBase<'postgres_client, F>,
 }
 
-// Simple mode query result - enforces FromSqlText constraint  
-pub struct SimpleQueryResult<'postgres_client, C> {
-    base: QueryResultBase<'postgres_client, C>,
+// Simple mode query result - enforces FromSqlText constraint
+pub struct SimpleQueryResult<'postgres_client, F: ConnectionFactory> {
+    base: QueryResultBase<'postgres_client, F>,
 }
 
-impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResultBase<'postgres_client, C> {
+impl<'postgres_client, F: ConnectionFactory> QueryResultBase<'postgres_client, F> {
     pub(crate) fn new(
-        client: &'postgres_client mut PostgresClient<C>,
+        client: &'postgres_client mut PostgresClient<F>,
         prepared_query_result: Option<Rc<PreparedQueryResult>>,
     ) -> Self {
         Self {
@@ -201,12 +201,12 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResultBase<'postgres_clien
 
     pub async fn next_result_set<'query_result>(
         &'query_result mut self,
-    ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError> {
+    ) -> Result<QueryResultSet<'postgres_client, 'query_result, F>, ElefantClientError> {
         if let Some(prepared) = self.prepared_query_result.take() {
             self.prepared_query_result = Some(Rc::new(PreparedQueryResult::NoData));
             return match prepared.as_ref() {
                 PreparedQueryResult::RowDescription(rd) => {
-                    let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
+                    let client: &mut PostgresClient<F> = reborrow_until_polonius!(self.client);
                     Ok(QueryResultSet::RowDescriptionReceived(RowResultReader {
                         client,
                         row_description: rd.clone(),
@@ -218,7 +218,7 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResultBase<'postgres_clien
         }
 
         loop {
-            let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
+            let client: &mut PostgresClient<F> = reborrow_until_polonius!(self.client);
             let msg = client.read_next_backend_message().await?;
 
             match msg {
@@ -259,9 +259,9 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResultBase<'postgres_clien
 }
 
 // QueryResult implementations (binary mode)
-impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C> {
+impl<'postgres_client, F: ConnectionFactory> QueryResult<'postgres_client, F> {
     pub(crate) fn new(
-        client: &'postgres_client mut PostgresClient<C>,
+        client: &'postgres_client mut PostgresClient<F>,
         prepared_query_result: Option<Rc<PreparedQueryResult>>,
     ) -> Self {
         Self {
@@ -271,7 +271,7 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C
 
     pub async fn next_result_set<'query_result>(
         &'query_result mut self,
-    ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError> {
+    ) -> Result<QueryResultSet<'postgres_client, 'query_result, F>, ElefantClientError> {
         self.base.next_result_set().await
     }
 
@@ -331,9 +331,9 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C
 }
 
 // SimpleQueryResult implementations (text mode)
-impl<'postgres_client, C: ElefantAsyncReadWrite> SimpleQueryResult<'postgres_client, C> {
+impl<'postgres_client, F: ConnectionFactory> SimpleQueryResult<'postgres_client, F> {
     pub(crate) fn new(
-        client: &'postgres_client mut PostgresClient<C>,
+        client: &'postgres_client mut PostgresClient<F>,
         prepared_query_result: Option<Rc<PreparedQueryResult>>,
     ) -> Self {
         Self {
@@ -343,7 +343,7 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> SimpleQueryResult<'postgres_cli
 
     pub async fn next_result_set<'query_result>(
         &'query_result mut self,
-    ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError> {
+    ) -> Result<QueryResultSet<'postgres_client, 'query_result, F>, ElefantClientError> {
         self.base.next_result_set().await
     }
 
@@ -402,26 +402,26 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> SimpleQueryResult<'postgres_cli
     }
 }
 
-pub enum QueryResultSet<'postgres_client, 'query_result_set, C> {
+pub enum QueryResultSet<'postgres_client, 'query_result_set, F: ConnectionFactory> {
     QueryProcessingComplete,
-    RowDescriptionReceived(RowResultReader<'postgres_client, 'query_result_set, C>),
+    RowDescriptionReceived(RowResultReader<'postgres_client, 'query_result_set, F>),
 }
 
-pub struct RowResultReader<'postgres_client, 'query_result_set, C> {
-    client: &'postgres_client mut PostgresClient<C>,
+pub struct RowResultReader<'postgres_client, 'query_result_set, F: ConnectionFactory> {
+    client: &'postgres_client mut PostgresClient<F>,
     row_description: RowDescription,
     // Ensures that the QueryResult cannot be used while we are processing rows.
-    query_result_res: PhantomData<&'query_result_set QueryResult<'postgres_client, C>>,
+    query_result_res: PhantomData<&'query_result_set QueryResult<'postgres_client, F>>,
 }
 
-impl<'postgres_client, 'query_result_set, C: ElefantAsyncReadWrite>
-    RowResultReader<'postgres_client, 'query_result_set, C>
+impl<'postgres_client, 'query_result_set, F: ConnectionFactory>
+    RowResultReader<'postgres_client, 'query_result_set, F>
 {
     pub async fn next_row<'row_result_reader>(
         &'row_result_reader mut self,
     ) -> Result<Option<PostgresDataRow<'postgres_client, 'row_result_reader>>, ElefantClientError>
     {
-        let client: &mut PostgresClient<C> = reborrow_until_polonius!(self.client);
+        let client: &mut PostgresClient<F> = reborrow_until_polonius!(self.client);
         let msg = client.read_next_backend_message().await?;
 
         match msg {
@@ -528,7 +528,7 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
         }
     }
 
-    /// Get a value from text format data - enforces compile-time constraint that T supports text parsing  
+    /// Get a value from text format data - enforces compile-time constraint that T supports text parsing
     pub fn get_text<T>(&self, index: usize) -> Result<T, ElefantClientError>
     where
         T: FromSqlText<'postgres_client>,

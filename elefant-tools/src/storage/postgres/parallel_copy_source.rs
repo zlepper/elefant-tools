@@ -56,7 +56,7 @@ impl<'a> ParallelSafePostgresInstanceCopySourceStorage<'a> {
     }
 }
 
-impl<'a> CopySource for ParallelSafePostgresInstanceCopySourceStorage<'a> {
+impl CopySource for ParallelSafePostgresInstanceCopySourceStorage<'_> {
     type DataStream = MapErr<CopyOutStream, fn(tokio_postgres::Error) -> ElefantToolsError>;
     type Cleanup = ReleaseConnection;
 

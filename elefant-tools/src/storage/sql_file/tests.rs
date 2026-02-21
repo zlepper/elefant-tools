@@ -230,10 +230,10 @@ async fn exports_to_fake_file_15() {
             
             alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;
             
-            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
+            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id) not valid;
             
             -- chunk-separator-test_chunk_separator --
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#}
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id) not valid;"#}
     );
 
     let destination = get_test_helper_on_port("destination", 5415).await;
@@ -442,10 +442,10 @@ async fn exports_to_fake_file_14() {
             
             alter table public.tree_node add constraint unique_name_per_level unique using index unique_name_per_level;
             
-            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id);
+            alter table public.tree_node add constraint tree_node_field_id_fkey foreign key (field_id) references public.field (id) not valid;
             
             -- chunk-separator-test_chunk_separator --
-            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id);"#}
+            alter table public.tree_node add constraint tree_node_field_id_parent_id_fkey foreign key (field_id, parent_id) references public.tree_node (field_id, id) not valid;"#}
     );
 
     let destination = get_test_helper_on_port("destination", 5414).await;

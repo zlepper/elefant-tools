@@ -114,6 +114,8 @@ impl PostgresForeignKey {
             sql.push(')');
         }
 
+        sql.push_str(" not valid");
+
         sql.push(';');
 
         if let Some(comment) = &self.comment {

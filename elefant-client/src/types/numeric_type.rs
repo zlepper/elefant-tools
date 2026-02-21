@@ -1,12 +1,18 @@
 use crate::protocol::FieldDescription;
 use crate::types::PostgresType;
-use crate::types::{FromSql, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use rust_decimal::Decimal;
 use std::error::Error;
 
 // PostgreSQL NUMERIC type - arbitrary precision decimal values
 // Binary format: ndigits (i16) + weight (i16) + sign (i16) + dscale (i16) + digits (array of i16)
-impl<'a> FromSql<'a> for Decimal {
+impl<'a> FromSqlBase<'a> for Decimal {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::NUMERIC.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Decimal {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
@@ -78,7 +84,10 @@ impl<'a> FromSql<'a> for Decimal {
 
             // Build mantissa from the digits
             for &digit in &digits {
-                mantissa = mantissa * 10000 + digit as i128;
+                mantissa = mantissa
+                    .checked_mul(10000)
+                    .and_then(|m| m.checked_add(digit as i128))
+                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
             }
         } else if digits_before_decimal >= total_digit_positions {
             // All digits are before decimal point
@@ -86,13 +95,18 @@ impl<'a> FromSql<'a> for Decimal {
 
             // Build mantissa from digits and add trailing zeros
             for &digit in &digits {
-                mantissa = mantissa * 10000 + digit as i128;
+                mantissa = mantissa
+                    .checked_mul(10000)
+                    .and_then(|m| m.checked_add(digit as i128))
+                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
             }
 
             // Add trailing zeros for extra weight positions
             let extra_zero_positions = (digits_before_decimal - total_digit_positions) * 4;
             for _ in 0..extra_zero_positions {
-                mantissa *= 10;
+                mantissa = mantissa
+                    .checked_mul(10)
+                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (trailing zeros overflow)")?;
             }
         } else {
             // Mixed: some before, some after decimal point
@@ -100,7 +114,10 @@ impl<'a> FromSql<'a> for Decimal {
 
             // Build mantissa from all digits
             for &digit in &digits {
-                mantissa = mantissa * 10000 + digit as i128;
+                mantissa = mantissa
+                    .checked_mul(10000)
+                    .and_then(|m| m.checked_add(digit as i128))
+                    .ok_or_else(|| "Numeric value exceeds rust_decimal precision (mantissa overflow)")?;
             }
         }
 
@@ -115,7 +132,9 @@ impl<'a> FromSql<'a> for Decimal {
             Err(e) => Err(format!("Failed to create Decimal from mantissa {mantissa} with scale {mantissa_scale}: {e}").into()),
         }
     }
+}
 
+impl<'a> FromSqlText<'a> for Decimal {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -127,10 +146,6 @@ impl<'a> FromSql<'a> for Decimal {
                 "Failed to parse NUMERIC from text '{raw}': {e}. Error occurred when parsing field {field:?}"
             ).into()),
         }
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::NUMERIC.oid
     }
 }
 
@@ -347,7 +362,7 @@ mod tests {
         async fn test_numeric_small_decimal_round_trip() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            client.execute_non_query("drop table if exists test_numeric_debug; create table test_numeric_debug(value numeric);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_numeric_debug; create table test_numeric_debug(value numeric);").await.unwrap();
 
             // Test the failing case
             let test_value = "0.000000001".parse::<Decimal>().unwrap();
@@ -375,7 +390,7 @@ mod tests {
         async fn test_numeric_round_trip() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            client.execute_non_query("drop table if exists test_numeric_table; create table test_numeric_table(value numeric);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_numeric_table; create table test_numeric_table(value numeric);").await.unwrap();
 
             let test_values = vec![
                 "0".parse::<Decimal>().unwrap(),

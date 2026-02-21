@@ -12,7 +12,7 @@ use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSetti
 use std::sync::atomic::AtomicU64;
 use tracing::{debug, trace};
 
-pub use query::{PostgresDataRow, QueryResult, QueryResultSet, RowResultReader};
+pub use query::{PostgresDataRow, QueryResult, SimpleQueryResult, QueryResultSet, RowResultReader};
 pub use statements::*;
 
 pub struct PostgresClient<C> {

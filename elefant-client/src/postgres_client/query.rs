@@ -4,7 +4,7 @@ use crate::protocol::async_io::ElefantAsyncReadWrite;
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, RowDescription, ValueFormat,
 };
-use crate::{protocol, ElefantClientError, FromSql, FromSqlOwned, FromSqlRowOwned, ToSql};
+use crate::{protocol, ElefantClientError, FromSql, FromSqlBinary, FromSqlBinaryOwned, FromSqlText, FromSqlTextOwned, FromSqlRowOwned, ToSql};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -23,12 +23,30 @@ macro_rules! reborrow_until_polonius {
 }
 
 impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
+    /// Execute a query in binary mode - always uses prepared statements
     pub async fn query(
         &mut self,
         query: &(impl Statement + ?Sized),
         parameters: &[&(dyn ToSql)],
     ) -> Result<QueryResult<C>, ElefantClientError> {
-        query.send(self, parameters).await
+        let prepared = query.prepare(self).await?;
+        prepared.execute(self, parameters).await
+    }
+
+    /// Execute a simple query in text mode - only accepts &str, no parameters
+    pub async fn query_simple(
+        &mut self,
+        query: &str,
+    ) -> Result<SimpleQueryResult<C>, ElefantClientError> {
+        self.start_new_query().await?;
+        self.connection
+            .write_frontend_message(&FrontendMessage::Query(protocol::Query {
+                query: Cow::Borrowed(query),
+            }))
+            .await?;
+        self.connection.flush().await?;
+
+        Ok(SimpleQueryResult::new(self, None))
     }
 
     pub async fn prepare_query(
@@ -154,12 +172,23 @@ pub(crate) enum PreparedQueryResult {
     NoData,
 }
 
-pub struct QueryResult<'postgres_client, C> {
+// Shared base structure for common query result functionality
+pub struct QueryResultBase<'postgres_client, C> {
     client: &'postgres_client mut PostgresClient<C>,
     prepared_query_result: Option<Rc<PreparedQueryResult>>,
 }
 
-impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C> {
+// Binary mode query result - enforces FromSqlBinary constraint
+pub struct QueryResult<'postgres_client, C> {
+    base: QueryResultBase<'postgres_client, C>,
+}
+
+// Simple mode query result - enforces FromSqlText constraint  
+pub struct SimpleQueryResult<'postgres_client, C> {
+    base: QueryResultBase<'postgres_client, C>,
+}
+
+impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResultBase<'postgres_client, C> {
     pub(crate) fn new(
         client: &'postgres_client mut PostgresClient<C>,
         prepared_query_result: Option<Rc<PreparedQueryResult>>,
@@ -227,6 +256,24 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C
             }
         }
     }
+}
+
+// QueryResult implementations (binary mode)
+impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C> {
+    pub(crate) fn new(
+        client: &'postgres_client mut PostgresClient<C>,
+        prepared_query_result: Option<Rc<PreparedQueryResult>>,
+    ) -> Self {
+        Self {
+            base: QueryResultBase::new(client, prepared_query_result),
+        }
+    }
+
+    pub async fn next_result_set<'query_result>(
+        &'query_result mut self,
+    ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError> {
+        self.base.next_result_set().await
+    }
 
     pub async fn collect_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
     where
@@ -257,7 +304,7 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C
 
     pub async fn collect_single_column_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
     where
-        T: FromSqlOwned,
+        T: FromSqlBinaryOwned,
     {
         let mut results = Vec::new();
         loop {
@@ -270,7 +317,79 @@ impl<'postgres_client, C: ElefantAsyncReadWrite> QueryResult<'postgres_client, C
                     let row = row_result_reader.next_row().await?;
                     match row {
                         Some(row) => {
-                            let value: T = row.get(0)?;
+                            let value: T = row.get_binary(0)?;
+                            results.push(value);
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                },
+            }
+        }
+    }
+}
+
+// SimpleQueryResult implementations (text mode)
+impl<'postgres_client, C: ElefantAsyncReadWrite> SimpleQueryResult<'postgres_client, C> {
+    pub(crate) fn new(
+        client: &'postgres_client mut PostgresClient<C>,
+        prepared_query_result: Option<Rc<PreparedQueryResult>>,
+    ) -> Self {
+        Self {
+            base: QueryResultBase::new(client, prepared_query_result),
+        }
+    }
+
+    pub async fn next_result_set<'query_result>(
+        &'query_result mut self,
+    ) -> Result<QueryResultSet<'postgres_client, 'query_result, C>, ElefantClientError> {
+        self.base.next_result_set().await
+    }
+
+    pub async fn collect_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
+    where
+        T: FromSqlRowOwned,
+    {
+        let mut results = Vec::new();
+        loop {
+            let result_set = self.next_result_set().await?;
+            match result_set {
+                QueryResultSet::QueryProcessingComplete => {
+                    return Ok(results);
+                }
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
+                    let row = row_result_reader.next_row().await?;
+                    match row {
+                        Some(row) => {
+                            let value = T::from_sql_row(&row)?;
+                            results.push(value);
+                        }
+                        None => {
+                            break;
+                        }
+                    }
+                },
+            }
+        }
+    }
+
+    pub async fn collect_single_column_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
+    where
+        T: FromSqlTextOwned,
+    {
+        let mut results = Vec::new();
+        loop {
+            let result_set = self.next_result_set().await?;
+            match result_set {
+                QueryResultSet::QueryProcessingComplete => {
+                    return Ok(results);
+                }
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
+                    let row = row_result_reader.next_row().await?;
+                    match row {
+                        Some(row) => {
+                            let value: T = row.get_text(0)?;
                             results.push(value);
                         }
                         None => {
@@ -376,6 +495,66 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
                 })?,
             };
 
+            Ok(value)
+        } else {
+            T::from_null(field)
+        }
+    }
+
+    /// Get a value from binary format data - enforces compile-time constraint that T supports binary parsing
+    pub fn get_binary<T>(&self, index: usize) -> Result<T, ElefantClientError>
+    where
+        T: FromSqlBinary<'postgres_client>,
+    {
+        let field = &self.row_description.fields[index];
+
+        if !T::accepts(field) {
+            return Err(ElefantClientError::UnsupportedFieldType {
+                postgres_field: field.clone(),
+                desired_rust_type: std::any::type_name::<T>(),
+            });
+        }
+
+        if let Some(raw) = self.data_row.values[index] {
+            let value = T::from_sql_binary(raw, field).map_err(|e| {
+                ElefantClientError::DataTypeParseError {
+                    original_error: e,
+                    column_index: index,
+                }
+            })?;
+            Ok(value)
+        } else {
+            T::from_null(field)
+        }
+    }
+
+    /// Get a value from text format data - enforces compile-time constraint that T supports text parsing  
+    pub fn get_text<T>(&self, index: usize) -> Result<T, ElefantClientError>
+    where
+        T: FromSqlText<'postgres_client>,
+    {
+        let field = &self.row_description.fields[index];
+
+        if !T::accepts(field) {
+            return Err(ElefantClientError::UnsupportedFieldType {
+                postgres_field: field.clone(),
+                desired_rust_type: std::any::type_name::<T>(),
+            });
+        }
+
+        if let Some(raw) = self.data_row.values[index] {
+            let raw_str = std::str::from_utf8(raw).map_err(|e| {
+                ElefantClientError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    e,
+                ))
+            })?;
+            let value = T::from_sql_text(raw_str, field).map_err(|e| {
+                ElefantClientError::DataTypeParseError {
+                    original_error: e,
+                    column_index: index,
+                }
+            })?;
             Ok(value)
         } else {
             T::from_null(field)

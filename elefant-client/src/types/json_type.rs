@@ -1,6 +1,6 @@
 use crate::protocol::FieldDescription;
 use crate::types::PostgresType;
-use crate::types::{FromSql, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use serde_json::Value;
 use std::error::Error;
 
@@ -17,7 +17,13 @@ pub struct Json(pub Value);
 pub struct Jsonb(pub Value);
 
 // PostgreSQL JSON type - stored as text and parsed/serialized as JSON
-impl<'a> FromSql<'a> for Value {
+impl<'a> FromSqlBase<'a> for Value {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::JSON.oid || oid == PostgresType::JSONB.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Value {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -50,7 +56,9 @@ impl<'a> FromSql<'a> for Value {
             })
         }
     }
+}
 
+impl<'a> FromSqlText<'a> for Value {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -62,10 +70,6 @@ impl<'a> FromSql<'a> for Value {
             )
             .into()
         })
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::JSON.oid || oid == PostgresType::JSONB.oid
     }
 }
 
@@ -109,29 +113,39 @@ impl ToSql for Jsonb {
 }
 
 // FromSql implementations for wrapper types
-impl<'a> FromSql<'a> for Json {
-    fn from_sql_binary(
-        raw: &'a [u8],
-        field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        let value = Value::from_sql_binary(raw, field)?;
-        Ok(Json(value))
-    }
-
-    fn from_sql_text(
-        raw: &'a str,
-        field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        let value = Value::from_sql_text(raw, field)?;
-        Ok(Json(value))
-    }
-
+impl<'a> FromSqlBase<'a> for Json {
     fn accepts_postgres_type(oid: i32) -> bool {
         oid == PostgresType::JSON.oid
     }
 }
 
-impl<'a> FromSql<'a> for Jsonb {
+impl<'a> FromSqlBinary<'a> for Json {
+    fn from_sql_binary(
+        raw: &'a [u8],
+        field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        let value = Value::from_sql_binary(raw, field)?;
+        Ok(Json(value))
+    }
+}
+
+impl<'a> FromSqlText<'a> for Json {
+    fn from_sql_text(
+        raw: &'a str,
+        field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        let value = Value::from_sql_text(raw, field)?;
+        Ok(Json(value))
+    }
+}
+
+impl<'a> FromSqlBase<'a> for Jsonb {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::JSONB.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Jsonb {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -139,17 +153,15 @@ impl<'a> FromSql<'a> for Jsonb {
         let value = Value::from_sql_binary(raw, field)?;
         Ok(Jsonb(value))
     }
+}
 
+impl<'a> FromSqlText<'a> for Jsonb {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         let value = Value::from_sql_text(raw, field)?;
         Ok(Jsonb(value))
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::JSONB.oid
     }
 }
 
@@ -203,7 +215,7 @@ mod tests {
             assert_eq!(value, complex_json);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_json_table; create table test_json_table(value json);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_json_table; create table test_json_table(value json);").await.unwrap();
             let json_param = Json(complex_json.clone());
             client
                 .execute_non_query("insert into test_json_table values ($1);", &[&json_param])
@@ -228,7 +240,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test multiple different JSON types in a table for comprehensive testing
-            client.execute_non_query("drop table if exists test_json_multi; create table test_json_multi(id int, value json);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_json_multi; create table test_json_multi(id int, value json);").await.unwrap();
 
             // Insert various JSON types
             let test_values = vec![
@@ -270,7 +282,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test JSON values that require escaping at the JSON level
-            client.execute_non_query("drop table if exists test_json_escaping; create table test_json_escaping(id int, value json);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_json_escaping; create table test_json_escaping(id int, value json);").await.unwrap();
 
             let escaping_test_cases = vec![
                 (1, json!({"quote": "He said \"hello\" to me"})),
@@ -402,7 +414,7 @@ mod tests {
             assert_eq!(value, complex_jsonb);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_jsonb_table; create table test_jsonb_table(value jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_jsonb_table; create table test_jsonb_table(value jsonb);").await.unwrap();
             let jsonb_param = Jsonb(complex_jsonb.clone());
             client
                 .execute_non_query("insert into test_jsonb_table values ($1);", &[&jsonb_param])
@@ -427,7 +439,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test that JSONB normalizes data (removes whitespace, reorders keys)
-            client.execute_non_query("drop table if exists test_jsonb_vs_json; create table test_jsonb_vs_json(id int, json_val json, jsonb_val jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_jsonb_vs_json; create table test_jsonb_vs_json(id int, json_val json, jsonb_val jsonb);").await.unwrap();
 
             // Insert the same JSON with extra whitespace and different key order
             let json_with_spaces = r#"{ "z_last": 3 , "a_first":   1,  "middle": 2 }"#;
@@ -469,7 +481,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test JSONB value that contains an array (not PostgreSQL array of JSONB)
-            client.execute_non_query("drop table if exists test_jsonb_arrays; create table test_jsonb_arrays(value jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_jsonb_arrays; create table test_jsonb_arrays(value jsonb);").await.unwrap();
 
             let json_array_value = json!([
                 {"type": "user", "id": 1},
@@ -501,7 +513,7 @@ mod tests {
 
             // Test that PostgreSQL validates JSONB syntax - invalid JSON should cause database error
             let result = client
-                .read_single_value::<Value>("select '{invalid json'::jsonb;", &[])
+                .read_single_value_simple::<Value>("select '{invalid json'::jsonb;")
                 .await;
             assert!(
                 result.is_err(),
@@ -510,7 +522,7 @@ mod tests {
 
             // Test JSONB with binary format version handling
             // This test verifies our implementation handles the version byte correctly
-            client.execute_non_query("drop table if exists test_jsonb_version; create table test_jsonb_version(value jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_jsonb_version; create table test_jsonb_version(value jsonb);").await.unwrap();
 
             let test_json = json!({"version_test": true, "data": [1, 2, 3]});
             let jsonb_param = Jsonb(test_json.clone());
@@ -534,7 +546,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test that parameter binding works correctly for both JSON and JSONB columns
-            client.execute_non_query("drop table if exists test_json_jsonb_params; create table test_json_jsonb_params(id int, json_col json, jsonb_col jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_json_jsonb_params; create table test_json_jsonb_params(id int, json_col json, jsonb_col jsonb);").await.unwrap();
 
             let test_value = json!({
                 "test": "parameter binding",
@@ -581,7 +593,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test JSONB values that require escaping at the JSON level - same cases as JSON test
-            client.execute_non_query("drop table if exists test_jsonb_escaping; create table test_jsonb_escaping(id int, value jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_jsonb_escaping; create table test_jsonb_escaping(id int, value jsonb);").await.unwrap();
 
             let escaping_test_cases = vec![
                 (1, json!({"quote": "He said \"hello\" to me"})),
@@ -666,7 +678,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test that serde_json::Value now defaults to JSONB format
-            client.execute_non_query("drop table if exists test_default_behavior; create table test_default_behavior(id int, jsonb_col jsonb);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_default_behavior; create table test_default_behavior(id int, jsonb_col jsonb);").await.unwrap();
 
             let test_value = json!({
                 "default_test": true,

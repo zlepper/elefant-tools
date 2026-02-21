@@ -93,7 +93,6 @@ cargo build --package elefant-client --all-features
 
 # Build specific features only (for feature-specific verification)
 cargo build --package elefant-client --features tokio
-cargo build --package elefant-client --features monoio
 ```
 
 **Note**: Use `--all-features` for most compilation testing unless you specifically need to verify individual feature combinations. This ensures all code paths are compiled and tested.

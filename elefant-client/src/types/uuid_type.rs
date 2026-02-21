@@ -1,11 +1,17 @@
 use crate::protocol::FieldDescription;
 use crate::types::PostgresType;
-use crate::types::{FromSql, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use std::error::Error;
 use uuid::Uuid;
 
 // PostgreSQL UUID type - 16 bytes in big-endian byte order
-impl<'a> FromSql<'a> for Uuid {
+impl<'a> FromSqlBase<'a> for Uuid {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::UUID.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Uuid {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -21,7 +27,9 @@ impl<'a> FromSql<'a> for Uuid {
         let uuid_bytes: [u8; 16] = raw.try_into().unwrap();
         Ok(Uuid::from_bytes(uuid_bytes))
     }
+}
 
+impl<'a> FromSqlText<'a> for Uuid {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -31,10 +39,6 @@ impl<'a> FromSql<'a> for Uuid {
             .map_err(|e| format!(
                 "Failed to parse UUID from text '{raw}': {e}. Error occurred when parsing field {field:?}"
             ).into())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::UUID.oid
     }
 }
 
@@ -81,7 +85,7 @@ mod tests {
             assert_eq!(value, test_uuid);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_uuid_table; create table test_uuid_table(value uuid);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_uuid_table; create table test_uuid_table(value uuid);").await.unwrap();
             client
                 .execute_non_query("insert into test_uuid_table values ($1);", &[&test_uuid])
                 .await

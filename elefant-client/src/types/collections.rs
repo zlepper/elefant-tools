@@ -1,11 +1,32 @@
 use crate::protocol::FieldDescription;
-use crate::types::FromSql;
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText};
 use crate::PostgresType;
 use std::error::Error;
 
-impl<'a, T> FromSql<'a> for Vec<T>
+impl<'a, T> FromSqlBase<'a> for Vec<T>
 where
-    T: FromSql<'a>,
+    T: FromSqlBase<'a>,
+{
+    fn accepts_postgres_type(oid: i32) -> bool {
+        match PostgresType::get_by_oid(oid) {
+            None => false,
+            Some(t) => {
+                if !t.is_array {
+                    return false;
+                }
+
+                match t.element {
+                    None => false,
+                    Some(element_type) => T::accepts_postgres_type(element_type.oid),
+                }
+            }
+        }
+    }
+}
+
+impl<'a, T> FromSqlBinary<'a> for Vec<T>
+where
+    T: FromSqlBinary<'a>,
 {
     fn from_sql_binary(
         raw: &'a [u8],
@@ -46,7 +67,7 @@ where
             let element_size = i32::from_be_bytes(raw_data[cursor..cursor + 4].try_into().unwrap());
             cursor += 4;
             if has_null_bit_map && element_size == -1 {
-                result.push(T::from_null(field)?);
+                result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {}", e))?);
             } else {
                 let element_raw = &raw_data[cursor..cursor + element_size as usize];
                 cursor += element_size as usize;
@@ -56,7 +77,12 @@ where
 
         Ok(result)
     }
+}
 
+impl<'a, T> FromSqlText<'a> for Vec<T>
+where
+    T: FromSqlText<'a>,
+{
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -99,7 +125,7 @@ where
                         };
 
                         if clean_element == "NULL" {
-                            result.push(T::from_null(field)?);
+                            result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {}", e))?);
                         } else {
                             result.push(T::from_sql_text(clean_element, field)?);
                         }
@@ -122,29 +148,13 @@ where
                 };
 
             if clean_element == "NULL" {
-                result.push(T::from_null(field)?);
+                result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {}", e))?);
             } else {
                 result.push(T::from_sql_text(clean_element, field)?);
             }
         }
 
         Ok(result)
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        match PostgresType::get_by_oid(oid) {
-            None => false,
-            Some(t) => {
-                if !t.is_array {
-                    return false;
-                }
-
-                match t.element {
-                    None => false,
-                    Some(element_type) => T::accepts_postgres_type(element_type.oid),
-                }
-            }
-        }
     }
 }
 
@@ -161,12 +171,11 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             client
-                .execute_non_query(
+                .execute_non_query_simple(
                     r#"
                 drop table if exists test_array_table;
                 create table test_array_table(value int2[]);
                 "#,
-                    &[],
                 )
                 .await
                 .unwrap();

@@ -1,6 +1,6 @@
 use crate::postgres_client::query::PreparedQueryResult;
 use crate::protocol::async_io::ElefantAsyncReadWrite;
-use crate::protocol::{BackendMessage, FrontendMessage, Query, ValueFormat};
+use crate::protocol::{BackendMessage, FrontendMessage, ValueFormat};
 use crate::{protocol, ElefantClientError, PostgresClient, QueryResult, ToSql};
 use std::borrow::Cow;
 use std::future::Future;
@@ -28,23 +28,9 @@ impl PreparedQuery {
             result: Rc::new(result),
         }
     }
-}
 
-trait Sealed {}
-
-#[allow(private_bounds)]
-pub trait Statement: Sealed {
-    fn send<'postgres_client, C: ElefantAsyncReadWrite>(
-        &self,
-        client: &'postgres_client mut PostgresClient<C>,
-        parameters: &[&(dyn ToSql)],
-    ) -> impl Future<Output = Result<QueryResult<'postgres_client, C>, ElefantClientError>>;
-}
-
-impl Sealed for PreparedQuery {}
-
-impl Statement for PreparedQuery {
-    async fn send<'postgres_client, C: crate::protocol::async_io::ElefantAsyncReadWrite>(
+    /// Execute this prepared statement with parameters, returning a binary mode result
+    pub async fn execute<'postgres_client, C: ElefantAsyncReadWrite>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
         parameters: &[&(dyn ToSql)],
@@ -127,40 +113,51 @@ impl Statement for PreparedQuery {
     }
 }
 
+trait Sealed {}
+
+#[allow(private_bounds)]
+pub trait Statement: Sealed {
+    fn prepare<C: ElefantAsyncReadWrite>(
+        &self,
+        client: &mut PostgresClient<C>,
+    ) -> impl Future<Output = Result<PreparedQuery, ElefantClientError>>;
+}
+
+impl Sealed for PreparedQuery {}
+
+impl Statement for PreparedQuery {
+    async fn prepare<C: ElefantAsyncReadWrite>(
+        &self,
+        _client: &mut PostgresClient<C>,
+    ) -> Result<PreparedQuery, ElefantClientError> {
+        // PreparedQuery is already prepared, so just clone it
+        Ok(PreparedQuery {
+            name: self.name.clone(),
+            client_id: self.client_id,
+            parameter_description: self.parameter_description.clone(),
+            result: self.result.clone(),
+        })
+    }
+}
+
 impl Sealed for str {}
 
 impl Statement for str {
-    async fn send<'postgres_client, C: crate::protocol::async_io::ElefantAsyncReadWrite>(
+    async fn prepare<C: ElefantAsyncReadWrite>(
         &self,
-        client: &'postgres_client mut PostgresClient<C>,
-        parameters: &[&(dyn ToSql)],
-    ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> {
-        if parameters.is_empty() {
-            client.start_new_query().await?;
-            client
-                .connection
-                .write_frontend_message(&FrontendMessage::Query(Query {
-                    query: Cow::Borrowed(self),
-                }))
-                .await?;
-            client.connection.flush().await?;
-
-            Ok(QueryResult::new(client, None))
-        } else {
-            let prepared_query = client.prepare_with_name(self, None).await?;
-            prepared_query.send(client, parameters).await
-        }
+        client: &mut PostgresClient<C>,
+    ) -> Result<PreparedQuery, ElefantClientError> {
+        client.prepare_with_name(self, None).await
     }
 }
 
 impl Sealed for String {}
 
 impl Statement for String {
-    async fn send<'postgres_client, C: crate::protocol::async_io::ElefantAsyncReadWrite>(
+    async fn prepare<C: ElefantAsyncReadWrite>(
         &self,
-        client: &'postgres_client mut PostgresClient<C>,
-        parameters: &[&(dyn ToSql)],
-    ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> {
-        self.as_str().send(client, parameters).await
+        client: &mut PostgresClient<C>,
+    ) -> Result<PreparedQuery, ElefantClientError> {
+        self.as_str().prepare(client).await
     }
 }

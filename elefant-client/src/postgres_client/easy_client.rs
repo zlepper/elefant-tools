@@ -1,35 +1,10 @@
 use crate::postgres_client::statements::Statement;
 use crate::postgres_client::{PostgresClient, QueryResultSet};
 use crate::protocol::async_io::ElefantAsyncReadWrite;
-use crate::{ElefantClientError, FromSql, ToSql};
+use crate::{ElefantClientError, ToSql};
 
 impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
-    pub async fn read_single_value<'postgres_client, T>(
-        &'postgres_client mut self,
-        query: &(impl Statement + ?Sized),
-        parameters: &[&(dyn ToSql)],
-    ) -> Result<T, ElefantClientError>
-    where
-        T: FromSql<'postgres_client>,
-    {
-        let mut query_result = self.query(query, parameters).await?;
-
-        let result_set = query_result.next_result_set().await?;
-
-        match result_set {
-            QueryResultSet::QueryProcessingComplete => Err(ElefantClientError::NoResultsReturned),
-            QueryResultSet::RowDescriptionReceived(mut row_reader) => {
-                match row_reader.next_row().await? {
-                    None => Err(ElefantClientError::NoResultsReturned),
-                    Some(row) => {
-                        let value: T = row.get(0)?;
-                        Ok(value)
-                    }
-                }
-            }
-        }
-    }
-
+    /// Execute a non-query statement using binary mode (with prepared statements)
     pub async fn execute_non_query<S>(
         &mut self,
         query: &S,
@@ -39,6 +14,23 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
         S: Statement + ?Sized,
     {
         let mut query_result = self.query(query, parameters).await?;
+
+        loop {
+            let result_set = query_result.next_result_set().await?;
+
+            match result_set {
+                QueryResultSet::QueryProcessingComplete => return Ok(()),
+                QueryResultSet::RowDescriptionReceived(_) => {}
+            }
+        }
+    }
+
+    /// Execute a non-query statement using simple query mode (text format, no parameters)
+    pub async fn execute_non_query_simple(
+        &mut self,
+        query: &str,
+    ) -> Result<(), ElefantClientError> {
+        let mut query_result = self.query_simple(query).await?;
 
         loop {
             let result_set = query_result.next_result_set().await?;

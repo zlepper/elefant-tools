@@ -1,6 +1,6 @@
 use crate::protocol::FieldDescription;
 use crate::types::PostgresType;
-use crate::types::{FromSql, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use std::error::Error;
 use std::sync::LazyLock;
 use time::{format_description, Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
@@ -57,7 +57,13 @@ static TIMESTAMPTZ_WITH_SUBSECONDS_FORMAT: LazyLock<Vec<format_description::Form
     });
 
 // PostgreSQL DATE type - i32 days since 2000-01-01
-impl<'a> FromSql<'a> for Date {
+impl<'a> FromSqlBase<'a> for Date {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::DATE.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Date {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -76,7 +82,9 @@ impl<'a> FromSql<'a> for Date {
 
         Ok(result_date)
     }
+}
 
+impl<'a> FromSqlText<'a> for Date {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -84,10 +92,6 @@ impl<'a> FromSql<'a> for Date {
         // PostgreSQL DATE format: YYYY-MM-DD
         Date::parse(raw, &DATE_FORMAT)
             .map_err(|e| format!("Failed to parse DATE from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::DATE.oid
     }
 }
 
@@ -108,7 +112,13 @@ impl ToSql for Date {
 }
 
 // PostgreSQL TIME type - i64 microseconds since midnight
-impl<'a> FromSql<'a> for Time {
+impl<'a> FromSqlBase<'a> for Time {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::TIME.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Time {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -130,7 +140,9 @@ impl<'a> FromSql<'a> for Time {
         Time::from_hms_nano(hours, minutes, seconds, remaining_nanoseconds)
             .map_err(|e| format!("Failed to create TIME from components: {e}. Error occurred when parsing field {field:?}").into())
     }
+}
 
+impl<'a> FromSqlText<'a> for Time {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -143,10 +155,6 @@ impl<'a> FromSql<'a> for Time {
         };
         Time::parse(raw, format)
             .map_err(|e| format!("Failed to parse TIME from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::TIME.oid
     }
 }
 
@@ -166,7 +174,13 @@ impl ToSql for Time {
 }
 
 // PostgreSQL TIMESTAMP type - i64 microseconds since 2000-01-01 00:00:00
-impl<'a> FromSql<'a> for PrimitiveDateTime {
+impl<'a> FromSqlBase<'a> for PrimitiveDateTime {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::TIMESTAMP.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for PrimitiveDateTime {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -188,7 +202,9 @@ impl<'a> FromSql<'a> for PrimitiveDateTime {
 
         Ok(result_datetime)
     }
+}
 
+impl<'a> FromSqlText<'a> for PrimitiveDateTime {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -201,10 +217,6 @@ impl<'a> FromSql<'a> for PrimitiveDateTime {
         };
         PrimitiveDateTime::parse(raw, format)
             .map_err(|e| format!("Failed to parse TIMESTAMP from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::TIMESTAMP.oid
     }
 }
 
@@ -228,7 +240,13 @@ impl ToSql for PrimitiveDateTime {
 }
 
 // PostgreSQL TIMESTAMPTZ type - i64 microseconds since 2000-01-01 00:00:00 UTC
-impl<'a> FromSql<'a> for OffsetDateTime {
+impl<'a> FromSqlBase<'a> for OffsetDateTime {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::TIMESTAMPTZ.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for OffsetDateTime {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -250,7 +268,9 @@ impl<'a> FromSql<'a> for OffsetDateTime {
 
         Ok(result_datetime)
     }
+}
 
+impl<'a> FromSqlText<'a> for OffsetDateTime {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -264,10 +284,6 @@ impl<'a> FromSql<'a> for OffsetDateTime {
         };
         OffsetDateTime::parse(raw, format)
             .map_err(|e| format!("Failed to parse TIMESTAMPTZ from text '{raw}': {e}. Error occurred when parsing field {field:?}").into())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::TIMESTAMPTZ.oid
     }
 }
 
@@ -325,7 +341,7 @@ mod tests {
             assert_eq!(value, current_date);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_date_table; create table test_date_table(value date);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_date_table; create table test_date_table(value date);").await.unwrap();
             client
                 .execute_non_query("insert into test_date_table values ($1);", &[&current_date])
                 .await
@@ -365,7 +381,7 @@ mod tests {
             assert_eq!(value, precise_time);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_time_table; create table test_time_table(value time);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_time_table; create table test_time_table(value time);").await.unwrap();
             client
                 .execute_non_query("insert into test_time_table values ($1);", &[&precise_time])
                 .await
@@ -405,7 +421,7 @@ mod tests {
             assert_eq!(value, precise_timestamp);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_timestamp_table; create table test_timestamp_table(value timestamp);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_timestamp_table; create table test_timestamp_table(value timestamp);").await.unwrap();
             client
                 .execute_non_query(
                     "insert into test_timestamp_table values ($1);",
@@ -448,7 +464,7 @@ mod tests {
             assert_eq!(value, utc_timestamp);
 
             // Test round-trip with parameter binding
-            client.execute_non_query("drop table if exists test_timestamptz_table; create table test_timestamptz_table(value timestamptz);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_timestamptz_table; create table test_timestamptz_table(value timestamptz);").await.unwrap();
             client
                 .execute_non_query(
                     "insert into test_timestamptz_table values ($1);",

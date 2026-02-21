@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::{impl_from_sql_for_domain_type, DomainType, FromSql, PostgresType};
+use crate::{impl_from_sql_for_domain_type, DomainType, FromSqlBase, FromSqlBinary, FromSqlText, PostgresType};
 use std::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

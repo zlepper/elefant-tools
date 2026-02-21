@@ -1,11 +1,17 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, PostgresNamedType, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, PostgresNamedType, ToSql};
 use crate::PostgresType;
 use std::error::Error;
 
 macro_rules! impl_number {
     ($typ: ty, $standard_type: expr) => {
-        impl<'a> FromSql<'a> for $typ {
+        impl<'a> FromSqlBase<'a> for $typ {
+            fn accepts_postgres_type(oid: i32) -> bool {
+                oid == $standard_type.oid
+            }
+        }
+
+        impl<'a> FromSqlBinary<'a> for $typ {
             fn from_sql_binary(
                 raw: &'a [u8],
                 field: &FieldDescription,
@@ -19,16 +25,14 @@ macro_rules! impl_number {
 
                 Ok(<$typ>::from_be_bytes(raw.try_into().unwrap()))
             }
+        }
 
+        impl<'a> FromSqlText<'a> for $typ {
             fn from_sql_text(
                 raw: &'a str,
                 _field: &FieldDescription,
             ) -> Result<Self, Box<dyn Error + Sync + Send>> {
                 Ok(raw.parse()?)
-            }
-
-            fn accepts_postgres_type(oid: i32) -> bool {
-                oid == $standard_type.oid
             }
         }
 

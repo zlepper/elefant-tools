@@ -1,45 +1,53 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use crate::PostgresType;
 use std::error::Error;
 
-impl<'a> FromSql<'a> for &'a str {
+impl<'a> FromSqlBase<'a> for &'a str {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::TEXT.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for &'a str {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(std::str::from_utf8(raw)?)
     }
+}
 
+impl<'a> FromSqlText<'a> for &'a str {
     fn from_sql_text(
         raw: &'a str,
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(raw)
     }
+}
 
+impl<'a> FromSqlBase<'a> for String {
     fn accepts_postgres_type(oid: i32) -> bool {
         oid == PostgresType::TEXT.oid
     }
 }
 
-impl<'a> FromSql<'a> for String {
+impl<'a> FromSqlBinary<'a> for String {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(std::str::from_utf8(raw)?.to_string())
     }
+}
 
+impl<'a> FromSqlText<'a> for String {
     fn from_sql_text(
         raw: &'a str,
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(raw.to_string())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::TEXT.oid
     }
 }
 

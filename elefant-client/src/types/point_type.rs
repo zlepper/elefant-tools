@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, PostgresType, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, PostgresType, ToSql};
 use std::error::Error;
 
 /// PostgreSQL POINT geometric type representing x,y coordinates
@@ -15,7 +15,13 @@ impl Point {
     }
 }
 
-impl<'a> FromSql<'a> for Point {
+impl<'a> FromSqlBase<'a> for Point {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::POINT.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Point {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
@@ -38,7 +44,9 @@ impl<'a> FromSql<'a> for Point {
 
         Ok(Point { x, y })
     }
+}
 
+impl<'a> FromSqlText<'a> for Point {
     fn from_sql_text(
         raw: &'a str,
         _field: &FieldDescription,
@@ -82,10 +90,6 @@ impl<'a> FromSql<'a> for Point {
 
         Ok(Point { x, y })
     }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::POINT.oid
-    }
 }
 
 impl ToSql for Point {
@@ -102,14 +106,12 @@ impl ToSql for Point {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(feature = "tokio")]
     mod tokio_connection {
-        use super::*;
         use crate::test_helpers::get_settings;
         use crate::tokio_connection::new_client;
         use tokio::test;
+        use crate::Point;
 
         #[test]
         async fn test_point_edge_cases() {
@@ -173,7 +175,7 @@ mod tests {
         async fn test_point_round_trip() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            client.execute_non_query("drop table if exists test_point_table; create table test_point_table(location point);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_point_table; create table test_point_table(location point);").await.unwrap();
 
             let test_points = vec![
                 Point::new(0.0, 0.0),

@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 
 mod error;
-#[cfg(feature = "monoio")]
-pub mod monoio_connection;
 mod postgres_client;
 pub mod profiler;
 mod protocol;

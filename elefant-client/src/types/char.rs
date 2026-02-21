@@ -1,9 +1,15 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use crate::PostgresType;
 use std::error::Error;
 
-impl<'a> FromSql<'a> for char {
+impl<'a> FromSqlBase<'a> for char {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::CHAR.oid || oid == PostgresType::BPCHAR.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for char {
     fn from_sql_binary(
         raw: &'a [u8],
         field: &FieldDescription,
@@ -14,7 +20,9 @@ impl<'a> FromSql<'a> for char {
 
         Ok(raw[0] as char)
     }
+}
 
+impl<'a> FromSqlText<'a> for char {
     fn from_sql_text(
         raw: &'a str,
         field: &FieldDescription,
@@ -24,10 +32,6 @@ impl<'a> FromSql<'a> for char {
         }
 
         Ok(raw.chars().next().unwrap())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::CHAR.oid
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, PostgresType, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, PostgresType, ToSql};
 use std::error::Error;
 use std::net::IpAddr;
 
@@ -50,7 +50,13 @@ impl std::str::FromStr for Inet {
     }
 }
 
-impl<'a> FromSql<'a> for Inet {
+impl<'a> FromSqlBase<'a> for Inet {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::INET.oid || oid == PostgresType::CIDR.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Inet {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
@@ -117,17 +123,15 @@ impl<'a> FromSql<'a> for Inet {
 
         Ok(Inet { ip, prefix_len })
     }
+}
 
+impl<'a> FromSqlText<'a> for Inet {
     fn from_sql_text(
         raw: &'a str,
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         // PostgreSQL INET text format: "IP" or "IP/prefix"
         raw.trim().parse()
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::INET.oid || oid == PostgresType::CIDR.oid
     }
 }
 
@@ -177,15 +181,13 @@ pub type Cidr = Inet;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(feature = "tokio")]
     mod tokio_connection {
-        use super::*;
         use crate::test_helpers::get_settings;
         use crate::tokio_connection::new_client;
-        use std::net::{Ipv4Addr, Ipv6Addr};
+        use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
         use tokio::test;
+        use crate::{Cidr, Inet};
 
         #[test]
         async fn test_inet_edge_cases() {
@@ -301,7 +303,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Create a table for testing binary format
-            client.execute_non_query("drop table if exists test_inet_binary; create table test_inet_binary(id int, addr inet);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_inet_binary; create table test_inet_binary(id int, addr inet);").await.unwrap();
             client
                 .execute_non_query(
                     "
@@ -350,7 +352,7 @@ mod tests {
         async fn test_inet_round_trip_binary() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            client.execute_non_query("drop table if exists test_inet_roundtrip; create table test_inet_roundtrip(addr inet);", &[]).await.unwrap();
+            client.execute_non_query_simple("drop table if exists test_inet_roundtrip; create table test_inet_roundtrip(addr inet);").await.unwrap();
 
             let test_values: Vec<Inet> = vec![
                 "127.0.0.1".parse().unwrap(),

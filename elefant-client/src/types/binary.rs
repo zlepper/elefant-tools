@@ -1,16 +1,24 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSql, PostgresNamedType, ToSql};
+use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, PostgresNamedType, ToSql};
 use crate::PostgresType;
 use std::error::Error;
 
-impl<'a> FromSql<'a> for Vec<u8> {
+impl<'a> FromSqlBase<'a> for Vec<u8> {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::BYTEA.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Vec<u8> {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(raw.to_vec())
     }
+}
 
+impl<'a> FromSqlText<'a> for Vec<u8> {
     fn from_sql_text(
         raw: &'a str,
         _field: &FieldDescription,
@@ -58,10 +66,6 @@ impl<'a> FromSql<'a> for Vec<u8> {
         }
         Ok(result)
     }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::BYTEA.oid
-    }
 }
 
 impl ToSql for Vec<u8> {
@@ -78,27 +82,24 @@ impl PostgresNamedType for Vec<u8> {
     const PG_NAME: &'static str = PostgresType::BYTEA.name;
 }
 
-impl<'a> FromSql<'a> for &'a [u8] {
+impl<'a> FromSqlBase<'a> for &'a [u8] {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::BYTEA.oid
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for &'a [u8] {
     fn from_sql_binary(
         raw: &'a [u8],
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
         Ok(raw)
     }
-
-    fn from_sql_text(
-        raw: &'a str,
-        field: &FieldDescription,
-    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        // We can't return a borrowed slice from parsed hex data since it would need to be owned
-        // So for text format, we'll return an error suggesting to use Vec<u8> instead
-        Err(format!("Cannot create &[u8] from BYTEA text format '{raw}'. Use Vec<u8> instead for text format parsing. Field: {field:?}").into())
-    }
-
-    fn accepts_postgres_type(oid: i32) -> bool {
-        oid == PostgresType::BYTEA.oid
-    }
 }
+
+// Note: &[u8] does NOT implement FromSqlText because we can't return a borrowed slice
+// from parsed hex data. This demonstrates compile-time safety - &[u8] can only be used
+// with binary format queries. For text format, use Vec<u8> instead.
 
 impl ToSql for &[u8] {
     fn to_sql_binary(
@@ -195,13 +196,12 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             client
-                .execute_non_query(
+                .execute_non_query_simple(
                     r#"
                 drop table if exists test_bytea_table;
                 create table test_bytea_table(data bytea);
                 insert into test_bytea_table values ('\x48656C6C6F');
                 "#,
-                    &[],
                 )
                 .await
                 .unwrap();
@@ -317,12 +317,11 @@ mod tests {
 
             // Test BYTEA arrays
             client
-                .execute_non_query(
+                .execute_non_query_simple(
                     r#"
                 drop table if exists test_bytea_array_table;
                 create table test_bytea_array_table(data bytea[]);
                 "#,
-                    &[],
                 )
                 .await
                 .unwrap();

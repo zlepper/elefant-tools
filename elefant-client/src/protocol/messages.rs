@@ -114,7 +114,7 @@ pub struct NotificationResponse<'a> {
     pub payload: Cow<'a, str>,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ParameterDescription {
     pub types: Vec<i32>,
 }

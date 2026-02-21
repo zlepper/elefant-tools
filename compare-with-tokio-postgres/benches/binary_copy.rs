@@ -1,7 +1,6 @@
 use criterion::{BenchmarkId, Criterion, Throughput};
 use criterion::{criterion_group, criterion_main};
 use futures::{StreamExt, pin_mut};
-use monoio::IoUringDriver;
 use tokio_postgres::{NoTls, binary_copy::BinaryCopyInWriter, types::Type};
 
 const DB_HOST: &str = "localhost";
@@ -242,47 +241,6 @@ async fn elefant_client_tokio_copy_benchmark(_num_rows: usize) {
     copy_in.end().await.unwrap();
 }
 
-async fn elefant_client_monoio_copy_benchmark(_num_rows: usize) {
-    use elefant_client::PostgresConnectionSettings;
-    use elefant_client::monoio_connection;
-
-    let settings = PostgresConnectionSettings {
-        host: DB_HOST.to_string(),
-        port: DB_PORT,
-        user: DB_USER.to_string(),
-        password: DB_PASSWORD.to_string(),
-        database: BENCHMARK_DB.to_string(),
-    };
-
-    let mut source_client = monoio_connection::new_client(settings.clone())
-        .await
-        .unwrap();
-    let mut target_client = monoio_connection::new_client(settings).await.unwrap();
-
-    // Use elefant-client COPY operations
-    let copy_out = source_client
-        .copy_out(
-            &format!("COPY {SOURCE_TABLE} (id, value, text_data) TO STDOUT (FORMAT BINARY)"),
-            &[],
-        )
-        .await
-        .unwrap();
-
-    let mut copy_in = target_client
-        .copy_in(
-            &format!(
-                "COPY {TARGET_TABLE_ELEFANT} (id, value, text_data) FROM STDIN (FORMAT BINARY)"
-            ),
-            &[],
-        )
-        .await
-        .unwrap();
-
-    copy_out.write_to(&mut copy_in).await.unwrap();
-
-    copy_in.end().await.unwrap();
-}
-
 fn time_copy_operation<F, Fut, R>(
     iters: u64,
     num_rows: usize,
@@ -317,16 +275,6 @@ where
     Fut: Future<Output = ()>,
 {
     let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(fut);
-}
-
-fn run_block_monoio<Fut>(fut: Fut)
-where
-    Fut: Future<Output = ()>,
-{
-    let mut rt = monoio::RuntimeBuilder::<IoUringDriver>::new()
-        .build()
-        .unwrap();
     rt.block_on(fut);
 }
 
@@ -375,21 +323,6 @@ fn copy_benchmarks(c: &mut Criterion) {
                         num_rows,
                         elefant_client_tokio_copy_benchmark,
                         run_block_tokio,
-                    )
-                });
-            },
-        );
-
-        group.bench_with_input(
-            BenchmarkId::new("elefant_client_monoio", num_rows),
-            num_rows,
-            |b, &num_rows| {
-                b.iter_custom(|iters| {
-                    time_copy_operation(
-                        iters,
-                        num_rows,
-                        elefant_client_monoio_copy_benchmark,
-                        run_block_monoio,
                     )
                 });
             },

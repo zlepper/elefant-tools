@@ -60,14 +60,14 @@ mod tests {
         let mut client = new_client(get_settings()).await.unwrap();
 
         let mut query_result = client
-            .query("select 2147483647::int4; select 1::int4", &[])
+            .query_simple("select 2147483647::int4; select 1::int4")
             .await
             .unwrap();
         {
             let query_result_set = query_result.next_result_set().await.unwrap();
             match query_result_set {
                 QueryResultSet::QueryProcessingComplete => {
-                    panic!("At least two result sets should be returned");
+                    panic!("At least one result set should be returned");
                 }
                 QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
                     let row = row_result_reader.next_row().await.unwrap();
@@ -126,7 +126,7 @@ mod tests {
                     let stuff = content.get_some_bytes();
                     assert_eq!(stuff.len(), 1);
                     let bytes = stuff[0].unwrap();
-                    assert_eq!(bytes, b"42");
+                    assert_eq!(bytes, &[0, 0, 0, 42]); // Binary format for int4
                 }
             }
         }

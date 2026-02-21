@@ -117,25 +117,22 @@ mod tests {
         async fn test_point_edge_cases() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test very large coordinates
             let large: Point = client
-                .read_single_value("select '(1e10, -1e10)'::point;", &[])
+                .read_single_value_dual_mode("select '(1e10, -1e10)'::point")
                 .await
                 .unwrap();
             assert_eq!(large.x, 1e10);
             assert_eq!(large.y, -1e10);
 
-            // Test very small coordinates
             let small: Point = client
-                .read_single_value("select '(1e-10, -1e-10)'::point;", &[])
+                .read_single_value_dual_mode("select '(1e-10, -1e-10)'::point")
                 .await
                 .unwrap();
             assert_eq!(small.x, 1e-10);
             assert_eq!(small.y, -1e-10);
 
-            // Test special float values
             let infinity: Point = client
-                .read_single_value("select '(Infinity, -Infinity)'::point;", &[])
+                .read_single_value_dual_mode("select '(Infinity, -Infinity)'::point")
                 .await
                 .unwrap();
             assert!(infinity.x.is_infinite() && infinity.x.is_sign_positive());
@@ -146,25 +143,22 @@ mod tests {
         async fn test_point_basic_values() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test origin point
             let origin: Point = client
-                .read_single_value("select '(0, 0)'::point;", &[])
+                .read_single_value_dual_mode("select '(0, 0)'::point")
                 .await
                 .unwrap();
             assert_eq!(origin.x, 0.0);
             assert_eq!(origin.y, 0.0);
 
-            // Test positive coordinates
             let positive: Point = client
-                .read_single_value("select '(1.5, 2.5)'::point;", &[])
+                .read_single_value_dual_mode("select '(1.5, 2.5)'::point")
                 .await
                 .unwrap();
             assert_eq!(positive.x, 1.5);
             assert_eq!(positive.y, 2.5);
 
-            // Test negative coordinates
             let negative: Point = client
-                .read_single_value("select '(-3.17, -2.71)'::point;", &[])
+                .read_single_value_dual_mode("select '(-3.17, -2.71)'::point")
                 .await
                 .unwrap();
             assert_eq!(negative.x, -3.17);
@@ -223,7 +217,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_point: Option<Point> = client
-                .read_single_value("select null::point;", &[])
+                .read_single_value_dual_mode("select null::point")
                 .await
                 .unwrap();
             assert_eq!(null_point, None);
@@ -233,9 +227,8 @@ mod tests {
         async fn test_point_array_support() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test with the generic Vec<Point> that now handles comma conflicts correctly
             let point_array: Vec<Point> = client
-                .read_single_value("select ARRAY[point(0,0), point(1,1), point(-1,-1)];", &[])
+                .read_single_value_dual_mode("select ARRAY[point(0,0), point(1,1), point(-1,-1)]")
                 .await
                 .unwrap();
 

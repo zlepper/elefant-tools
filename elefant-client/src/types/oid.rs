@@ -31,8 +31,9 @@ mod tests {
             let mut client = get_tokio_test_client().await;
 
             let oid: Oid = client
-                .read_single_column_and_row_exactly("select '26'::oid", &[])
-                .await;
+                .read_single_value_dual_mode("select '26'::oid")
+                .await
+                .unwrap();
 
             assert_eq!(oid, Oid(26));
         }

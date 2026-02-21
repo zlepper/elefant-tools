@@ -84,5 +84,34 @@ mod tests {
                 .unwrap();
             assert!(!b);
         }
+
+        #[test]
+        async fn test_bool_dual_mode() {
+            let mut client = new_client(get_settings()).await.unwrap();
+
+            let value: bool = client
+                .read_single_value_dual_mode("select 't'::bool")
+                .await
+                .unwrap();
+            assert!(value);
+
+            let value: bool = client
+                .read_single_value_dual_mode("select false::bool")
+                .await
+                .unwrap();
+            assert!(!value);
+
+            let value: bool = client
+                .read_single_value_dual_mode("select true::bool")
+                .await
+                .unwrap();
+            assert!(value);
+
+            let value: bool = client
+                .read_single_value_dual_mode("select 'f'::bool")
+                .await
+                .unwrap();
+            assert!(!value);
+        }
     }
 }

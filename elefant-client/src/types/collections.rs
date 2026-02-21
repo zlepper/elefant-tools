@@ -67,7 +67,7 @@ where
             let element_size = i32::from_be_bytes(raw_data[cursor..cursor + 4].try_into().unwrap());
             cursor += 4;
             if has_null_bit_map && element_size == -1 {
-                result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {}", e))?);
+                result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {e}"))?);
             } else {
                 let element_raw = &raw_data[cursor..cursor + element_size as usize];
                 cursor += element_size as usize;
@@ -125,7 +125,7 @@ where
                         };
 
                         if clean_element == "NULL" {
-                            result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {}", e))?);
+                            result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {e}"))?);
                         } else {
                             result.push(T::from_sql_text(clean_element, field)?);
                         }
@@ -148,7 +148,7 @@ where
                 };
 
             if clean_element == "NULL" {
-                result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {}", e))?);
+                result.push(T::from_null(field).map_err(|e| format!("Error handling null element: {e}"))?);
             } else {
                 result.push(T::from_sql_text(clean_element, field)?);
             }

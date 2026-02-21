@@ -172,12 +172,19 @@ mod tests {
                     helper.test_round_trip::<$typ>(<$typ>::INFINITY).await;
                     helper.test_round_trip::<$typ>(<$typ>::NEG_INFINITY).await;
 
-                    let should_be_nan: $typ = helper
+                    let nan_text: $typ = helper
+                        .client
+                        .read_single_value_simple(&format!("select 'NaN'::{} ", <$typ>::PG_NAME))
+                        .await
+                        .unwrap();
+                    assert!(nan_text.is_nan());
+
+                    let nan_binary: $typ = helper
                         .client
                         .read_single_value(&format!("select 'NaN'::{} ", <$typ>::PG_NAME), &[])
                         .await
                         .unwrap();
-                    assert!(should_be_nan.is_nan());
+                    assert!(nan_binary.is_nan());
 
                     let should_be_nan: $typ = helper
                         .client

@@ -80,7 +80,7 @@ mod tests {
             assert_eq!(s, "hello");
 
             let s: String = client
-                .read_single_value("select 'hello'::text;", &[])
+                .read_single_value_dual_mode("select 'hello'::text")
                 .await
                 .unwrap();
             assert_eq!(s, "hello");

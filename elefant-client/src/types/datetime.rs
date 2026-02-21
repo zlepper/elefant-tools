@@ -324,18 +324,16 @@ mod tests {
         async fn test_date_type() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test PostgreSQL epoch date (2000-01-01)
             let pg_epoch = date!(2000 - 01 - 01);
             let value: Date = client
-                .read_single_value("select '2000-01-01'::date;", &[])
+                .read_single_value_dual_mode("select '2000-01-01'::date")
                 .await
                 .unwrap();
             assert_eq!(value, pg_epoch);
 
-            // Test current date
             let current_date = date!(2024 - 01 - 15);
             let value: Date = client
-                .read_single_value("select '2024-01-15'::date;", &[])
+                .read_single_value_dual_mode("select '2024-01-15'::date")
                 .await
                 .unwrap();
             assert_eq!(value, current_date);
@@ -352,9 +350,8 @@ mod tests {
                 .unwrap();
             assert_eq!(retrieved, current_date);
 
-            // Test NULL handling
             let null_value: Option<Date> = client
-                .read_single_value("select null::date;", &[])
+                .read_single_value_dual_mode("select null::date")
                 .await
                 .unwrap();
             assert_eq!(null_value, None);
@@ -364,18 +361,16 @@ mod tests {
         async fn test_time_type() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test midnight
             let midnight = time!(00:00:00);
             let value: Time = client
-                .read_single_value("select '00:00:00'::time;", &[])
+                .read_single_value_dual_mode("select '00:00:00'::time")
                 .await
                 .unwrap();
             assert_eq!(value, midnight);
 
-            // Test time with microseconds
             let precise_time = time!(12:34:56.123456);
             let value: Time = client
-                .read_single_value("select '12:34:56.123456'::time;", &[])
+                .read_single_value_dual_mode("select '12:34:56.123456'::time")
                 .await
                 .unwrap();
             assert_eq!(value, precise_time);
@@ -392,9 +387,8 @@ mod tests {
                 .unwrap();
             assert_eq!(retrieved, precise_time);
 
-            // Test NULL handling
             let null_value: Option<Time> = client
-                .read_single_value("select null::time;", &[])
+                .read_single_value_dual_mode("select null::time")
                 .await
                 .unwrap();
             assert_eq!(null_value, None);
@@ -404,18 +398,16 @@ mod tests {
         async fn test_timestamp_type() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test PostgreSQL epoch timestamp (2000-01-01 00:00:00)
             let pg_epoch = datetime!(2000-01-01 00:00:00);
             let value: PrimitiveDateTime = client
-                .read_single_value("select '2000-01-01 00:00:00'::timestamp;", &[])
+                .read_single_value_dual_mode("select '2000-01-01 00:00:00'::timestamp")
                 .await
                 .unwrap();
             assert_eq!(value, pg_epoch);
 
-            // Test timestamp with microseconds
             let precise_timestamp = datetime!(2024-01-15 12:34:56.123456);
             let value: PrimitiveDateTime = client
-                .read_single_value("select '2024-01-15 12:34:56.123456'::timestamp;", &[])
+                .read_single_value_dual_mode("select '2024-01-15 12:34:56.123456'::timestamp")
                 .await
                 .unwrap();
             assert_eq!(value, precise_timestamp);
@@ -435,9 +427,8 @@ mod tests {
                 .unwrap();
             assert_eq!(retrieved, precise_timestamp);
 
-            // Test NULL handling
             let null_value: Option<PrimitiveDateTime> = client
-                .read_single_value("select null::timestamp;", &[])
+                .read_single_value_dual_mode("select null::timestamp")
                 .await
                 .unwrap();
             assert_eq!(null_value, None);
@@ -447,18 +438,16 @@ mod tests {
         async fn test_timestamptz_type() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test PostgreSQL epoch with UTC timezone
             let pg_epoch_utc = datetime!(2000-01-01 00:00:00).assume_utc();
             let value: OffsetDateTime = client
-                .read_single_value("select '2000-01-01 00:00:00+00'::timestamptz;", &[])
+                .read_single_value_dual_mode("select '2000-01-01 00:00:00+00'::timestamptz")
                 .await
                 .unwrap();
             assert_eq!(value, pg_epoch_utc);
 
-            // Test timestamptz with different timezone (stored as UTC internally)
             let utc_timestamp = datetime!(2024-01-15 12:34:56.123456).assume_utc();
             let value: OffsetDateTime = client
-                .read_single_value("select '2024-01-15 12:34:56.123456+00'::timestamptz;", &[])
+                .read_single_value_dual_mode("select '2024-01-15 12:34:56.123456+00'::timestamptz")
                 .await
                 .unwrap();
             assert_eq!(value, utc_timestamp);

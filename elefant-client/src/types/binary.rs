@@ -125,19 +125,19 @@ mod tests {
 
             // Test BYTEA (Vec<u8>)
             let empty_bytes: Vec<u8> = client
-                .read_single_value("select ''::bytea;", &[])
+                .read_single_value_dual_mode("select ''::bytea")
                 .await
                 .unwrap();
             assert_eq!(empty_bytes, Vec::<u8>::new());
 
             let test_bytes: Vec<u8> = client
-                .read_single_value("select '\\x48656C6C6F'::bytea;", &[])
+                .read_single_value_dual_mode("select '\\x48656C6C6F'::bytea")
                 .await
                 .unwrap();
             assert_eq!(test_bytes, b"Hello".to_vec());
 
             let binary_data: Vec<u8> = client
-                .read_single_value("select '\\x00010203FF'::bytea;", &[])
+                .read_single_value_dual_mode("select '\\x00010203FF'::bytea")
                 .await
                 .unwrap();
             assert_eq!(binary_data, vec![0, 1, 2, 3, 255]);
@@ -207,7 +207,7 @@ mod tests {
                 .unwrap();
 
             let bytea_value: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(bytea_value, Some(b"Hello".to_vec()));
@@ -217,7 +217,7 @@ mod tests {
                 .await
                 .unwrap();
             let null_bytea: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(null_bytea, None);
@@ -235,7 +235,7 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(value, None);
@@ -253,7 +253,7 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(value, Some(vec![1, 2, 3]));
@@ -269,7 +269,7 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(value, Some(b"SliceTest".to_vec()));
@@ -285,7 +285,7 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(value, Some(b"OptionSlice".to_vec()));
@@ -301,7 +301,7 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_table")
                 .await
                 .unwrap();
             assert_eq!(value, None);
@@ -328,7 +328,7 @@ mod tests {
 
             client.execute_non_query("insert into test_bytea_array_table values (array['\\x48656C6C6F'::bytea, '\\x576F726C64'::bytea]);", &[]).await.unwrap();
             let bytea_array: Vec<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_array_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_array_table")
                 .await
                 .unwrap();
             assert_eq!(bytea_array, vec![b"Hello".to_vec(), b"World".to_vec()]);
@@ -341,7 +341,7 @@ mod tests {
                 .await
                 .unwrap();
             let empty_bytea_array: Vec<Vec<u8>> = client
-                .read_single_value("select data from test_bytea_array_table;", &[])
+                .read_single_value_dual_mode("select data from test_bytea_array_table")
                 .await
                 .unwrap();
             assert_eq!(empty_bytea_array, Vec::<Vec<u8>>::new());

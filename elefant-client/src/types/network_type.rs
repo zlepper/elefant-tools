@@ -193,41 +193,38 @@ mod tests {
         async fn test_inet_edge_cases() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test localhost addresses
             let localhost_v4: Inet = client
-                .read_single_value("select '127.0.0.1'::inet;", &[])
+                .read_single_value_dual_mode("select '127.0.0.1'::inet")
                 .await
                 .unwrap();
             assert_eq!(localhost_v4.to_string(), "127.0.0.1");
 
             let localhost_v6: Inet = client
-                .read_single_value("select '::1'::inet;", &[])
+                .read_single_value_dual_mode("select '::1'::inet")
                 .await
                 .unwrap();
             assert_eq!(localhost_v6.to_string(), "::1");
 
-            // Test various CIDR notations
             let class_a: Inet = client
-                .read_single_value("select '10.0.0.0/8'::inet;", &[])
+                .read_single_value_dual_mode("select '10.0.0.0/8'::inet")
                 .await
                 .unwrap();
             assert_eq!(class_a.prefix_len, Some(8));
 
             let class_b: Inet = client
-                .read_single_value("select '172.16.0.0/12'::inet;", &[])
+                .read_single_value_dual_mode("select '172.16.0.0/12'::inet")
                 .await
                 .unwrap();
             assert_eq!(class_b.prefix_len, Some(12));
 
             let class_c: Inet = client
-                .read_single_value("select '192.168.0.0/16'::inet;", &[])
+                .read_single_value_dual_mode("select '192.168.0.0/16'::inet")
                 .await
                 .unwrap();
             assert_eq!(class_c.prefix_len, Some(16));
 
-            // Test IPv6 with different prefix lengths
             let ipv6_64: Inet = client
-                .read_single_value("select 'fe80::/64'::inet;", &[])
+                .read_single_value_dual_mode("select 'fe80::/64'::inet")
                 .await
                 .unwrap();
             assert_eq!(ipv6_64.prefix_len, Some(64));
@@ -237,33 +234,29 @@ mod tests {
         async fn test_inet_basic_values() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test IPv4 address
             let ipv4: Inet = client
-                .read_single_value("select '192.168.1.1'::inet;", &[])
+                .read_single_value_dual_mode("select '192.168.1.1'::inet")
                 .await
                 .unwrap();
             assert_eq!(ipv4.ip, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
             assert_eq!(ipv4.prefix_len, None);
 
-            // Test IPv4 with CIDR
             let ipv4_cidr: Inet = client
-                .read_single_value("select '10.0.0.0/8'::inet;", &[])
+                .read_single_value_dual_mode("select '10.0.0.0/8'::inet")
                 .await
                 .unwrap();
             assert_eq!(ipv4_cidr.ip, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0)));
             assert_eq!(ipv4_cidr.prefix_len, Some(8));
 
-            // Test IPv6 address
             let ipv6: Inet = client
-                .read_single_value("select '::1'::inet;", &[])
+                .read_single_value_dual_mode("select '::1'::inet")
                 .await
                 .unwrap();
             assert_eq!(ipv6.ip, IpAddr::V6(Ipv6Addr::LOCALHOST));
             assert_eq!(ipv6.prefix_len, None);
 
-            // Test IPv6 with CIDR
             let ipv6_cidr: Inet = client
-                .read_single_value("select '2001:db8::/32'::inet;", &[])
+                .read_single_value_dual_mode("select '2001:db8::/32'::inet")
                 .await
                 .unwrap();
             if let IpAddr::V6(v6) = ipv6_cidr.ip {
@@ -280,7 +273,7 @@ mod tests {
 
             // Test CIDR type (should work the same as INET)
             let cidr: Cidr = client
-                .read_single_value("select '192.168.0.0/16'::cidr;", &[])
+                .read_single_value_dual_mode("select '192.168.0.0/16'::cidr")
                 .await
                 .unwrap();
             assert_eq!(cidr.ip, IpAddr::V4(Ipv4Addr::new(192, 168, 0, 0)));
@@ -292,7 +285,7 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_inet: Option<Inet> = client
-                .read_single_value("select null::inet;", &[])
+                .read_single_value_dual_mode("select null::inet")
                 .await
                 .unwrap();
             assert_eq!(null_inet, None);

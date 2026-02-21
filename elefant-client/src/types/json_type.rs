@@ -380,23 +380,20 @@ mod tests {
         async fn test_jsonb_type() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            // Test empty object
             let empty_object = json!({});
             let value: Value = client
-                .read_single_value("select '{}'::jsonb;", &[])
+                .read_single_value_dual_mode("select '{}'::jsonb")
                 .await
                 .unwrap();
             assert_eq!(value, empty_object);
 
-            // Test empty array
             let empty_array = json!([]);
             let value: Value = client
-                .read_single_value("select '[]'::jsonb;", &[])
+                .read_single_value_dual_mode("select '[]'::jsonb")
                 .await
                 .unwrap();
             assert_eq!(value, empty_array);
 
-            // Test complex JSONB object
             let complex_jsonb = json!({
                 "name": "test",
                 "age": 30,
@@ -407,9 +404,8 @@ mod tests {
                     "version": 1
                 }
             });
-            let value: Value = client.read_single_value(
-                r#"select '{"name":"test","age":30,"active":true,"tags":["rust","postgresql"],"metadata":{"created":"2024-01-15","version":1}}'::jsonb;"#, 
-                &[]
+            let value: Value = client.read_single_value_dual_mode(
+                r#"select '{"name":"test","age":30,"active":true,"tags":["rust","postgresql"],"metadata":{"created":"2024-01-15","version":1}}'::jsonb"#
             ).await.unwrap();
             assert_eq!(value, complex_jsonb);
 
@@ -426,9 +422,8 @@ mod tests {
                 .unwrap();
             assert_eq!(retrieved, complex_jsonb);
 
-            // Test NULL handling
             let null_value: Option<Value> = client
-                .read_single_value("select null::jsonb;", &[])
+                .read_single_value_dual_mode("select null::jsonb")
                 .await
                 .unwrap();
             assert_eq!(null_value, None);

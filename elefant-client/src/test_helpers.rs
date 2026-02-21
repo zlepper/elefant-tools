@@ -1,6 +1,7 @@
 use crate::postgres_client::{PostgresClient, QueryResultSet};
 use crate::protocol::async_io::ElefantAsyncReadWrite;
-use crate::{ElefantClientError, FromSql, FromSqlBinary, FromSqlText, PostgresConnectionSettings, Statement, ToSql};
+use crate::{ElefantClientError, FromSql, FromSqlBinary, FromSqlOwned, FromSqlText, PostgresConnectionSettings, Statement, ToSql};
+use std::fmt::Debug;
 
 pub(crate) fn get_settings() -> PostgresConnectionSettings {
     PostgresConnectionSettings {
@@ -69,6 +70,43 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
                 }
             }
         }
+    }
+
+    /// Read a single value using both binary and text protocol modes,
+    /// validating that both modes produce identical results.
+    ///
+    /// This test helper executes the query twice:
+    /// 1. As a simple query (text protocol)
+    /// 2. As a prepared statement (binary protocol)
+    ///
+    /// Panics if the two modes produce different values.
+    ///
+    /// # Limitations
+    /// - Only supports literal SQL values (no $1, $2 parameters)
+    /// - Type T must implement FromSqlOwned (both binary and text modes, without borrowing)
+    /// - Type T must implement PartialEq + Debug + Clone for comparison
+    pub async fn read_single_value_dual_mode<T>(
+        &mut self,
+        query: &str,
+    ) -> Result<T, ElefantClientError>
+    where
+        T: FromSqlOwned + PartialEq + Debug + Clone,
+    {
+        // Execute both modes and clone the first value to avoid borrow conflicts
+        let text_value_original: T = self.read_single_value_simple(query).await?;
+        let text_value = text_value_original.clone();
+        drop(text_value_original); // Explicitly drop to end the borrow
+
+        // Execute as prepared statement (binary mode)
+        let binary_value: T = self.read_single_value(query, &[]).await?;
+
+        // Assert they match
+        assert_eq!(
+            binary_value, text_value,
+            "Binary and text protocol results differ for query: {query}\nBinary: {binary_value:?}\nText: {text_value:?}"
+        );
+
+        Ok(binary_value)
     }
 
     pub async fn read_single_column_and_row_exactly<'a, S, T>(

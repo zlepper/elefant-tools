@@ -79,7 +79,7 @@ mod tests {
             // Test a specific UUID
             let test_uuid = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
             let value: Uuid = client
-                .read_single_value("select '550e8400-e29b-41d4-a716-446655440000'::uuid;", &[])
+                .read_single_value_dual_mode("select '550e8400-e29b-41d4-a716-446655440000'::uuid")
                 .await
                 .unwrap();
             assert_eq!(value, test_uuid);
@@ -96,9 +96,8 @@ mod tests {
                 .unwrap();
             assert_eq!(retrieved, test_uuid);
 
-            // Test NULL handling
             let null_value: Option<Uuid> = client
-                .read_single_value("select null::uuid;", &[])
+                .read_single_value_dual_mode("select null::uuid")
                 .await
                 .unwrap();
             assert_eq!(null_value, None);

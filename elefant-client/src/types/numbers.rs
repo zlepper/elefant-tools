@@ -60,13 +60,13 @@ mod tests {
     #[cfg(feature = "tokio")]
     mod tokio_connection {
         use crate::test_helpers::get_settings;
-        use crate::tokio_connection::{new_client, TokioPostgresClient};
+        use crate::tokio_connection::{new_client, TokioPoolableClient};
         use crate::types::*;
         use std::fmt::{Debug, Display};
         use tokio::test;
 
         struct DataReaderTest {
-            client: TokioPostgresClient,
+            client: TokioPoolableClient,
         }
 
         impl DataReaderTest {

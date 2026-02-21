@@ -8,7 +8,7 @@ use crate::pool::{ConnectionFactory, PostgresPool};
 use crate::protocol::{
     BackendMessage, CurrentTransactionStatus, FrontendMessage, PostgresConnection,
 };
-use crate::{reborrow_until_polonius, ElefantClientError};
+use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSettings};
 use std::sync::atomic::AtomicU64;
 use tracing::{debug, trace};
 
@@ -17,7 +17,7 @@ pub use statements::*;
 
 pub struct PostgresClient<F: ConnectionFactory> {
     pub(crate) connection: PostgresConnection<F::Connection>,
-    pub(crate) pool: PostgresPool<F>,
+    pub(crate) pool: Option<PostgresPool<F>>,
     pub(crate) ready_for_query: bool,
     write_buffer: Vec<u8>,
     pub(crate) client_id: u64,
@@ -90,11 +90,11 @@ impl<F: ConnectionFactory> PostgresClient<F> {
 
     pub(crate) async fn new(
         connection: PostgresConnection<F::Connection>,
-        pool: PostgresPool<F>,
+        settings: &PostgresConnectionSettings,
     ) -> Result<Self, ElefantClientError> {
         let mut client = Self {
             connection,
-            pool,
+            pool: None,
             ready_for_query: false,
             write_buffer: Vec::new(),
             client_id: CLIENT_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
@@ -103,13 +103,8 @@ impl<F: ConnectionFactory> PostgresClient<F> {
             current_transaction_status: CurrentTransactionStatus::Idle,
         };
 
-        client.establish().await?;
-
+        client.establish(settings).await?;
         Ok(client)
-    }
-
-    pub fn pool(&self) -> &PostgresPool<F> {
-        &self.pool
     }
 
     /// Helper method for reading backend messages while ignoring and handling "async" messages.

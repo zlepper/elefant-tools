@@ -1,4 +1,4 @@
-use crate::pool::{ConnectionFactory, PostgresPool};
+use crate::pool::{ConnectionFactory, PoolableClient, PostgresPool};
 use crate::postgres_client::PostgresClient;
 use crate::protocol::async_io::{ElefantAsyncRead, ElefantAsyncWrite};
 use crate::protocol::PostgresConnection;
@@ -45,9 +45,11 @@ pub type TokioPostgresConnection = PostgresConnection<TokioWrapper<BufWriter<Tcp
 pub type TokioPostgresClient = PostgresClient<TokioConnectionFactory>;
 pub type TokioPostgresPool = PostgresPool<TokioConnectionFactory>;
 
+pub type TokioPoolableClient = PoolableClient<TokioConnectionFactory>;
+
 pub async fn new_client(
     settings: PostgresConnectionSettings,
-) -> Result<TokioPostgresClient, ElefantClientError> {
+) -> Result<TokioPoolableClient, ElefantClientError> {
     let pool = PostgresPool::new(TokioConnectionFactory, settings);
     pool.get_client().await
 }

@@ -124,7 +124,7 @@ pub struct ReadyForQuery {
     pub current_transaction_status: CurrentTransactionStatus,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CurrentTransactionStatus {
     Idle,
     InTransaction,

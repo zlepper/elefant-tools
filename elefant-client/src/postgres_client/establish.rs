@@ -10,8 +10,7 @@ use md5::Digest;
 use std::borrow::Cow;
 
 impl<F: ConnectionFactory> PostgresClient<F> {
-    pub(crate) async fn establish(&mut self) -> Result<(), ElefantClientError> {
-        let settings = self.pool.settings().clone();
+    pub(crate) async fn establish(&mut self, settings: &PostgresConnectionSettings) -> Result<(), ElefantClientError> {
         self.connection
             .write_frontend_message(&FrontendMessage::StartupMessage(StartupMessage {
                 parameters: vec![
@@ -99,7 +98,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 }
             }
             BackendMessage::AuthenticationMD5Password(md5_pw) => {
-                let pw = calculate_md5_password_message(&settings, md5_pw.salt);
+                let pw = calculate_md5_password_message(settings, md5_pw.salt);
                 self.connection
                     .write_frontend_message(&FrontendMessage::FrontendPMessage(
                         FrontendPMessage::PasswordMessage(PasswordMessage {

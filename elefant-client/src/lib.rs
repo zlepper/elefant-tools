@@ -12,7 +12,7 @@ pub mod tokio_connection;
 mod types;
 
 pub use error::ElefantClientError;
-pub use pool::{ConnectionFactory, PostgresPool};
+pub use pool::{ConnectionFactory, PoolableClient, PostgresPool};
 pub use postgres_client::*;
 pub use types::*;
 

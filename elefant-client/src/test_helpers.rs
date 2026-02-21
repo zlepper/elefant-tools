@@ -12,7 +12,7 @@ pub(crate) fn get_settings() -> PostgresConnectionSettings {
 }
 
 #[cfg(feature = "tokio")]
-pub(crate) async fn get_tokio_test_client() -> crate::tokio_connection::TokioPostgresClient {
+pub(crate) async fn get_tokio_test_client() -> crate::tokio_connection::TokioPoolableClient {
     crate::tokio_connection::new_client(get_settings())
         .await
         .unwrap()

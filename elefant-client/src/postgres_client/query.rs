@@ -27,8 +27,8 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn query(
         &mut self,
         query: &(impl Statement + ?Sized),
-        parameters: &[&(dyn ToSql)],
-    ) -> Result<QueryResult<C>, ElefantClientError> {
+        parameters: &[&dyn ToSql],
+    ) -> Result<QueryResult<'_, C>, ElefantClientError> {
         let prepared = query.prepare(self).await?;
         prepared.execute(self, parameters).await
     }
@@ -37,7 +37,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn query_simple(
         &mut self,
         query: &str,
-    ) -> Result<SimpleQueryResult<C>, ElefantClientError> {
+    ) -> Result<SimpleQueryResult<'_, C>, ElefantClientError> {
         self.start_new_query().await?;
         self.connection
             .write_frontend_message(&FrontendMessage::Query(protocol::Query {

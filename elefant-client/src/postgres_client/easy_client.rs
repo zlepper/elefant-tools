@@ -8,7 +8,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn execute_non_query<S>(
         &mut self,
         query: &S,
-        parameters: &[&(dyn ToSql)],
+        parameters: &[&dyn ToSql],
     ) -> Result<(), ElefantClientError>
     where
         S: Statement + ?Sized,

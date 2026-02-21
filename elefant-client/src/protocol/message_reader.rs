@@ -879,7 +879,7 @@ impl<'a, 'b> Decoder<'a, FrontendMessage<'a>> for PostgresMessageDecoder<'a, 'b>
 impl<C: ElefantAsyncReadWrite> PostgresConnection<C> {
     pub async fn read_backend_message(
         &mut self,
-    ) -> Result<BackendMessage, PostgresMessageParseError> {
+    ) -> Result<BackendMessage<'_>, PostgresMessageParseError> {
         self.connection
             .read_frame::<PostgresMessageDecoder, _>()
             .await
@@ -887,7 +887,7 @@ impl<C: ElefantAsyncReadWrite> PostgresConnection<C> {
 
     pub async fn parse_frontend_message(
         &mut self,
-    ) -> Result<FrontendMessage, PostgresMessageParseError> {
+    ) -> Result<FrontendMessage<'_>, PostgresMessageParseError> {
         self.connection
             .read_frame::<PostgresMessageDecoder, _>()
             .await

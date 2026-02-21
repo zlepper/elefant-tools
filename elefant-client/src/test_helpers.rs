@@ -24,7 +24,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn try_read_single_value<'postgres_client, T>(
         &'postgres_client mut self,
         query: &(impl Statement + ?Sized),
-        parameters: &[&(dyn ToSql)],
+        parameters: &[&dyn ToSql],
     ) -> Result<T, ElefantClientError>
     where
         T: FromSqlBinary<'postgres_client>,
@@ -51,7 +51,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn read_single_value<'postgres_client, T>(
         &'postgres_client mut self,
         query: &(impl Statement + ?Sized),
-        parameters: &[&(dyn ToSql)],
+        parameters: &[&dyn ToSql ],
     ) -> T
     where
         T: FromSqlBinary<'postgres_client>,
@@ -160,7 +160,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn read_single_column_and_row_exactly<'a, S, T>(
         &'a mut self,
         sql: &S,
-        parameters: &[&(dyn ToSql)],
+        parameters: &[&dyn ToSql ],
     ) -> T
     where
         T: FromSql<'a>,

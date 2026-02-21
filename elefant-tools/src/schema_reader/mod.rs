@@ -53,7 +53,7 @@ pub struct SchemaReader<'a> {
 }
 
 impl SchemaReader<'_> {
-    pub fn new(connection: &PostgresClientWrapper) -> SchemaReader {
+    pub fn new(connection: &PostgresClientWrapper) -> SchemaReader<'_> {
         SchemaReader { connection }
     }
 

@@ -25,8 +25,13 @@ async fn main() -> Result<()> {
             .await?;
 
         let version: i32 = client
-            .read_single_value::<String>("show server_version_num;", &[])
+            .query_simple("show server_version_num;")
             .await?
+            .collect_single_column_to_vec::<String>()
+            .await?
+            .into_iter()
+            .next()
+            .expect("Expected a version number")
             .parse()?;
 
         for db_name in databases {

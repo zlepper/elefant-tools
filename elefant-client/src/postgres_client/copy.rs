@@ -7,8 +7,8 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn copy_out(
         &mut self,
         query: &(impl Statement + ?Sized),
-        parameters: &[&(dyn ToSql)],
-    ) -> Result<CopyReader<C>, ElefantClientError> {
+        parameters: &[&dyn ToSql],
+    ) -> Result<CopyReader<'_, C>, ElefantClientError> {
         let prepared = query.prepare(self).await?;
         prepared.execute(self, parameters).await?;
 
@@ -25,8 +25,8 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     pub async fn copy_in(
         &mut self,
         query: &(impl Statement + ?Sized),
-        parameters: &[&(dyn ToSql)],
-    ) -> Result<CopyWriter<C>, ElefantClientError> {
+        parameters: &[&dyn ToSql],
+    ) -> Result<CopyWriter<'_, C>, ElefantClientError> {
         let prepared = query.prepare(self).await?;
         prepared.execute(self, parameters).await?;
 
@@ -141,7 +141,7 @@ pub struct CopyReader<'a, C: ElefantAsyncReadWrite> {
 }
 
 impl<'a, C: ElefantAsyncReadWrite> CopyReader<'a, C> {
-    pub async fn read(&mut self) -> Result<Option<CopyData>, ElefantClientError> {
+    pub async fn read(&mut self) -> Result<Option<CopyData<'_>>, ElefantClientError> {
         let msg = self.client.read_next_backend_message().await?;
         match msg {
             BackendMessage::CopyData(cd) => Ok(Some(cd)),

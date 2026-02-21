@@ -111,7 +111,7 @@ impl<C: ElefantAsyncReadWrite> PostgresClient<C> {
     /// Helper method for reading backend messages while ignoring and handling "async" messages.
     pub(crate) async fn read_next_backend_message(
         &mut self,
-    ) -> Result<BackendMessage, ElefantClientError> {
+    ) -> Result<BackendMessage<'_>, ElefantClientError> {
         loop {
             let connection: &mut PostgresConnection<C> =
                 reborrow_until_polonius!(&mut self.connection);

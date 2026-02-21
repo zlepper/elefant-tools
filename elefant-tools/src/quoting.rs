@@ -100,7 +100,7 @@ where
 /// A trait for types that can be quoted as an iterator.
 pub(crate) trait QuotableIter: Sized {
     fn quote(self, quoter: &IdentifierQuoter, usage: AttemptedKeywordUsage)
-        -> IteratorQuoter<Self>;
+        -> IteratorQuoter<'_, Self>;
 }
 
 impl<I> QuotableIter for I
@@ -112,7 +112,7 @@ where
         self,
         quoter: &IdentifierQuoter,
         usage: AttemptedKeywordUsage,
-    ) -> IteratorQuoter<Self> {
+    ) -> IteratorQuoter<'_, Self> {
         IteratorQuoter {
             quoter,
             usage,

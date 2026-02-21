@@ -33,7 +33,7 @@ impl PreparedQuery {
     pub async fn execute<'postgres_client, C: ElefantAsyncReadWrite>(
         &self,
         client: &'postgres_client mut PostgresClient<C>,
-        parameters: &[&(dyn ToSql)],
+        parameters: &[&dyn ToSql],
     ) -> Result<QueryResult<'postgres_client, C>, ElefantClientError> {
         client.start_new_query().await?;
         client.sync_required = true;

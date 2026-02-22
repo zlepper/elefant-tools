@@ -4,10 +4,10 @@ use crate::PostgresType;
 use std::error::Error;
 
 macro_rules! impl_number {
-    ($typ: ty, $standard_type: expr) => {
+    ($typ: ty, $standard_type: expr $(, $also_accept: expr)*) => {
         impl<'a> FromSqlBase<'a> for $typ {
             fn accepts_postgres_type(oid: i32) -> bool {
-                oid == $standard_type.oid
+                oid == $standard_type.oid $( || oid == $also_accept.oid)*
             }
         }
 
@@ -50,10 +50,10 @@ macro_rules! impl_number {
 }
 
 impl_number!(i16, PostgresType::INT2);
-impl_number!(i32, PostgresType::INT4);
-impl_number!(i64, PostgresType::INT8);
+impl_number!(i32, PostgresType::INT4, PostgresType::INT2);
+impl_number!(i64, PostgresType::INT8, PostgresType::INT4, PostgresType::INT2);
 impl_number!(f32, PostgresType::FLOAT4);
-impl_number!(f64, PostgresType::FLOAT8);
+impl_number!(f64, PostgresType::FLOAT8, PostgresType::FLOAT4);
 
 #[cfg(test)]
 mod tests {

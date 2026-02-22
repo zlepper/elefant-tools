@@ -40,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user: DB_USER.to_string(),
         password: DB_PASSWORD.to_string(),
         database: "postgres".to_string(),
+        options: None,
     };
 
     let _elefant_client = tokio_connection::new_client(settings).await?;

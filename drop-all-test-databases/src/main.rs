@@ -12,6 +12,7 @@ async fn main() -> Result<()> {
             database: "postgres".to_string(),
             port,
             password: "passw0rd".to_string(),
+            options: None,
         })
         .await?;
 

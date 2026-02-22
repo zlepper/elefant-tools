@@ -210,6 +210,7 @@ async fn elefant_client_tokio_copy_benchmark(_num_rows: usize) {
         user: DB_USER.to_string(),
         password: DB_PASSWORD.to_string(),
         database: BENCHMARK_DB.to_string(),
+        options: None,
     };
 
     let mut source_client = tokio_connection::new_client(settings.clone())

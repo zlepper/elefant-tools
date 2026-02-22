@@ -11,6 +11,7 @@ async fn main() -> Result<()> {
         password: "passw0rd".to_string(),
         user: "postgres".to_string(),
         port: 5416, // Postgres 16 for now
+        options: None,
     })
     .await?;
 
@@ -27,6 +28,7 @@ async fn main() -> Result<()> {
         password: "passw0rd".to_string(),
         user: "postgres".to_string(),
         port: 5416, // Postgres 16 for now
+        options: None,
     })
     .await?;
 

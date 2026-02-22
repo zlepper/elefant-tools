@@ -14,6 +14,7 @@ mod types;
 pub use error::ElefantClientError;
 pub use pool::{ConnectionFactory, PoolableClient, PostgresPool};
 pub use postgres_client::*;
+pub use protocol::FieldDescription;
 pub use types::*;
 
 #[derive(Clone)]
@@ -23,6 +24,7 @@ pub struct PostgresConnectionSettings {
     pub user: String,
     pub password: String,
     pub database: String,
+    pub options: Option<String>,
 }
 
 impl Default for PostgresConnectionSettings {
@@ -33,6 +35,7 @@ impl Default for PostgresConnectionSettings {
             password: "".to_string(),
             host: "localhost".to_string(),
             user: "postgres".to_string(),
+            options: None,
         }
     }
 }

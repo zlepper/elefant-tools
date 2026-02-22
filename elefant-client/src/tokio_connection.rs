@@ -159,6 +159,7 @@ mod tests {
                 database: "postgres".to_string(),
                 port,
                 password: "passw0rd".to_string(),
+                options: None,
             })
             .await
             .unwrap_or_else(|_| panic!("Failed to connect to port {port}"));

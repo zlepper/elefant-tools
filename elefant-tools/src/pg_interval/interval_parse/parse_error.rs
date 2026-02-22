@@ -9,6 +9,20 @@ pub enum ParseError {
     InvalidInterval(String),
 }
 
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ParseError::ParseIntErr(e) => write!(f, "{e}"),
+            ParseError::ParseFloatErr(e) => write!(f, "{e}"),
+            ParseError::InvalidYearMonth(s) => write!(f, "invalid year/month: {s}"),
+            ParseError::InvalidTime(s) => write!(f, "invalid time: {s}"),
+            ParseError::InvalidInterval(s) => write!(f, "invalid interval: {s}"),
+        }
+    }
+}
+
+impl std::error::Error for ParseError {}
+
 impl<'a> ParseError {
     pub fn from_year_month(message: &'a str) -> ParseError {
         ParseError::InvalidYearMonth(String::from(message))

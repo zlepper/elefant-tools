@@ -9,7 +9,8 @@ use crate::pg_interval::interval_parse::parse_error::ParseError;
 impl Interval {
     pub fn from_postgres(iso_str: &str) -> Result<Interval, ParseError> {
         let mut delim = vec![
-            "years", "months", "mons", "days", "hours", "minutes", "seconds",
+            "years", "year", "months", "month", "mons", "mon", "days", "day", "hours", "hour",
+            "minutes", "minute", "seconds", "second",
         ];
         let mut time_tokens = iso_str.split(' ').collect::<Vec<&str>>(); // clean up empty values caused by n spaces between values.
         time_tokens.retain(|&token| !token.is_empty());
@@ -17,7 +18,11 @@ impl Interval {
         // value we need to scan each token.
         let mut final_tokens = Vec::with_capacity(time_tokens.len());
         for token in time_tokens {
-            if is_token_alphanumeric(token)? {
+            if token.contains(':') {
+                // PostgreSQL time component in HH:MM:SS[.FFFFFF] format
+                // May have a leading sign like +HH:MM:SS or -HH:MM:SS
+                parse_hms_token(token, &mut final_tokens)?;
+            } else if is_token_alphanumeric(token)? {
                 let (val, unit) = split_token(token)?;
                 final_tokens.push(val);
                 final_tokens.push(unit);
@@ -46,6 +51,49 @@ impl Interval {
         }
         interval.try_into_interval()
     }
+}
+
+/// Parse a HH:MM:SS[.FFFFFF] token (possibly with a leading +/-) into
+/// hours/minutes/seconds token pairs.
+fn parse_hms_token(token: &str, tokens: &mut Vec<String>) -> Result<(), ParseError> {
+    let (sign, time_str) = if let Some(rest) = token.strip_prefix('-') {
+        ("-", rest)
+    } else if let Some(rest) = token.strip_prefix('+') {
+        ("", rest)
+    } else {
+        ("", token)
+    };
+
+    let parts: Vec<&str> = time_str.split(':').collect();
+    if parts.len() < 2 || parts.len() > 3 {
+        return Err(ParseError::from_invalid_interval(
+            "Invalid time format in interval",
+        ));
+    }
+
+    let hours: i64 = parts[0]
+        .parse()
+        .map_err(|_| ParseError::from_invalid_interval("Invalid hours in time component"))?;
+    tokens.push(format!("{sign}{hours}"));
+    tokens.push("hours".to_owned());
+
+    let minutes: i64 = parts[1]
+        .parse()
+        .map_err(|_| ParseError::from_invalid_interval("Invalid minutes in time component"))?;
+    tokens.push(format!("{sign}{minutes}"));
+    tokens.push("minutes".to_owned());
+
+    if parts.len() == 3 {
+        let seconds: f64 = parts[2]
+            .parse()
+            .map_err(|_| ParseError::from_invalid_interval("Invalid seconds in time component"))?;
+        if seconds != 0.0 {
+            tokens.push(format!("{sign}{seconds}"));
+            tokens.push("seconds".to_owned());
+        }
+    }
+
+    Ok(())
 }
 
 /// Does the token contain both alphabetic and numeric characters?
@@ -99,46 +147,48 @@ fn consume_token(
     // the deliminator list.
     if delim_list.contains(&&*delim) {
         match &*delim {
-            "years" => {
+            "years" | "year" => {
                 let (year, month) = scale_date(val, MONTHS_PER_YEAR);
                 interval.years += year;
                 interval.months += month;
-                delim_list.retain(|x| *x != "years");
+                delim_list.retain(|x| *x != "years" && *x != "year");
                 Ok(())
             }
-            "months" | "mons" => {
+            "months" | "month" | "mons" | "mon" => {
                 let (month, day) = scale_date(val, DAYS_PER_MONTH);
                 interval.months += month;
                 interval.days += day;
-                delim_list.retain(|x| *x != "months" && *x != "mons");
+                delim_list.retain(|x| {
+                    *x != "months" && *x != "month" && *x != "mons" && *x != "mon"
+                });
                 Ok(())
             }
-            "days" => {
+            "days" | "day" => {
                 let (days, hours) = scale_date(val, HOURS_PER_DAY);
                 interval.days += days;
                 interval.hours += hours as i64;
-                delim_list.retain(|x| *x != "days");
+                delim_list.retain(|x| *x != "days" && *x != "day");
                 Ok(())
             }
-            "hours" => {
+            "hours" | "hour" => {
                 let (hours, minutes) = scale_time(val, MINUTES_PER_HOUR);
                 interval.hours += hours;
                 interval.minutes += minutes;
-                delim_list.retain(|x| *x != "hours");
+                delim_list.retain(|x| *x != "hours" && *x != "hour");
                 Ok(())
             }
-            "minutes" => {
+            "minutes" | "minute" => {
                 let (minutes, seconds) = scale_time(val, SECONDS_PER_MIN);
                 interval.minutes += minutes;
                 interval.seconds += seconds;
-                delim_list.retain(|x| *x != "minutes");
+                delim_list.retain(|x| *x != "minutes" && *x != "minute");
                 Ok(())
             }
-            "seconds" => {
+            "seconds" | "second" => {
                 let (seconds, microseconds) = scale_time(val, MICROS_PER_SECOND);
                 interval.seconds += seconds;
                 interval.microseconds += microseconds;
-                delim_list.retain(|x| *x != "seconds");
+                delim_list.retain(|x| *x != "seconds" && *x != "second");
                 Ok(())
             }
             _ => unreachable!(),

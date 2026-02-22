@@ -1,10 +1,22 @@
 use crate::pg_interval::interval::Interval;
-use bytes::{Buf, BufMut, BytesMut};
+use bytes::{Buf, BufMut};
+use elefant_client::{FieldDescription, FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use std::error::Error;
-use tokio_postgres::types::{to_sql_checked, FromSql, IsNull, ToSql, Type};
 
-impl<'a> FromSql<'a> for Interval {
-    fn from_sql(_: &Type, mut raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
+const INTERVAL_OID: i32 = 1186;
+
+impl<'a> FromSqlBase<'a> for Interval {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == INTERVAL_OID
+    }
+}
+
+impl<'a> FromSqlBinary<'a> for Interval {
+    fn from_sql_binary(
+        raw: &'a [u8],
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        let mut raw = raw;
         let microseconds = raw.get_i64();
         let days = raw.get_i32();
         let months = raw.get_i32();
@@ -14,23 +26,25 @@ impl<'a> FromSql<'a> for Interval {
             microseconds,
         })
     }
+}
 
-    fn accepts(ty: &Type) -> bool {
-        matches!(*ty, Type::INTERVAL)
+impl<'a> FromSqlText<'a> for Interval {
+    fn from_sql_text(
+        raw: &'a str,
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        Interval::from_postgres(raw).map_err(|e| Box::new(e) as Box<dyn Error + Sync + Send>)
     }
 }
 
 impl ToSql for Interval {
-    fn to_sql(&self, _: &Type, out: &mut BytesMut) -> Result<IsNull, Box<dyn Error + Sync + Send>> {
-        out.put_i64(self.microseconds);
-        out.put_i32(self.days);
-        out.put_i32(self.months);
-        Ok(IsNull::No)
+    fn to_sql_binary(
+        &self,
+        target_buffer: &mut Vec<u8>,
+    ) -> Result<(), Box<dyn Error + Sync + Send>> {
+        target_buffer.put_i64(self.microseconds);
+        target_buffer.put_i32(self.days);
+        target_buffer.put_i32(self.months);
+        Ok(())
     }
-
-    fn accepts(ty: &Type) -> bool {
-        matches!(*ty, Type::INTERVAL)
-    }
-
-    to_sql_checked!();
 }

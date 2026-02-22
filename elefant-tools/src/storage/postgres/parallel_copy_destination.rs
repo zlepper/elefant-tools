@@ -1,98 +1,101 @@
 use crate::helpers::IMPORT_PREFIX;
 use crate::quoting::{AttemptedKeywordUsage, Quotable};
 use crate::schema_reader::SchemaReader;
-use crate::storage::postgres::connection_pool::ConnectionPool;
 use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 use crate::{
-    AsyncCleanup, CopyDestination, IdentifierQuoter, PostgresClientWrapper, PostgresDatabase,
-    PostgresSchema, PostgresTable, TableData,
+    AsyncCleanup, CopyDestination, CopyTransaction, IdentifierQuoter, PostgresClientWrapper,
+    PostgresDatabase, PostgresSchema, PostgresTable, TableData, TableDataReader,
 };
-use bytes::Bytes;
-use futures::{pin_mut, SinkExt, Stream, StreamExt};
+use elefant_client::tokio_connection::TokioPoolableClient;
 use itertools::Itertools;
 use std::collections::HashSet;
 use std::sync::Arc;
 use tracing::{error, info, instrument};
 
 /// A copy destination for Postgres that works well with parallelism.
-#[derive(Clone)]
 pub struct ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
-    connection_pool: ConnectionPool,
-    main_connection: &'a PostgresClientWrapper,
+    wrapper: &'a PostgresClientWrapper,
     identifier_quoter: Arc<IdentifierQuoter>,
     in_flight_statements: Arc<tokio::sync::Mutex<HashSet<String>>>,
 }
 
-impl<'a> ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
-    pub async fn new(storage: &PostgresInstanceStorage<'a>) -> crate::Result<Self> {
-        let main_connection = storage.connection;
-
-        main_connection.execute_non_query(IMPORT_PREFIX).await?;
-
-        Ok(ParallelSafePostgresInstanceCopyDestinationStorage {
-            connection_pool: ConnectionPool::new(),
-            main_connection,
-            identifier_quoter: storage.identifier_quoter.clone(),
-            in_flight_statements: Arc::new(tokio::sync::Mutex::new(HashSet::new())),
-        })
-    }
-
-    async fn get_connection(&self) -> crate::Result<PostgresClientWrapper> {
-        if let Some(existing) = self.connection_pool.get_connection().await {
-            Ok(existing)
-        } else {
-            let new_conn = self.main_connection.create_another_connection().await?;
-
-            new_conn.execute_non_query(IMPORT_PREFIX).await?;
-
-            Ok(new_conn)
+impl Clone for ParallelSafePostgresInstanceCopyDestinationStorage<'_> {
+    fn clone(&self) -> Self {
+        Self {
+            wrapper: self.wrapper,
+            identifier_quoter: self.identifier_quoter.clone(),
+            in_flight_statements: self.in_flight_statements.clone(),
         }
-    }
-
-    async fn release_connection(&self, connection: PostgresClientWrapper) {
-        self.connection_pool.release_connection(connection).await;
     }
 }
 
-impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> {
-    async fn apply_data<S: Stream<Item = crate::Result<Bytes>> + Send, C: AsyncCleanup>(
-        &mut self,
-        schema: &PostgresSchema,
-        table: &PostgresTable,
-        data: TableData<S, C>,
-    ) -> crate::Result<()> {
-        let data_format = data.data_format;
-
-        let copy_statement =
-            table.get_copy_in_command(schema, &data_format, &self.identifier_quoter);
-
-        let connection = self.get_connection().await?;
-
-        let sink = connection.copy_in::<Bytes>(&copy_statement).await?;
-        pin_mut!(sink);
-
-        let stream = data.data;
-
-        pin_mut!(stream);
-
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            sink.feed(item).await?;
+impl<'a> ParallelSafePostgresInstanceCopyDestinationStorage<'a> {
+    pub fn new(storage: &PostgresInstanceStorage<'a>) -> Self {
+        ParallelSafePostgresInstanceCopyDestinationStorage {
+            wrapper: storage.connection,
+            identifier_quoter: storage.identifier_quoter.clone(),
+            in_flight_statements: Arc::new(tokio::sync::Mutex::new(HashSet::new())),
         }
+    }
+}
 
-        sink.close().await?;
+/// A transaction on a parallel Postgres copy destination.
+pub struct PostgresTransaction {
+    client: TokioPoolableClient,
+}
 
-        data.cleanup.cleanup().await?;
-        self.release_connection(connection).await;
-
+impl CopyTransaction for PostgresTransaction {
+    #[instrument(skip(self))]
+    async fn apply_statement(&mut self, statement: &str) -> crate::Result<()> {
+        info!("Executing transactional statement");
+        self.client
+            .execute_non_query_simple(statement)
+            .await
+            .map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
+                source: e,
+                query: statement.to_string(),
+            })?;
+        info!("Executed transactional statement");
         Ok(())
     }
 
     #[instrument(skip(self))]
-    async fn apply_transactional_statement(&mut self, statement: &str) -> crate::Result<()> {
-        info!("Executing transactional statement");
-        self.main_connection.execute_non_query(statement).await?;
-        info!("Executed transactional statement");
+    async fn commit(mut self) -> crate::Result<()> {
+        self.client.execute_non_query_simple("commit;").await?;
+        Ok(())
+    }
+}
+
+impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> {
+    type Transaction<'a>
+        = PostgresTransaction
+    where
+        Self: 'a;
+
+    async fn apply_data<R: TableDataReader, C: AsyncCleanup>(
+        &mut self,
+        schema: &PostgresSchema,
+        table: &PostgresTable,
+        mut data: TableData<R, C>,
+    ) -> crate::Result<()> {
+        let data_format = data.data_format.clone();
+
+        let copy_statement =
+            table.get_copy_in_command(schema, &data_format, &self.identifier_quoter);
+
+        let mut client = self.wrapper.pool().get_client().await?;
+        client.execute_non_query_simple(IMPORT_PREFIX).await?;
+
+        let mut writer = client.copy_in(&*copy_statement, &[]).await?;
+
+        while let Some(chunk) = data.data.read_chunk().await? {
+            writer.write(&chunk).await?;
+        }
+
+        writer.end().await?;
+
+        data.cleanup.cleanup().await?;
+
         Ok(())
     }
 
@@ -105,8 +108,8 @@ impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> 
         };
 
         info!("Executing non-transactional statement");
-        let connection = self.get_connection().await?;
-        let result = connection.execute_non_query(statement).await;
+        let mut client = self.wrapper.pool().get_client().await?;
+        let result = client.execute_non_query_simple(statement).await;
         {
             let mut in_flight_statements = self.in_flight_statements.lock().await;
             if let Err(e) = result {
@@ -114,28 +117,25 @@ impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> 
                     "Error occurred. In flight statements: {:?}. In flight when started: {:?}",
                     in_flight_statements, in_flight_when_started
                 );
-                return Err(e);
+                return Err(e.into());
             }
             in_flight_statements.remove(statement);
         }
 
-        self.release_connection(connection).await;
         info!("Executed non-transactional statement");
         Ok(())
     }
 
     #[instrument(skip(self))]
-    async fn begin_transaction(&mut self) -> crate::Result<()> {
-        self.main_connection
-            .execute_non_query("begin transaction isolation level serializable read write;")
+    async fn begin_transaction(&mut self) -> crate::Result<PostgresTransaction> {
+        let mut client = self.wrapper.pool().get_client().await?;
+        client.execute_non_query_simple(IMPORT_PREFIX).await?;
+        client
+            .execute_non_query_simple(
+                "begin transaction isolation level serializable read write;",
+            )
             .await?;
-        Ok(())
-    }
-
-    #[instrument(skip(self))]
-    async fn commit_transaction(&mut self) -> crate::Result<()> {
-        self.main_connection.execute_non_query("commit;").await?;
-        Ok(())
+        Ok(PostgresTransaction { client })
     }
 
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
@@ -143,7 +143,7 @@ impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> 
     }
 
     async fn try_introspect(&self) -> crate::Result<Option<PostgresDatabase>> {
-        let reader = SchemaReader::new(self.main_connection);
+        let reader = SchemaReader::new(self.wrapper);
         reader.introspect_database().await.map(Some)
     }
 
@@ -161,10 +161,7 @@ impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> 
             AttemptedKeywordUsage::TypeOrFunctionName,
         );
         let query = format!("select exists(select 1 from {schema_name}.{table_name} limit 1);");
-        let result = self
-            .main_connection
-            .get_single_result::<bool>(&query)
-            .await?;
+        let result = self.wrapper.get_single_result::<bool>(&query).await?;
         Ok(result)
     }
 }

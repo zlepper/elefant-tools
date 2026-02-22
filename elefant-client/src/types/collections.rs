@@ -92,7 +92,18 @@ where
 
         let mut result = Vec::new();
 
-        let narrowed = &raw[1..raw.len() - 1];
+        // Handle explicit array bounds prefix: [lower:upper]={elements}
+        // This occurs e.g. when casting int2vector to int2[] (0-based indexing).
+        let array_body = if raw.starts_with('[') {
+            match raw.find("={") {
+                Some(pos) => &raw[pos + 1..],
+                None => raw,
+            }
+        } else {
+            raw
+        };
+
+        let narrowed = &array_body[1..array_body.len() - 1];
 
         if narrowed.is_empty() {
             return Ok(result);

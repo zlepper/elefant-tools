@@ -1,4 +1,3 @@
-mod connection_pool;
 mod parallel_copy_destination;
 mod parallel_copy_source;
 mod postgres_instance_storage;

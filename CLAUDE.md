@@ -102,7 +102,7 @@ cargo build --package elefant-client --features tokio
 **Prerequisites:**
 ```bash
 # Start test databases (required before running tests)
-docker-compose up -d
+docker compose up -d
 ```
 
 **Test Commands:**

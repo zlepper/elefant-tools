@@ -390,12 +390,19 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                         }),
                         compression: Some(HypertableCompression {
                             enabled: true,
-                            segment_by_columns: Some(vec!["symbol".to_string()]),
-                            order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
-                                column_name: "day".to_string(),
-                                nulls_first: false,
-                                descending: false,
-                            }]),
+                            segment_by_columns: None,
+                            order_by_columns: Some(vec![
+                                HypertableCompressionOrderedColumn {
+                                    column_name: "day".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                },
+                                HypertableCompressionOrderedColumn {
+                                    column_name: "symbol".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                },
+                            ]),
                             chunk_time_interval: None,
                             compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
                             compress_after: Some(Interval::new(0, 360, 0)),
@@ -544,7 +551,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                         },
                     ],
                     is_materialized: true,
-                    definition: r#"SELECT time_bucket('1 day'::interval, "time") AS day,
+                    definition: r#" SELECT time_bucket('1 day'::interval, "time") AS day,
     symbol,
     max(price) AS high,
     first(price, "time") AS open,
@@ -561,12 +568,19 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
                         }),
                         compression: Some(HypertableCompression {
                             enabled: true,
-                            segment_by_columns: Some(vec!["symbol".to_string()]),
-                            order_by_columns: Some(vec![HypertableCompressionOrderedColumn {
-                                column_name: "day".to_string(),
-                                nulls_first: false,
-                                descending: false,
-                            }]),
+                            segment_by_columns: None,
+                            order_by_columns: Some(vec![
+                                HypertableCompressionOrderedColumn {
+                                    column_name: "day".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                },
+                                HypertableCompressionOrderedColumn {
+                                    column_name: "symbol".to_string(),
+                                    nulls_first: false,
+                                    descending: false,
+                                },
+                            ]),
                             chunk_time_interval: None,
                             compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
                             compress_after: Some(Interval::new(0, 360, 0)),

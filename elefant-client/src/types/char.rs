@@ -27,6 +27,10 @@ impl<'a> FromSqlText<'a> for char {
         raw: &'a str,
         field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        if raw.is_empty() {
+            // PostgreSQL "char" type sends empty string for the zero/unset value
+            return Ok('\0');
+        }
         if raw.len() != 1 {
             return Err(format!("Invalid length for char. Expected 1 byte, got {} bytes instead. Error occurred when parsing field {:?}", raw.len(), field).into());
         }

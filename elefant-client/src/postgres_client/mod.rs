@@ -12,6 +12,7 @@ use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSetti
 use std::sync::atomic::AtomicU64;
 use tracing::{debug, trace};
 
+pub use copy::{CopyReader, CopyWriter};
 pub use query::{PostgresDataRow, QueryResult, SimpleQueryResult, QueryResultSet, RowResultReader};
 pub use statements::*;
 
@@ -72,7 +73,8 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                         debug!("Ignoring error while resetting elefant client: {:?}", e);
                     }
                     Ok(msg) => match msg {
-                        BackendMessage::ReadyForQuery(_) => {
+                        BackendMessage::ReadyForQuery(rfq) => {
+                            self.current_transaction_status = rfq.current_transaction_status;
                             self.ready_for_query = true;
                             break;
                         }
@@ -84,7 +86,31 @@ impl<F: ConnectionFactory> PostgresClient<F> {
             }
         }
 
-        // TODO: Handle being in a transaction.
+        // If the connection was left in a transaction, roll it back to ensure a clean state.
+        if self.current_transaction_status == CurrentTransactionStatus::InTransaction
+            || self.current_transaction_status == CurrentTransactionStatus::InFailedTransaction
+        {
+            debug!("Rolling back lingering transaction during pool reset");
+            self.connection
+                .write_frontend_message(&FrontendMessage::Query(
+                    crate::protocol::Query {
+                        query: std::borrow::Cow::Borrowed("ROLLBACK;"),
+                    },
+                ))
+                .await?;
+            self.connection.flush().await?;
+            self.ready_for_query = false;
+            loop {
+                if let BackendMessage::ReadyForQuery(rfq) =
+                    self.read_next_backend_message().await?
+                {
+                    self.current_transaction_status = rfq.current_transaction_status;
+                    self.ready_for_query = true;
+                    break;
+                }
+            }
+        }
+
         Ok(())
     }
 

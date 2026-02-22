@@ -1,11 +1,16 @@
 use anyhow::Result;
-use elefant_tools::PostgresClientWrapper;
+use elefant_tools::{PostgresClientWrapper, PostgresConnectionSettings};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let conn = PostgresClientWrapper::new(
-        "host=localhost port=5432 user=postgres password=passw0rd dbname=postgres",
-    )
+    let conn = PostgresClientWrapper::new(PostgresConnectionSettings {
+        host: "localhost".to_string(),
+        port: 5432,
+        user: "postgres".to_string(),
+        password: "passw0rd".to_string(),
+        database: "postgres".to_string(),
+        options: None,
+    })
     .await?;
 
     conn.execute_non_query("drop database if exists dvdrental_import")

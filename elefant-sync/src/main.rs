@@ -46,9 +46,9 @@ async fn do_export(
     destination: Storage,
     max_parallelism: NonZeroUsize,
 ) -> Result<()> {
-    let connection_string = db_args.get_connection_string();
+    let settings = db_args.get_settings();
 
-    let source_connection = PostgresClientWrapper::new(&connection_string).await?;
+    let source_connection = PostgresClientWrapper::new(settings).await?;
     let source = PostgresInstanceStorage::new(&source_connection).await?;
 
     let copy_data_options = CopyDataOptions {
@@ -90,9 +90,9 @@ async fn do_export(
 
 #[instrument(skip_all)]
 async fn do_import(db_args: ImportDbArgs, source: Storage, _usize: NonZeroUsize) -> Result<()> {
-    let connection_string = db_args.get_connection_string();
+    let connection_string = db_args.get_settings();
 
-    let target_connection = PostgresClientWrapper::new(&connection_string).await?;
+    let target_connection = PostgresClientWrapper::new(connection_string).await?;
     match source {
         Storage::SqlFile { path, .. } => {
             let file = tokio::fs::File::open(path).await?;
@@ -107,11 +107,11 @@ async fn do_import(db_args: ImportDbArgs, source: Storage, _usize: NonZeroUsize)
 #[instrument(skip_all)]
 async fn do_copy(copy_args: CopyArgs, max_parallel: NonZeroUsize) -> Result<()> {
     let source_connection =
-        PostgresClientWrapper::new(&copy_args.source.get_connection_string()).await?;
+        PostgresClientWrapper::new(copy_args.source.get_settings()).await?;
     let source = PostgresInstanceStorage::new(&source_connection).await?;
 
     let target_connection =
-        PostgresClientWrapper::new(&copy_args.target.get_connection_string()).await?;
+        PostgresClientWrapper::new(copy_args.target.get_settings()).await?;
     let mut target = PostgresInstanceStorage::new(&target_connection).await?;
 
     copy_data(

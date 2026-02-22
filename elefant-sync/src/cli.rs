@@ -77,15 +77,15 @@ pub struct ExportDbArgs {
 }
 
 impl ExportDbArgs {
-    pub(crate) fn get_connection_string(&self) -> String {
-        format!(
-            "host={} port={} user={} password={} dbname={}",
-            self.source_db_host,
-            self.source_db_port,
-            self.source_db_user,
-            self.source_db_password,
-            self.source_db_name
-        )
+    pub(crate) fn get_settings(&self) -> elefant_client::PostgresConnectionSettings {
+        elefant_client::PostgresConnectionSettings {
+            host: self.source_db_host.clone(),
+            port: self.source_db_port,
+            user: self.source_db_user.clone(),
+            password: self.source_db_password.clone(),
+            database: self.source_db_name.clone(),
+            options: None,
+        }
     }
 
     #[cfg(test)]
@@ -180,21 +180,18 @@ pub struct ImportDbArgs {
 }
 
 impl ImportDbArgs {
-    pub(crate) fn get_connection_string(&self) -> String {
-        let mut connection_string = format!(
-            "host={} port={} user={} password={} dbname={}",
-            self.target_db_host,
-            self.target_db_port,
-            self.target_db_user,
-            self.target_db_password,
-            self.target_db_name
-        );
-
-        if let Some(schema) = &self.target_schema {
-            connection_string.push_str(&format!(" options=--search_path={schema},public"));
+    pub(crate) fn get_settings(&self) -> elefant_client::PostgresConnectionSettings {
+        elefant_client::PostgresConnectionSettings {
+            host: self.target_db_host.clone(),
+            port: self.target_db_port,
+            user: self.target_db_user.clone(),
+            password: self.target_db_password.clone(),
+            database: self.target_db_name.clone(),
+            options: self
+                .target_schema
+                .as_ref()
+                .map(|s| format!("--search_path={s},public")),
         }
-
-        connection_string
     }
 
     #[cfg(test)]

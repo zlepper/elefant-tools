@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct ViewColumnResult {
     pub view_name: String,
@@ -11,13 +10,13 @@ pub struct ViewColumnResult {
 }
 
 impl FromRow for ViewColumnResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            view_name: row.try_get(0)?,
-            schema_name: row.try_get(1)?,
-            column_name: row.try_get(2)?,
-            ordinal_position: row.try_get(3)?,
-            // comment: row.try_get(4)?,
+            view_name: row.get(0)?,
+            schema_name: row.get(1)?,
+            column_name: row.get(2)?,
+            ordinal_position: row.get(3)?,
+            // comment: row.get(4)?,
         })
     }
 }

@@ -18,8 +18,8 @@ pub struct TriggerResult {
 }
 
 impl FromRow for TriggerResult {
-    fn from_row(row: tokio_postgres::Row) -> crate::Result<Self> {
-        let trigger_type: i32 = row.try_get(3)?;
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+        let trigger_type: i32 = row.get(3)?;
 
         let trigger_level = match trigger_type & 1 {
             1 => PostgresTriggerLevel::Row,
@@ -51,18 +51,18 @@ impl FromRow for TriggerResult {
         }
 
         Ok(Self {
-            schema_name: row.try_get(0)?,
-            name: row.try_get(1)?,
-            table_name: row.try_get(2)?,
+            schema_name: row.get(0)?,
+            name: row.get(1)?,
+            table_name: row.get(2)?,
             events: trigger_events,
             timing: trigger_timing,
             level: trigger_level,
-            function_name: row.try_get(4)?,
-            condition: row.try_get(5)?,
-            old_table_name: row.try_get(6)?,
-            new_table_name: row.try_get(7)?,
-            comment: row.try_get(8)?,
-            arguments: row.try_get(9)?,
+            function_name: row.get(4)?,
+            condition: row.get(5)?,
+            old_table_name: row.get(6)?,
+            new_table_name: row.get(7)?,
+            comment: row.get(8)?,
+            arguments: row.get(9)?,
         })
     }
 }

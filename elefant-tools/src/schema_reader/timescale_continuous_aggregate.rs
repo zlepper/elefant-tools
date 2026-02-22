@@ -1,7 +1,6 @@
 use crate::pg_interval::Interval;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct ContinuousAggregateResult {
     // pub hypertable_schema: String,
@@ -26,27 +25,27 @@ pub struct ContinuousAggregateResult {
 }
 
 impl FromRow for ContinuousAggregateResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(ContinuousAggregateResult {
-            // hypertable_schema: row.try_get(0)?,
-            // hypertable_name: row.try_get(1)?,
-            view_schema: row.try_get(2)?,
-            view_name: row.try_get(3)?,
-            // materialized_only: row.try_get(4)?,
-            view_definition: row.try_get(5)?,
-            refresh_interval: row.try_get(6)?,
-            refresh_start_offset: row.try_get(7)?,
-            refresh_end_offset: row.try_get(8)?,
-            compression_enabled: row.try_get(9)?,
-            compress_job_interval: row.try_get(10)?,
-            compress_after: row.try_get(11)?,
-            compress_order_by: row.try_get(12)?,
-            compress_order_by_desc: row.try_get(13)?,
-            compress_order_by_nulls_first: row.try_get(14)?,
-            compress_segment_by: row.try_get(15)?,
-            compress_chunk_time_interval: row.try_get(16)?,
-            retention_schedule_interval: row.try_get(17)?,
-            retention_drop_after: row.try_get(18)?,
+            // hypertable_schema: row.get(0)?,
+            // hypertable_name: row.get(1)?,
+            view_schema: row.get(2)?,
+            view_name: row.get(3)?,
+            // materialized_only: row.get(4)?,
+            view_definition: row.get(5)?,
+            refresh_interval: row.get(6)?,
+            refresh_start_offset: row.get(7)?,
+            refresh_end_offset: row.get(8)?,
+            compression_enabled: row.get(9)?,
+            compress_job_interval: row.get(10)?,
+            compress_after: row.get(11)?,
+            compress_order_by: row.get(12)?,
+            compress_order_by_desc: row.get(13)?,
+            compress_order_by_nulls_first: row.get(14)?,
+            compress_segment_by: row.get(15)?,
+            compress_chunk_time_interval: row.get(16)?,
+            retention_schedule_interval: row.get(17)?,
+            retention_drop_after: row.get(18)?,
         })
     }
 }

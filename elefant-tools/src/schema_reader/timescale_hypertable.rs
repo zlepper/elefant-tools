@@ -1,7 +1,6 @@
 use crate::pg_interval::Interval;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct HypertableResult {
     pub table_schema: String,
@@ -19,20 +18,20 @@ pub struct HypertableResult {
 }
 
 impl FromRow for HypertableResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(HypertableResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            compression_enabled: row.try_get(2)?,
-            compression_chunk_interval: row.try_get(3)?,
-            compression_schedule_interval: row.try_get(4)?,
-            compress_after: row.try_get(5)?,
-            compress_order_by: row.try_get(6)?,
-            compress_order_by_desc: row.try_get(7)?,
-            compress_order_by_nulls_first: row.try_get(8)?,
-            compress_segment_by: row.try_get(9)?,
-            retention_schedule_interval: row.try_get(10)?,
-            retention_drop_after: row.try_get(11)?,
+            table_schema: row.get(0)?,
+            table_name: row.get(1)?,
+            compression_enabled: row.get(2)?,
+            compression_chunk_interval: row.get(3)?,
+            compression_schedule_interval: row.get(4)?,
+            compress_after: row.get(5)?,
+            compress_order_by: row.get(6)?,
+            compress_order_by_desc: row.get(7)?,
+            compress_order_by_nulls_first: row.get(8)?,
+            compress_segment_by: row.get(9)?,
+            retention_schedule_interval: row.get(10)?,
+            retention_drop_after: row.get(11)?,
         })
     }
 }

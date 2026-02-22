@@ -1,7 +1,6 @@
 use crate::pg_interval::Interval;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct TimescaleJobResult {
     pub function_name: String,
@@ -15,16 +14,16 @@ pub struct TimescaleJobResult {
 }
 
 impl FromRow for TimescaleJobResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(TimescaleJobResult {
-            function_name: row.try_get(0)?,
-            function_schema: row.try_get(1)?,
-            schedule_interval: row.try_get(2)?,
-            config: row.try_get(3)?,
-            scheduled: row.try_get(4)?,
-            check_config_schema: row.try_get(5)?,
-            check_config_name: row.try_get(6)?,
-            fixed_schedule: row.try_get(7)?,
+            function_name: row.get(0)?,
+            function_schema: row.get(1)?,
+            schedule_interval: row.get(2)?,
+            config: row.get(3)?,
+            scheduled: row.get(4)?,
+            check_config_schema: row.get(5)?,
+            check_config_name: row.get(6)?,
+            fixed_schedule: row.get(7)?,
         })
     }
 }

@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct SequenceResult {
     pub schema_name: String,
@@ -20,22 +19,22 @@ pub struct SequenceResult {
 }
 
 impl FromRow for SequenceResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            schema_name: row.try_get(0)?,
-            sequence_name: row.try_get(1)?,
-            data_type: row.try_get(2)?,
-            start_value: row.try_get(3)?,
-            min_value: row.try_get(4)?,
-            max_value: row.try_get(5)?,
-            increment_by: row.try_get(6)?,
-            cycle: row.try_get(7)?,
-            cache_size: row.try_get(8)?,
-            last_value: row.try_get(9)?,
-            comment: row.try_get(10)?,
-            is_internally_created: row.try_get::<_, Option<i8>>(11)? == Some('i' as i8),
-            author_table: row.try_get(12)?,
-            author_table_column_position: row.try_get(13)?,
+            schema_name: row.get(0)?,
+            sequence_name: row.get(1)?,
+            data_type: row.get(2)?,
+            start_value: row.get(3)?,
+            min_value: row.get(4)?,
+            max_value: row.get(5)?,
+            increment_by: row.get(6)?,
+            cycle: row.get(7)?,
+            cache_size: row.get(8)?,
+            last_value: row.get(9)?,
+            comment: row.get(10)?,
+            is_internally_created: row.get::<Option<char>>(11)? == Some('i'),
+            author_table: row.get(12)?,
+            author_table_column_position: row.get(13)?,
         })
     }
 }

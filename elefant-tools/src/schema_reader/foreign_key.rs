@@ -1,7 +1,6 @@
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::define_working_query;
 use crate::ReferenceAction;
-use tokio_postgres::Row;
 
 pub struct ForeignKeyResult {
     pub constraint_name: String,
@@ -16,17 +15,17 @@ pub struct ForeignKeyResult {
 }
 
 impl FromRow for ForeignKeyResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            constraint_name: row.try_get(0)?,
-            // constraint_schema_name: row.try_get(1)?,
-            source_table_name: row.try_get(2)?,
-            source_table_schema_name: row.try_get(3)?,
-            target_table_name: row.try_get(4)?,
-            target_table_schema_name: row.try_get(5)?,
+            constraint_name: row.get(0)?,
+            // constraint_schema_name: row.get(1)?,
+            source_table_name: row.get(2)?,
+            source_table_schema_name: row.get(3)?,
+            target_table_name: row.get(4)?,
+            target_table_schema_name: row.get(5)?,
             update_action: row.try_get_enum_value(6)?,
             delete_action: row.try_get_enum_value(7)?,
-            comment: row.try_get(8)?,
+            comment: row.get(8)?,
         })
     }
 }

@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct ExtensionResult {
     pub extension_name: String,
@@ -10,12 +9,12 @@ pub struct ExtensionResult {
 }
 
 impl FromRow for ExtensionResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            extension_name: row.try_get(0)?,
-            extension_schema_name: row.try_get(1)?,
-            extension_version: row.try_get(2)?,
-            extension_relocatable: row.try_get(3)?,
+            extension_name: row.get(0)?,
+            extension_schema_name: row.get(1)?,
+            extension_version: row.get(2)?,
+            extension_relocatable: row.get(3)?,
         })
     }
 }

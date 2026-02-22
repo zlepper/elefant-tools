@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct UniqueConstraintResult {
@@ -12,13 +11,13 @@ pub struct UniqueConstraintResult {
 }
 
 impl FromRow for UniqueConstraintResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(UniqueConstraintResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            constraint_name: row.try_get(2)?,
-            index_name: row.try_get(3)?,
-            comment: row.try_get(4)?,
+            table_schema: row.get(0)?,
+            table_name: row.get(1)?,
+            constraint_name: row.get(2)?,
+            index_name: row.get(3)?,
+            comment: row.get(4)?,
         })
     }
 }

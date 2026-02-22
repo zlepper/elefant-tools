@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct IndexColumnResult {
     pub table_schema: String,
@@ -14,16 +13,16 @@ pub struct IndexColumnResult {
 }
 
 impl FromRow for IndexColumnResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(IndexColumnResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            index_name: row.try_get(2)?,
-            is_key: row.try_get(3)?,
-            column_expression: row.try_get(4)?,
-            is_desc: row.try_get(5)?,
-            nulls_first: row.try_get(6)?,
-            ordinal_position: row.try_get(7)?,
+            table_schema: row.get(0)?,
+            table_name: row.get(1)?,
+            index_name: row.get(2)?,
+            is_key: row.get(3)?,
+            column_expression: row.get(4)?,
+            is_desc: row.get(5)?,
+            nulls_first: row.get(6)?,
+            ordinal_position: row.get(7)?,
         })
     }
 }

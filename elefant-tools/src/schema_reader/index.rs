@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::SchemaReader;
-use tokio_postgres::Row;
 use tracing::instrument;
 
 pub struct IndexResult {
@@ -18,19 +17,19 @@ pub struct IndexResult {
 }
 
 impl FromRow for IndexResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(IndexResult {
-            table_schema: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            index_name: row.try_get(2)?,
-            index_type: row.try_get(3)?,
-            can_sort: row.try_get(4)?,
-            index_predicate: row.try_get(5)?,
-            is_unique: row.try_get(6)?,
-            is_primary_key: row.try_get(7)?,
-            nulls_not_distinct: row.try_get(8)?,
-            comment: row.try_get(9)?,
-            storage_parameters: row.try_get(10)?,
+            table_schema: row.get(0)?,
+            table_name: row.get(1)?,
+            index_name: row.get(2)?,
+            index_type: row.get(3)?,
+            can_sort: row.get(4)?,
+            index_predicate: row.get(5)?,
+            is_unique: row.get(6)?,
+            is_primary_key: row.get(7)?,
+            nulls_not_distinct: row.get(8)?,
+            comment: row.get(9)?,
+            storage_parameters: row.get(10)?,
         })
     }
 }

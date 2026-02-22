@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct EnumResult {
     pub schema_name: String,
@@ -10,12 +9,12 @@ pub struct EnumResult {
 }
 
 impl FromRow for EnumResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            schema_name: row.try_get(0)?,
-            name: row.try_get(1)?,
-            comment: row.try_get(2)?,
-            values: row.try_get(3)?,
+            schema_name: row.get(0)?,
+            name: row.get(1)?,
+            comment: row.get(2)?,
+            values: row.get(3)?,
         })
     }
 }

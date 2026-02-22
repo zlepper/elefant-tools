@@ -1,7 +1,6 @@
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::define_working_query;
 use crate::{ColumnIdentity, PostgresColumn};
-use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TableColumnsResult {
@@ -20,22 +19,19 @@ pub struct TableColumnsResult {
 }
 
 impl FromRow for TableColumnsResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(TableColumnsResult {
-            schema_name: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            column_name: row.try_get(2)?,
-            ordinal_position: row.try_get(3)?,
-            is_nullable: row.try_get(4)?,
-            data_type: row.try_get(5)?,
-            column_default: row.try_get(6)?,
-            generated: row.try_get(7)?,
-            comment: row.try_get(8)?,
-            array_dimensions: match row.try_get(9) {
-                Ok(d) => d,
-                Err(_) => row.try_get::<_, i16>(9)? as i32,
-            },
-            data_type_length: row.try_get(10)?,
+            schema_name: row.get(0)?,
+            table_name: row.get(1)?,
+            column_name: row.get(2)?,
+            ordinal_position: row.get(3)?,
+            is_nullable: row.get(4)?,
+            data_type: row.get(5)?,
+            column_default: row.get(6)?,
+            generated: row.get(7)?,
+            comment: row.get(8)?,
+            array_dimensions: row.get(9)?,
+            data_type_length: row.get(10)?,
             identity: row.try_get_opt_enum_value(11)?,
         })
     }

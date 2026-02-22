@@ -1,7 +1,6 @@
 use super::define_working_query;
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
 use crate::{ElefantToolsError, TablePartitionStrategy};
-use tokio_postgres::Row;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TablesResult {
@@ -40,23 +39,23 @@ impl FromPgChar for TableType {
 }
 
 impl FromRow for TablesResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(TablesResult {
-            schema_name: row.try_get(0)?,
-            table_name: row.try_get(1)?,
-            comment: row.try_get(2)?,
+            schema_name: row.get(0)?,
+            table_name: row.get(1)?,
+            comment: row.get(2)?,
             table_type: row.try_get_enum_value(3)?,
-            partition_expression: row.try_get(4)?,
+            partition_expression: row.get(4)?,
             partition_strategy: row.try_get_opt_enum_value(5)?,
-            default_partition_name: row.try_get(6)?,
-            partition_column_indices: row.try_get(7)?,
-            partition_expression_columns: row.try_get(8)?,
-            parent_tables: row.try_get(9)?,
-            is_partition: row.try_get(10)?,
-            storage_parameters: row.try_get(11)?,
-            oid: row.try_get(12)?,
-            depends_on: row.try_get(13)?,
-            type_oid: row.try_get(14)?,
+            default_partition_name: row.get(6)?,
+            partition_column_indices: row.get(7)?,
+            partition_expression_columns: row.get(8)?,
+            parent_tables: row.get(9)?,
+            is_partition: row.get(10)?,
+            storage_parameters: row.get(11)?,
+            oid: row.get(12)?,
+            depends_on: row.get(13)?,
+            type_oid: row.get(14)?,
         })
     }
 }
@@ -74,7 +73,7 @@ select
     pg_get_expr(cl.relpartbound, cl.oid) as partition_expression,
     pt.partstrat,
     default_partition.relname as default_partition,
-    pt.partattrs,
+    pt.partattrs::int2[],
     pg_get_expr(pt.partexprs, pt.partrelid) as partexprs,
     (select array_agg(parent.relname) from (select parent.relname from pg_inherits i
         join pg_class parent on i.inhparent = parent.oid

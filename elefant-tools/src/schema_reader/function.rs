@@ -1,7 +1,6 @@
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
 use crate::schema_reader::SchemaReader;
 use crate::{FinalModify, FunctionKind, Parallel, Volatility};
-use tokio_postgres::Row;
 use tracing::instrument;
 
 pub struct FunctionResult {
@@ -47,47 +46,47 @@ pub struct FunctionResult {
 }
 
 impl FromRow for FunctionResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            schema_name: row.try_get(0)?,
-            function_name: row.try_get(1)?,
-            language_name: row.try_get(2)?,
-            estimated_cost: row.try_get(3)?,
-            estimated_rows: row.try_get(4)?,
-            support_function_name: row.try_get(5)?,
+            schema_name: row.get(0)?,
+            function_name: row.get(1)?,
+            language_name: row.get(2)?,
+            estimated_cost: row.get(3)?,
+            estimated_rows: row.get(4)?,
+            support_function_name: row.get(5)?,
             function_kind: row.try_get_enum_value(6)?,
-            security_definer: row.try_get(7)?,
-            leak_proof: row.try_get(8)?,
-            strict: row.try_get(9)?,
-            returns_set: row.try_get(10)?,
+            security_definer: row.get(7)?,
+            leak_proof: row.get(8)?,
+            strict: row.get(9)?,
+            returns_set: row.get(10)?,
             volatility: row.try_get_enum_value(11)?,
             parallel: row.try_get_enum_value(12)?,
-            sql_body: row.try_get(13)?,
-            configuration: row.try_get(14)?,
-            arguments: row.try_get(15)?,
-            result: row.try_get(16)?,
-            comment: row.try_get(17)?,
-            aggregate_state_transition_function: row.try_get(18)?,
-            aggregate_final_function: row.try_get(19)?,
-            aggregate_combine_function: row.try_get(20)?,
-            aggregate_serial_function: row.try_get(21)?,
-            aggregate_deserial_function: row.try_get(22)?,
-            aggregate_moving_state_transition_function: row.try_get(23)?,
-            aggregate_inverse_moving_state_transition_function: row.try_get(24)?,
-            aggregate_moving_final_function: row.try_get(25)?,
-            aggregate_final_extra_data: row.try_get(26)?,
-            aggregate_moving_final_extra_data: row.try_get(27)?,
+            sql_body: row.get(13)?,
+            configuration: row.get(14)?,
+            arguments: row.get(15)?,
+            result: row.get(16)?,
+            comment: row.get(17)?,
+            aggregate_state_transition_function: row.get(18)?,
+            aggregate_final_function: row.get(19)?,
+            aggregate_combine_function: row.get(20)?,
+            aggregate_serial_function: row.get(21)?,
+            aggregate_deserial_function: row.get(22)?,
+            aggregate_moving_state_transition_function: row.get(23)?,
+            aggregate_inverse_moving_state_transition_function: row.get(24)?,
+            aggregate_moving_final_function: row.get(25)?,
+            aggregate_final_extra_data: row.get(26)?,
+            aggregate_moving_final_extra_data: row.get(27)?,
             aggregate_final_modify: row.try_get_opt_enum_value(28)?,
             aggregate_moving_final_modify: row.try_get_opt_enum_value(29)?,
-            aggregate_sort_operator: row.try_get(30)?,
-            aggregate_transition_type: row.try_get(31)?,
-            aggregate_transition_space: row.try_get(32)?,
-            aggregate_moving_transition_type: row.try_get(33)?,
-            aggregate_moving_transition_space: row.try_get(34)?,
-            aggregate_initial_value: row.try_get(35)?,
-            aggregate_moving_initial_value: row.try_get(36)?,
-            oid: row.try_get(37)?,
-            depends_on: row.try_get(38)?,
+            aggregate_sort_operator: row.get(30)?,
+            aggregate_transition_type: row.get(31)?,
+            aggregate_transition_space: row.get(32)?,
+            aggregate_moving_transition_type: row.get(33)?,
+            aggregate_moving_transition_space: row.get(34)?,
+            aggregate_initial_value: row.get(35)?,
+            aggregate_moving_initial_value: row.get(36)?,
+            oid: row.get(37)?,
+            depends_on: row.get(38)?,
         })
     }
 }

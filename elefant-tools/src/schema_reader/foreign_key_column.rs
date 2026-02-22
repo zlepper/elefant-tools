@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::SchemaReader;
-use tokio_postgres::Row;
 use tracing::instrument;
 
 pub struct ForeignKeyColumnResult {
@@ -14,15 +13,15 @@ pub struct ForeignKeyColumnResult {
 }
 
 impl FromRow for ForeignKeyColumnResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Self {
-            constraint_name: row.try_get(0)?,
-            // constraint_schema_name: row.try_get(1)?,
-            source_table_name: row.try_get(2)?,
-            source_schema_name: row.try_get(3)?,
-            source_table_column_name: row.try_get(4)?,
-            target_table_column_name: row.try_get(5)?,
-            affected_by_delete_action: row.try_get(6)?,
+            constraint_name: row.get(0)?,
+            // constraint_schema_name: row.get(1)?,
+            source_table_name: row.get(2)?,
+            source_schema_name: row.get(3)?,
+            source_table_column_name: row.get(4)?,
+            target_table_column_name: row.get(5)?,
+            affected_by_delete_action: row.get(6)?,
         })
     }
 }

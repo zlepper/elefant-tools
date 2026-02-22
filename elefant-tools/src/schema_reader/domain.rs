@@ -1,6 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
-use tokio_postgres::Row;
 
 pub struct DomainResult {
     pub schema_name: String,
@@ -17,19 +16,19 @@ pub struct DomainResult {
 }
 
 impl FromRow for DomainResult {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(DomainResult {
-            schema_name: row.try_get(0)?,
-            domain_name: row.try_get(1)?,
-            constraint_name: row.try_get(2)?,
-            constraint_definition: row.try_get(3)?,
-            description: row.try_get(4)?,
-            default_value: row.try_get(5)?,
-            not_null: row.try_get(6)?,
-            base_type_name: row.try_get(7)?,
-            domain_oid: row.try_get(8)?,
-            depends_on: row.try_get(9)?,
-            data_type_length: row.try_get(10)?,
+            schema_name: row.get(0)?,
+            domain_name: row.get(1)?,
+            constraint_name: row.get(2)?,
+            constraint_definition: row.get(3)?,
+            description: row.get(4)?,
+            default_value: row.get(5)?,
+            not_null: row.get(6)?,
+            base_type_name: row.get(7)?,
+            domain_oid: row.get(8)?,
+            depends_on: row.get(9)?,
+            data_type_length: row.get(10)?,
         })
     }
 }

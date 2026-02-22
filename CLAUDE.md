@@ -99,6 +99,11 @@ cargo build --package elefant-client --features tokio
 
 ### Testing
 
+Tests are run via [cargo-nextest](https://nexte.st/). The nextest configuration (`.config/nextest.toml`) provides:
+- **30-second timeout** per test (auto-killed if exceeded)
+- **Test groups** that serialize tests per PostgreSQL version (one test at a time per instance)
+- **Setup script** that automatically cleans stale test databases before each run
+
 **Prerequisites:**
 ```bash
 # Start test databases (required before running tests)
@@ -108,24 +113,24 @@ docker-compose up -d
 **Test Commands:**
 ```bash
 # Run all tests
-cargo test
+cargo nextest run
 
 # Run tests for specific package
-cargo test --package elefant-tools
-cargo test --package elefant-client
+cargo nextest run --package elefant-tools
+cargo nextest run --package elefant-client
 
 # Run specific test module
-cargo test --package elefant-tools schema_reader::tests
-cargo test --package elefant-client tokio_connection
+cargo nextest run --package elefant-tools -E 'test(/schema_reader::tests/)'
+cargo nextest run --package elefant-client -E 'test(/tokio_connection/)'
 
 # Run single test across all PostgreSQL versions
-cargo test reads_simple_schema
+cargo nextest run -E 'test(/reads_simple_schema/)'
+
+# Run all tests for a specific PostgreSQL version
+cargo nextest run -E 'test(/postgres_15_/)'
 
 # Run tests with features
-cargo test --package elefant-client --features tokio
-
-# Clean up test databases after development
-cargo run --package drop-all-test-databases
+cargo nextest run --package elefant-client --features tokio
 ```
 
 ### Linting and Formatting
@@ -188,19 +193,19 @@ async fn my_test(helper: &TestHelper) {
 **PostgreSQL Integration Tests:**
 ```bash
 # Test specific PostgreSQL feature
-cargo test --package elefant-tools foreign_keys
+cargo nextest run --package elefant-tools -E 'test(/foreign_keys/)'
 
 # Test TimescaleDB functionality
-cargo test --package elefant-tools timescale
+cargo nextest run --package elefant-tools -E 'test(/timescale_/)'
 ```
 
 **Elefant-Client Tests:**
 ```bash
 # Test connection handling
-cargo test --package elefant-client --features tokio connection
+cargo nextest run --package elefant-client --features tokio -E 'test(/connection/)'
 
 # Test protocol implementation
-cargo test --package elefant-client protocol
+cargo nextest run --package elefant-client -E 'test(/protocol/)'
 ```
 
 ## TimescaleDB Support

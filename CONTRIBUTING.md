@@ -28,5 +28,7 @@ A macro is provided to easily test multiple Postgres versions. This macro inject
 provides a blank database in the requested Postgres version. Multiple `TestHelper`s can be injected in
 the same test, even across different Postgres versions.
 
-Tests can easily be run by starting the Postgres docker containers using `docker compose up -d` and 
-then running `cargo test`.
+Tests are run via [cargo-nextest](https://nexte.st/). Start the Postgres docker containers with
+`docker compose up -d`, then run `cargo nextest run`. Nextest is configured (`.config/nextest.toml`)
+to automatically clean up stale test databases before each run, enforce a 30-second timeout per test,
+and serialize tests per PostgreSQL version to avoid contention.

@@ -66,3 +66,11 @@ test-group = 'timescale-16'
 [[profile.default.overrides]]
 filter = 'package(elefant-client)'
 test-group = 'postgres-15'
+
+# --- CI Profile ---
+
+[profile.ci]
+fail-fast = false
+
+[profile.ci.junit]
+path = "junit.xml"

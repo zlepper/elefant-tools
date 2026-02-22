@@ -28,7 +28,13 @@ jobs:
     - uses: taiki-e/install-action@nextest
 
     - name: Run tests
-      run: cargo nextest run
+      run: cargo nextest run --profile ci
+
+    - name: Publish test results
+      if: always()
+      uses: mikepenz/action-junit-report@v6
+      with:
+        report_paths: target/nextest/ci/junit.xml
 
     - name: Run clippy
       if: always()

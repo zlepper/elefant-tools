@@ -20,7 +20,9 @@ impl<F: ConnectionFactory> PostgresClient<F> {
 
             match result_set {
                 QueryResultSet::QueryProcessingComplete => return Ok(()),
-                QueryResultSet::RowDescriptionReceived(_) => {}
+                QueryResultSet::RowDescriptionReceived(mut reader) => {
+                    while reader.next_row().await?.is_some() {}
+                }
             }
         }
     }
@@ -37,7 +39,9 @@ impl<F: ConnectionFactory> PostgresClient<F> {
 
             match result_set {
                 QueryResultSet::QueryProcessingComplete => return Ok(()),
-                QueryResultSet::RowDescriptionReceived(_) => {}
+                QueryResultSet::RowDescriptionReceived(mut reader) => {
+                    while reader.next_row().await?.is_some() {}
+                }
             }
         }
     }

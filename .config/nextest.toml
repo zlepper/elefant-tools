@@ -1,0 +1,76 @@
+experimental = ["setup-scripts"]
+
+[store]
+dir = "target/nextest"
+
+# --- Setup Scripts ---
+
+[scripts.setup.drop-test-databases]
+command = ['cargo', 'run', '--package', 'drop-all-test-databases']
+slow-timeout = { period = "60s", terminate-after = 2 }
+
+# --- Test Groups ---
+
+[test-groups]
+postgres-12 = { max-threads = 1 }
+postgres-13 = { max-threads = 1 }
+postgres-14 = { max-threads = 1 }
+postgres-15 = { max-threads = 1 }
+postgres-16 = { max-threads = 1 }
+timescale-15 = { max-threads = 1 }
+timescale-16 = { max-threads = 1 }
+
+# --- Default Profile ---
+
+[profile.default]
+slow-timeout = { period = "30s", terminate-after = 1 }
+
+# Run drop-all-test-databases before any test that hits postgres
+[[profile.default.scripts]]
+filter = 'package(elefant-tools) | package(elefant-client)'
+setup = 'drop-test-databases'
+
+# --- Test Group Overrides ---
+# Order matters: first matching override wins for test-group assignment.
+
+[[profile.default.overrides]]
+filter = 'test(/postgres_12_/)'
+test-group = 'postgres-12'
+
+[[profile.default.overrides]]
+filter = 'test(/postgres_13_/)'
+test-group = 'postgres-13'
+
+[[profile.default.overrides]]
+filter = 'test(/postgres_14_/)'
+test-group = 'postgres-14'
+
+[[profile.default.overrides]]
+filter = 'test(/postgres_15_/)'
+test-group = 'postgres-15'
+
+[[profile.default.overrides]]
+filter = 'test(/postgres_16_/)'
+test-group = 'postgres-16'
+
+[[profile.default.overrides]]
+filter = 'test(/timescale_15_/)'
+test-group = 'timescale-15'
+
+[[profile.default.overrides]]
+filter = 'test(/timescale_16_/)'
+test-group = 'timescale-16'
+
+# elefant-client tests all connect to port 5415 (postgres 15).
+# This catch-all must come after the regex-based overrides above.
+[[profile.default.overrides]]
+filter = 'package(elefant-client)'
+test-group = 'postgres-15'
+
+# --- CI Profile ---
+
+[profile.ci]
+fail-fast = false
+
+[profile.ci.junit]
+path = "junit.xml"

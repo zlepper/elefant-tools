@@ -17,7 +17,15 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                     StartupMessageParameter::new("user", &settings.user),
                     StartupMessageParameter::new("database", &settings.database),
                     StartupMessageParameter::new("client_encoding", "UTF8"),
-                ],
+                ]
+                .into_iter()
+                .chain(
+                    settings
+                        .options
+                        .as_deref()
+                        .map(|opts| StartupMessageParameter::new("options", opts)),
+                )
+                .collect(),
             }))
             .await?;
         self.connection.flush().await?;

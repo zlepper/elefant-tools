@@ -6,6 +6,9 @@ use std::error::Error;
 impl<'a> FromSqlBase<'a> for &'a str {
     fn accepts_postgres_type(oid: i32) -> bool {
         oid == PostgresType::TEXT.oid
+            || oid == PostgresType::NAME.oid
+            || oid == PostgresType::VARCHAR.oid
+            || oid == PostgresType::BPCHAR.oid
     }
 }
 
@@ -30,6 +33,9 @@ impl<'a> FromSqlText<'a> for &'a str {
 impl<'a> FromSqlBase<'a> for String {
     fn accepts_postgres_type(oid: i32) -> bool {
         oid == PostgresType::TEXT.oid
+            || oid == PostgresType::NAME.oid
+            || oid == PostgresType::VARCHAR.oid
+            || oid == PostgresType::BPCHAR.oid
     }
 }
 

@@ -17,6 +17,17 @@ async fn main() -> Result<()> {
         .await?;
     conn.execute_non_query("create database dvdrental_import;")
         .await?;
+
+    conn.execute_non_query("drop database if exists bench_narrow_import")
+        .await?;
+    conn.execute_non_query("create database bench_narrow_import;")
+        .await?;
+
+    conn.execute_non_query("drop database if exists bench_wide_import")
+        .await?;
+    conn.execute_non_query("create database bench_wide_import;")
+        .await?;
+
     conn.execute_non_query("checkpoint;").await?;
 
     Ok(())

@@ -41,6 +41,34 @@ psql --command 'create database dvdrental;'
 pg_restore -d dvdrental --exit-on-error benchmarks/dvdrental.tar
 echo "dvdrental database restored"
 
+echo "Setting up narrow benchmark database (1 column, 30M rows)"
+psql --command 'CREATE DATABASE bench_narrow;'
+psql --dbname bench_narrow --command 'CREATE TABLE data (value BIGINT);'
+psql --dbname bench_narrow --command 'INSERT INTO data SELECT generate_series(1, 30000000);'
+psql --dbname bench_narrow --command 'VACUUM ANALYZE data;'
+echo "Narrow benchmark database ready"
+
+echo "Setting up wide benchmark database (50 columns, 600K rows)"
+psql --command 'CREATE DATABASE bench_wide;'
+
+WIDE_CREATE="CREATE TABLE data ("
+WIDE_INSERT="INSERT INTO data SELECT "
+for i in $(seq 0 49); do
+  if [ "$i" -gt 0 ]; then
+    WIDE_CREATE="$WIDE_CREATE, "
+    WIDE_INSERT="$WIDE_INSERT, "
+  fi
+  WIDE_CREATE="${WIDE_CREATE}col_${i} BIGINT"
+  WIDE_INSERT="${WIDE_INSERT}g+${i}"
+done
+WIDE_CREATE="$WIDE_CREATE);"
+WIDE_INSERT="$WIDE_INSERT FROM generate_series(1, 600000) g;"
+
+psql --dbname bench_wide --command "$WIDE_CREATE"
+psql --dbname bench_wide --command "$WIDE_INSERT"
+psql --dbname bench_wide --command 'VACUUM ANALYZE data;'
+echo "Wide benchmark database ready"
+
 
 PG_DUMP_COMMAND_TO_SQL_INSERTS="pg_dump --dbname dvdrental -f benchmarks/results/pg_dump_result-insert.sql --rows-per-insert=1000"
 PG_DUMP_COMMAND_TO_COPY="pg_dump --dbname dvdrental -f benchmarks/results/pg_dump_result-copy.sql"
@@ -78,6 +106,22 @@ hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --qu
           --command-name "elefant-sync copy parallel differential" "$ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL_DIFFERENTIAL" \
           --command-name "pg_dump => psql sql-copy" "$PG_DUMP_COMMAND_TO_COPY" \
           --command-name "pg_dump => psql sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS"
+
+ELEFANT_NARROW_COPY="\"$ELEFANT_SYNC_PATH\" copy --source-db-name bench_narrow --target-db-name bench_narrow_import"
+PG_NARROW_COPY="pg_dump --dbname bench_narrow | psql --dbname bench_narrow_import --quiet -v ON_ERROR_STOP=1"
+
+hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
+          --export-markdown "benchmarks/results/narrow-copy.md" \
+          --command-name "elefant-sync copy" "$ELEFANT_NARROW_COPY" \
+          --command-name "pg_dump => psql" "$PG_NARROW_COPY"
+
+ELEFANT_WIDE_COPY="\"$ELEFANT_SYNC_PATH\" copy --source-db-name bench_wide --target-db-name bench_wide_import"
+PG_WIDE_COPY="pg_dump --dbname bench_wide | psql --dbname bench_wide_import --quiet -v ON_ERROR_STOP=1"
+
+hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
+          --export-markdown "benchmarks/results/wide-copy.md" \
+          --command-name "elefant-sync copy" "$ELEFANT_WIDE_COPY" \
+          --command-name "pg_dump => psql" "$PG_WIDE_COPY"
 
 echo "Finished benchmark"
 

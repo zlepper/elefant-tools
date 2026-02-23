@@ -1,6 +1,6 @@
-| Command | Mean [s] | Min [s] | Max [s] | Relative |
+| Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `psql sql-copy` | 1.502 ± 0.057 | 1.440 | 1.611 | 1.69 ± 0.09 |
-| `psql sql-insert` | 3.200 ± 0.133 | 3.039 | 3.401 | 3.60 ± 0.19 |
-| `elefant-sync sql-copy` | 0.888 ± 0.030 | 0.833 | 0.930 | 1.00 |
-| `elefant-sync sql-insert` | 2.331 ± 0.039 | 2.277 | 2.387 | 2.62 ± 0.10 |
+| `psql sql-copy` | 530.7 ± 28.6 | 502.7 | 588.6 | 2.27 ± 0.22 |
+| `psql sql-insert` | 728.8 ± 43.7 | 672.4 | 796.5 | 3.12 ± 0.31 |
+| `elefant-sync sql-copy` | 233.6 ± 18.2 | 205.5 | 263.9 | 1.00 |
+| `elefant-sync sql-insert` | 469.8 ± 53.1 | 390.9 | 571.0 | 2.01 ± 0.28 |

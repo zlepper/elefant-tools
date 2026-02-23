@@ -1,6 +1,6 @@
 | Command | Mean [ms] | Min [ms] | Max [ms] | Relative |
 |:---|---:|---:|---:|---:|
-| `pg_dump sql-insert` | 718.8 ± 44.5 | 662.4 | 818.5 | 4.20 ± 0.40 |
-| `pg_dump sql-copy` | 253.6 ± 7.1 | 237.6 | 261.7 | 1.48 ± 0.11 |
-| `elefant-sync sql-insert` | 171.3 ± 12.2 | 155.5 | 197.5 | 1.00 |
-| `elefant-sync sql-copy` | 177.7 ± 11.6 | 164.8 | 212.6 | 1.04 ± 0.10 |
+| `pg_dump sql-insert` | 120.7 ± 111.5 | 70.0 | 721.1 | 2.00 ± 1.86 |
+| `pg_dump sql-copy` | 66.9 ± 7.9 | 46.9 | 88.3 | 1.11 ± 0.17 |
+| `elefant-sync sql-insert` | 63.0 ± 7.5 | 47.4 | 82.4 | 1.05 ± 0.16 |
+| `elefant-sync sql-copy` | 60.3 ± 5.8 | 49.3 | 75.6 | 1.00 |

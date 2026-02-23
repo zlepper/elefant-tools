@@ -59,3 +59,21 @@ services:
       - "5516:5432"
     environment: *env
     command: *cmd
+
+  pg_15_cleartext_auth:
+    image: docker.io/library/postgres:15
+    ports:
+      - "5601:5432"
+    environment:
+      <<: *env
+      POSTGRES_HOST_AUTH_METHOD: password
+    command: *cmd
+
+  pg_15_trust_auth:
+    image: docker.io/library/postgres:15
+    ports:
+      - "5602:5432"
+    environment:
+      POSTGRES_PASSWORD: passw0rd
+      POSTGRES_HOST_AUTH_METHOD: trust
+    command: *cmd

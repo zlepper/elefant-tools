@@ -122,6 +122,16 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         Ok(())
     }
 
+    /// Gracefully close this connection by sending a Terminate message to the backend.
+    /// Consumes the client so it cannot be used afterward.
+    pub async fn close(mut self) -> Result<(), ElefantClientError> {
+        self.connection
+            .write_frontend_message(&FrontendMessage::Terminate)
+            .await?;
+        self.connection.flush().await?;
+        Ok(())
+    }
+
     pub(crate) async fn new(
         connection: PostgresConnection<F::Connection>,
         settings: &PostgresConnectionSettings,

@@ -47,6 +47,17 @@ impl<F: ConnectionFactory> PostgresPool<F> {
         self.0.idle_connections.lock().unwrap().push(client);
     }
 
+    /// Gracefully close all idle connections by sending Terminate to each.
+    /// Currently checked-out clients are not affected — close them individually
+    /// via [`PoolableClient::close`] or let them return to the pool first.
+    pub async fn close(&self) -> Result<(), ElefantClientError> {
+        let clients: Vec<_> = self.0.idle_connections.lock().unwrap().drain(..).collect();
+        for client in clients {
+            client.close().await?;
+        }
+        Ok(())
+    }
+
     pub async fn get_client(
         &self,
     ) -> Result<PoolableClient<F>, ElefantClientError> {
@@ -100,6 +111,17 @@ impl<F: ConnectionFactory> Deref for PoolableClient<F> {
 impl<F: ConnectionFactory> DerefMut for PoolableClient<F> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.client.as_mut().expect("client already returned to pool")
+    }
+}
+
+impl<F: ConnectionFactory> PoolableClient<F> {
+    /// Gracefully close this connection by sending Terminate to the backend.
+    /// The connection is not returned to the pool. Consumes the client.
+    pub async fn close(mut self) -> Result<(), ElefantClientError> {
+        match self.client.take() {
+            Some(client) => client.close().await,
+            None => Ok(()),
+        }
     }
 }
 
@@ -241,6 +263,38 @@ mod tests {
                 .await;
             assert_eq!(value, i + 1);
         }
+    }
+
+    #[tokio::test]
+    async fn pool_close_terminates_connections() {
+        let pool = TokioPostgresPool::new(TokioConnectionFactory, get_settings());
+
+        let mut client1 = pool.get_client().await.unwrap();
+        let mut client2 = pool.get_client().await.unwrap();
+
+        let pid1: i32 = client1.read_single_value_simple("select pg_backend_pid()").await;
+        let pid2: i32 = client2.read_single_value_simple("select pg_backend_pid()").await;
+
+        // Close one client directly (bypasses pool return)
+        client1.close().await.unwrap();
+
+        // Drop the other so it returns to the pool's idle vec
+        drop(client2);
+        assert_eq!(pool.idle_connection_count(), 1);
+
+        // Close idle connections in the pool
+        pool.close().await.unwrap();
+        assert_eq!(pool.idle_connection_count(), 0);
+
+        // No sleep needed — Terminate triggers immediate backend cleanup
+        let mut checker = new_client(get_settings()).await.unwrap();
+        let count: i64 = checker
+            .read_single_value_simple(&format!(
+                "select count(*) from pg_stat_activity where pid in ({}, {})",
+                pid1, pid2
+            ))
+            .await;
+        assert_eq!(count, 0, "All connections should be closed after graceful shutdown");
     }
 
     #[tokio::test]

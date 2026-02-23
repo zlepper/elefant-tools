@@ -1,6 +1,5 @@
 use crate::pg_interval::interval::Interval;
-use bytes::{Buf, BufMut};
-use elefant_client::{FieldDescription, FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
+use crate::{FieldDescription, FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use std::error::Error;
 
 const INTERVAL_OID: i32 = 1186;
@@ -16,10 +15,9 @@ impl<'a> FromSqlBinary<'a> for Interval {
         raw: &'a [u8],
         _field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        let mut raw = raw;
-        let microseconds = raw.get_i64();
-        let days = raw.get_i32();
-        let months = raw.get_i32();
+        let microseconds = i64::from_be_bytes(raw[0..8].try_into().unwrap());
+        let days = i32::from_be_bytes(raw[8..12].try_into().unwrap());
+        let months = i32::from_be_bytes(raw[12..16].try_into().unwrap());
         Ok(Interval {
             months,
             days,
@@ -42,9 +40,9 @@ impl ToSql for Interval {
         &self,
         target_buffer: &mut Vec<u8>,
     ) -> Result<(), Box<dyn Error + Sync + Send>> {
-        target_buffer.put_i64(self.microseconds);
-        target_buffer.put_i32(self.days);
-        target_buffer.put_i32(self.months);
+        target_buffer.extend_from_slice(&self.microseconds.to_be_bytes());
+        target_buffer.extend_from_slice(&self.days.to_be_bytes());
+        target_buffer.extend_from_slice(&self.months.to_be_bytes());
         Ok(())
     }
 }

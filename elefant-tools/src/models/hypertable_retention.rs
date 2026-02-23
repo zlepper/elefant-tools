@@ -1,4 +1,4 @@
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]

@@ -10,12 +10,16 @@ mod test_helpers;
 #[cfg(feature = "tokio")]
 pub mod tokio_connection;
 mod types;
+#[cfg(feature = "pg_interval")]
+pub mod pg_interval;
 
 pub use error::ElefantClientError;
 pub use pool::{ConnectionFactory, PoolableClient, PostgresPool};
 pub use postgres_client::*;
 pub use protocol::FieldDescription;
 pub use types::*;
+#[cfg(feature = "pg_interval")]
+pub use pg_interval::Interval;
 
 #[derive(Clone)]
 pub struct PostgresConnectionSettings {

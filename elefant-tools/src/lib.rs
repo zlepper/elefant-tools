@@ -19,7 +19,6 @@ mod helpers;
 mod models;
 mod object_id;
 mod parallel_runner;
-mod pg_interval;
 mod postgres_client_wrapper;
 mod quoting;
 mod schema_reader;

@@ -1,5 +1,5 @@
 use crate::helpers::StringExt;
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::quoting::{IdentifierQuoter, Quotable};
 use serde::{Deserialize, Serialize};

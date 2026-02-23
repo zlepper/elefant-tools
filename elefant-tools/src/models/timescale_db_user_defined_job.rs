@@ -1,5 +1,5 @@
 use crate::object_id::ObjectId;
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::quoting::AttemptedKeywordUsage::TypeOrFunctionName;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;

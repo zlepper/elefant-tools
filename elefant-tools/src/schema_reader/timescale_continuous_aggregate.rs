@@ -1,4 +1,4 @@
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
 

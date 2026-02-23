@@ -5,7 +5,7 @@ use crate::models::hypertable_retention::HypertableRetention;
 use crate::models::index::PostgresIndex;
 use crate::models::schema::PostgresSchema;
 use crate::object_id::ObjectId;
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::postgres_client_wrapper::FromPgChar;
 use crate::quoting::AttemptedKeywordUsage::{ColumnName, TypeOrFunctionName};
 use crate::quoting::{

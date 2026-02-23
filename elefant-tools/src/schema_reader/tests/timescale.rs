@@ -1,4 +1,4 @@
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::schema_reader::tests::test_introspection;
 use crate::test_helpers;
 use crate::test_helpers::TestHelper;

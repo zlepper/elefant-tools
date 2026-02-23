@@ -1,6 +1,6 @@
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::object_id::{HaveDependencies, ObjectId};
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;

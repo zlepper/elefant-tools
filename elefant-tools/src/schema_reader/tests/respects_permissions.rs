@@ -1,4 +1,4 @@
-use crate::pg_interval::Interval;
+use elefant_client::Interval;
 use crate::schema_reader::SchemaReader;
 use crate::test_helpers::{get_test_connection_full, TestHelper};
 use crate::TableTypeDetails::TimescaleHypertable;

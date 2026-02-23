@@ -1074,6 +1074,31 @@ async fn export_to_string(source: &TestHelper) -> String {
 }
 const SEPARATOR_LINE: &str = "-- chunk-separator-test_chunk_separator --\n";
 
+async fn collect_text_rows(
+    client: &mut elefant_client::tokio_connection::TokioPoolableClient,
+    query: &str,
+) -> Vec<Vec<String>> {
+    let mut result = client.query_simple(query).await.unwrap();
+    let mut rows = Vec::new();
+    loop {
+        match result.next_result_set().await.unwrap() {
+            elefant_client::QueryResultSet::QueryProcessingComplete => break,
+            elefant_client::QueryResultSet::RowDescriptionReceived(mut reader) => {
+                while let Some(row) = reader.next_row().await.unwrap() {
+                    let col_count = row.column_count();
+                    let mut values = Vec::with_capacity(col_count);
+                    for i in 0..col_count {
+                        let value: String = row.get(i).unwrap();
+                        values.push(value);
+                    }
+                    rows.push(values);
+                }
+            }
+        }
+    }
+    rows
+}
+
 pub async fn test_differential_copy_generic(source: &TestHelper, setup_query: &str) {
     source.execute_not_query(setup_query).await;
 
@@ -1121,19 +1146,23 @@ pub async fn test_differential_copy_generic(source: &TestHelper, setup_query: &s
 
         assert_eq!(source_schema, destination_schema);
 
-        let destination_raw_connection = destination.get_conn().underlying_connection();
-        let source_raw_connection = source.get_conn().underlying_connection();
+        let mut source_client = source.get_conn().pool().get_client().await.unwrap();
+        let mut dest_client = destination.get_conn().pool().get_client().await.unwrap();
 
         for schema in &source_schema.schemas {
             for table in &schema.tables {
+                let non_generated_columns: Vec<_> = table
+                    .columns
+                    .iter()
+                    .filter(|c| c.generated.is_none())
+                    .collect();
+
                 let mut query = "select ".to_string();
 
                 query.push_join(
                     ", ",
-                    table
-                        .columns
+                    non_generated_columns
                         .iter()
-                        .filter(|c| c.generated.is_none())
                         .map(|c| {
                             format!(
                                 "{}::text",
@@ -1157,8 +1186,8 @@ pub async fn test_differential_copy_generic(source: &TestHelper, setup_query: &s
                     AttemptedKeywordUsage::TypeOrFunctionName,
                 ));
 
-                let from_source = source_raw_connection.query(&query, &[]).await.unwrap();
-                let from_destination = destination_raw_connection.query(&query, &[]).await.unwrap();
+                let from_source = collect_text_rows(&mut source_client, &query).await;
+                let from_destination = collect_text_rows(&mut dest_client, &query).await;
 
                 assert_eq!(
                     from_source.len(),
@@ -1170,22 +1199,20 @@ pub async fn test_differential_copy_generic(source: &TestHelper, setup_query: &s
                     from_destination.len()
                 );
 
-                for (row_index, (source_row, destination_row)) in
-                    from_source.iter().zip(from_destination).enumerate()
+                for (row_index, (source_row, dest_row)) in
+                    from_source.iter().zip(from_destination.iter()).enumerate()
                 {
-                    for (idx, col) in source_row.columns().iter().enumerate() {
-                        let source_value: String = source_row.get(idx);
-                        let destination_value: String = destination_row.get(idx);
+                    for (idx, col) in non_generated_columns.iter().enumerate() {
                         assert_eq!(
-                            source_value,
-                            destination_value,
+                            source_row[idx],
+                            dest_row[idx],
                             "Table: {}.{}. Row: {}. Column: {}. Expected {:?}, got {:?}",
                             schema.name,
                             table.name,
                             row_index,
-                            col.name(),
-                            source_value,
-                            destination_value
+                            col.name,
+                            source_row[idx],
+                            dest_row[idx]
                         );
                     }
                 }

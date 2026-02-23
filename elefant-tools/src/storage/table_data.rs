@@ -1,20 +1,22 @@
 use crate::storage::data_format::DataFormat;
 use crate::Result;
-use bytes::Bytes;
-use futures::Stream;
 use std::future::Future;
 
-/// Data in a table. This data is a stream which can be read from the data source.
+pub trait TableDataReader: Send {
+    fn read_chunk(&mut self) -> impl Future<Output = Result<Option<&[u8]>>> + '_;
+}
+
+/// Data in a table. This data can be read from the data source using the reader.
 ///
-/// Make sure to call `cleanup` when you have read all the data from the stream.
-pub struct TableData<S: Stream<Item = Result<Bytes>> + Send, C: AsyncCleanup> {
-    pub data: S,
+/// Make sure to call `cleanup` when you have read all the data from the reader.
+pub struct TableData<R: TableDataReader, C: AsyncCleanup> {
+    pub data: R,
     pub data_format: DataFormat,
     pub cleanup: C,
 }
 
 pub trait AsyncCleanup: Send {
-    fn cleanup(self) -> impl Future<Output = Result<()>> + Send;
+    fn cleanup(self) -> impl Future<Output = Result<()>>;
 }
 
 impl AsyncCleanup for () {
@@ -23,8 +25,8 @@ impl AsyncCleanup for () {
     }
 }
 
-impl<S: Stream<Item = Result<Bytes>> + Send, C: AsyncCleanup> AsyncCleanup for TableData<S, C> {
-    fn cleanup(self) -> impl Future<Output = Result<()>> + Send {
+impl<R: TableDataReader, C: AsyncCleanup> AsyncCleanup for TableData<R, C> {
+    fn cleanup(self) -> impl Future<Output = Result<()>> {
         self.cleanup.cleanup()
     }
 }

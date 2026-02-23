@@ -12,7 +12,7 @@ use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSetti
 use std::sync::atomic::AtomicU64;
 use tracing::{debug, trace};
 
-pub use copy::{CopyReader, CopyWriter};
+pub use copy::{CopyReader, CopyWriter, OwnedCopyReader};
 pub use query::{PostgresDataRow, QueryResult, SimpleQueryResult, QueryResultSet, RowResultReader};
 pub use statements::*;
 
@@ -64,6 +64,14 @@ impl<F: ConnectionFactory> PostgresClient<F> {
 
     pub async fn reset(&mut self) -> Result<(), ElefantClientError> {
         if !self.ready_for_query {
+            if self.sync_required {
+                self.connection
+                    .write_frontend_message(&FrontendMessage::Sync)
+                    .await?;
+                self.connection.flush().await?;
+                self.sync_required = false;
+            }
+
             loop {
                 match self.read_next_backend_message().await {
                     Err(ElefantClientError::IoError(io_err)) => {

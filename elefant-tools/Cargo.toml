@@ -14,7 +14,6 @@ keywords = ["pg_dump", "pg_restore", "postgres", "backup", "restore"]
 
 [dependencies]
 tokio = { version = "1", features = ["rt", "fs"], default-features = false }
-tokio-postgres = "0.7"
 elefant-client = { path = "../elefant-client", features = ["tokio"] }
 thiserror = "1.0"
 itertools = "0.13"
@@ -29,7 +28,7 @@ serde = { version = "1.0", features = ["derive"] }
 [dev-dependencies]
 indoc = "2"
 uuid = { version = "1.10", features = ["fast-rng", "v4"] }
-tokio = { version = "1", features = [ "macros", "rt-multi-thread"], default-features = false }
+tokio = { version = "1", features = [ "macros", "rt-multi-thread", "time"], default-features = false }
 similar-asserts = "1.6"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 elefant-test-macros = { path = "../elefant-test-macros" }

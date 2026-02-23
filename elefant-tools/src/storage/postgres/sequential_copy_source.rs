@@ -1,69 +1,78 @@
-use crate::schema_reader::SchemaReader;
+use crate::storage::postgres::postgres_instance_storage::PostgresInstanceStorage;
 use crate::{
-    CopySource, DataFormat, ElefantToolsError, IdentifierQuoter, PostgresClientWrapper,
-    PostgresDatabase, PostgresInstanceStorage, PostgresSchema, PostgresTable, TableData,
+    CopySource, DataFormat, IdentifierQuoter, PostgresSchema, PostgresTable, TableData,
+    TableDataReader,
 };
-use futures::stream::MapErr;
-use futures::TryStreamExt;
+use elefant_client::tokio_connection::{TokioConnectionFactory, TokioPoolableClient};
+use elefant_client::CopyReader;
 use std::sync::Arc;
-use tokio_postgres::CopyOutStream;
 use tracing::instrument;
 
 /// A copy source for Postgres that works well single-threaded workloads.
-#[derive(Clone)]
 pub struct SequentialSafePostgresInstanceCopySourceStorage<'a> {
-    connection: &'a PostgresClientWrapper,
+    client: TokioPoolableClient,
     identifier_quoter: Arc<IdentifierQuoter>,
+    _lifetime: std::marker::PhantomData<&'a ()>,
+}
+
+impl Clone for SequentialSafePostgresInstanceCopySourceStorage<'_> {
+    fn clone(&self) -> Self {
+        panic!("SequentialSafePostgresInstanceCopySourceStorage should not be cloned")
+    }
 }
 
 impl<'a> SequentialSafePostgresInstanceCopySourceStorage<'a> {
     #[instrument(skip_all)]
     pub async fn new(storage: &PostgresInstanceStorage<'a>) -> crate::Result<Self> {
-        let main_connection = storage.connection;
+        let wrapper = storage.connection;
 
-        main_connection
-            .execute_non_query("begin transaction isolation level repeatable read read only;")
+        let mut client = wrapper.pool().get_client().await?;
+        client
+            .execute_non_query_simple(
+                "begin transaction isolation level repeatable read read only;",
+            )
             .await?;
 
         Ok(SequentialSafePostgresInstanceCopySourceStorage {
-            connection: main_connection,
+            client,
             identifier_quoter: storage.identifier_quoter.clone(),
+            _lifetime: std::marker::PhantomData,
         })
+    }
+}
+
+pub struct BorrowedPostgresCopyOutReader<'a> {
+    reader: CopyReader<'a, TokioConnectionFactory>,
+}
+
+impl TableDataReader for BorrowedPostgresCopyOutReader<'_> {
+    async fn read_chunk(&mut self) -> crate::Result<Option<&[u8]>> {
+        let data = self.reader.read().await?;
+        Ok(data.map(|cd| cd.data))
     }
 }
 
 impl CopySource for SequentialSafePostgresInstanceCopySourceStorage<'_> {
-    type DataStream = MapErr<CopyOutStream, fn(tokio_postgres::Error) -> ElefantToolsError>;
+    type DataReader<'a> = BorrowedPostgresCopyOutReader<'a> where Self: 'a;
     type Cleanup = ();
 
-    async fn get_introspection(&self) -> crate::Result<PostgresDatabase> {
-        let reader = SchemaReader::new(self.connection);
-        reader.introspect_database().await
-    }
-
     #[instrument(skip_all)]
-    async fn get_data(
-        &self,
-        schema: &PostgresSchema,
-        table: &PostgresTable,
-        data_format: &DataFormat,
-    ) -> crate::Result<TableData<Self::DataStream, Self::Cleanup>> {
+    async fn get_data<'a>(
+        &'a mut self,
+        schema: &'a PostgresSchema,
+        table: &'a PostgresTable,
+        data_format: &'a DataFormat,
+    ) -> crate::Result<TableData<Self::DataReader<'a>, Self::Cleanup>> {
         let copy_command = table.get_copy_out_command(schema, data_format, &self.identifier_quoter);
 
-        let copy_out_stream = self.connection.copy_out(&copy_command).await?;
-
-        let stream = copy_out_stream.map_err(
-            tokio_postgres_error_to_crate_error as fn(tokio_postgres::Error) -> ElefantToolsError,
-        );
+        let copy_reader = self.client.copy_out(&*copy_command, &[]).await?;
 
         Ok(TableData {
             data_format: data_format.clone(),
-            data: stream,
+            data: BorrowedPostgresCopyOutReader {
+                reader: copy_reader,
+            },
             cleanup: (),
         })
     }
-}
-
-fn tokio_postgres_error_to_crate_error(e: tokio_postgres::Error) -> ElefantToolsError {
-    e.into()
 }

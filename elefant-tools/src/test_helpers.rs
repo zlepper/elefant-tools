@@ -1,8 +1,7 @@
 use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
 use crate::ElefantToolsError;
+use elefant_client::{FromSqlOwned, PostgresConnectionSettings};
 use std::panic::{RefUnwindSafe, UnwindSafe};
-use tokio_postgres::error::SqlState;
-use tokio_postgres::types::FromSqlOwned;
 use uuid::Uuid;
 
 #[allow(dead_code)]
@@ -138,8 +137,15 @@ impl TestHelper {
 
     /// Gets a connection to a specific schema in the database.
     pub async fn get_schema_connection(&self, schema: &str) -> PostgresClientWrapper {
-        let connection_string = format!("host=localhost port={} user=postgres password=passw0rd dbname={} options=--search_path={},public", self.port, self.test_db_name, schema);
-        PostgresClientWrapper::new(&connection_string)
+        let settings = PostgresConnectionSettings {
+            host: "localhost".to_string(),
+            port: self.port,
+            user: "postgres".to_string(),
+            password: "passw0rd".to_string(),
+            database: self.test_db_name.clone(),
+            options: Some(format!("--search_path={schema},public")),
+        };
+        PostgresClientWrapper::new(settings)
             .await
             .expect("Connection to test database failed. Is postgres running?")
     }
@@ -168,15 +174,16 @@ pub(crate) async fn get_test_connection_full(
     password: &str,
     schema: Option<&str>,
 ) -> PostgresClientWrapper {
-    let mut connection_string = format!(
-        "host=localhost port={port} user={user} password={password} dbname={database_name}"
-    );
+    let settings = PostgresConnectionSettings {
+        host: "localhost".to_string(),
+        port,
+        user: user.to_string(),
+        password: password.to_string(),
+        database: database_name.to_string(),
+        options: schema.map(|s| format!("--search_path={s}")),
+    };
 
-    if let Some(schema) = schema {
-        connection_string.push_str(&format!(" options=--search_path={schema}"));
-    }
-
-    PostgresClientWrapper::new(&connection_string)
+    PostgresClientWrapper::new(settings)
         .await
         .expect("Connection to test database failed. Is postgres running?")
 }
@@ -212,11 +219,15 @@ impl crate::models::TimescaleSupport {
     }
 }
 
-/// Asset that the specified Postgres error occurred.
-pub fn assert_pg_error(result: crate::Result, code: SqlState) {
+/// Assert that the specified Postgres error occurred.
+pub fn assert_pg_error(result: crate::Result, expected_message: &str) {
     match result {
         Err(ElefantToolsError::PostgresErrorWithQuery { source, .. }) => {
-            assert_eq!(*source.as_db_error().unwrap().code(), code);
+            let error_message = source.to_string();
+            assert!(
+                error_message.contains(expected_message),
+                "Expected error message to contain '{expected_message}', got: {error_message}"
+            );
         }
         _ => {
             panic!("Expected PostgresErrorWithQuery, got {result:?}");

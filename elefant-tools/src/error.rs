@@ -6,13 +6,13 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ElefantToolsError {
     #[error("Error from postgres: `{0}`")]
-    PostgresError(#[from] tokio_postgres::Error),
+    PostgresError(#[from] elefant_client::ElefantClientError),
 
     #[error("Error from postgres: `{query}` when executing query: `{source}`")]
     PostgresErrorWithQuery {
         query: String,
         #[source]
-        source: tokio_postgres::Error,
+        source: elefant_client::ElefantClientError,
     },
 
     #[error(

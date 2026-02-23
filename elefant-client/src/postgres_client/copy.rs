@@ -1,4 +1,4 @@
-use crate::pool::ConnectionFactory;
+use crate::pool::{ConnectionFactory, PoolableClient};
 use crate::protocol::{BackendMessage, CopyData};
 use crate::{ElefantClientError, PostgresClient, Statement, ToSql};
 use tracing::debug;
@@ -152,6 +152,28 @@ impl<'a, F: ConnectionFactory> CopyReader<'a, F> {
         }
     }
 
+    /// Non-consuming cleanup: reads trailing protocol messages after CopyDone.
+    /// Call this after `read()` returns `None` to leave the connection in a clean state.
+    pub async fn finish(&mut self) -> Result<(), ElefantClientError> {
+        loop {
+            let msg = self.client.read_next_backend_message().await?;
+            match msg {
+                BackendMessage::CopyData(_) | BackendMessage::CopyDone => {}
+                BackendMessage::CommandComplete(_) | BackendMessage::ReadyForQuery(_) => {
+                    self.client.ready_for_query = true;
+                    break;
+                }
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                        "Expected CommandComplete, ReadyForQuery or CopyData, got {msg:?}"
+                    )));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn end(self) -> Result<(), ElefantClientError> {
         loop {
             let msg = self.client.read_next_backend_message().await?;
@@ -184,6 +206,68 @@ impl<'a, F: ConnectionFactory> CopyReader<'a, F> {
 
         target.flush().await?;
         self.end().await?;
+
+        Ok(())
+    }
+}
+
+pub struct OwnedCopyReader<F: ConnectionFactory> {
+    client: PoolableClient<F>,
+}
+
+impl<F: ConnectionFactory> OwnedCopyReader<F> {
+    pub async fn new(
+        mut client: PoolableClient<F>,
+        query: &(impl Statement + ?Sized),
+        parameters: &[&dyn ToSql],
+    ) -> Result<Self, ElefantClientError> {
+        let prepared = query.prepare(&mut *client).await?;
+        prepared.execute(&mut *client, parameters).await?;
+
+        {
+            let msg = client.read_next_backend_message().await?;
+            match msg {
+                BackendMessage::CopyOutResponse(_) => {}
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                        "Expected CopyOutResponse, got {msg:?}"
+                    )))
+                }
+            }
+        }
+
+        Ok(OwnedCopyReader { client })
+    }
+
+    pub async fn read(&mut self) -> Result<Option<CopyData<'_>>, ElefantClientError> {
+        let msg = self.client.read_next_backend_message().await?;
+        match msg {
+            BackendMessage::CopyData(cd) => Ok(Some(cd)),
+            BackendMessage::CopyDone => Ok(None),
+            _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                "Expected CopyData or CopyDone, got {msg:?}"
+            ))),
+        }
+    }
+
+    pub async fn end(mut self) -> Result<(), ElefantClientError> {
+        loop {
+            let msg = self.client.read_next_backend_message().await?;
+            match msg {
+                BackendMessage::CopyData(_) | BackendMessage::CopyDone => {
+                    // Ignore extra copy data messages
+                }
+                BackendMessage::CommandComplete(_) | BackendMessage::ReadyForQuery(_) => {
+                    self.client.ready_for_query = true;
+                    break;
+                }
+                _ => {
+                    return Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                        "Expected CommandComplete, ReadyForQuery or CopyData, got {msg:?}"
+                    )));
+                }
+            }
+        }
 
         Ok(())
     }

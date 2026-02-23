@@ -2,7 +2,7 @@ use crate::object_id::DependencySortable;
 use crate::parallel_runner::ParallelRunner;
 use crate::quoting::IdentifierQuoter;
 use crate::storage::DataFormat;
-use crate::storage::{CopyDestination, CopySource};
+use crate::storage::{CopyDestination, CopySource, CopyTransaction};
 use crate::*;
 use itertools::Itertools;
 use std::num::NonZeroUsize;
@@ -59,7 +59,11 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
             .negotiate_parallelism(destination.supported_parallelism())
     };
 
-    let (source, mut destination) = match expected_parallelism {
+    // Get introspection from the factory before creating sources.
+    // This is called on the factory (&self) which is Sync-safe.
+    let definition = source.get_introspection().await?;
+
+    let (mut source, mut destination) = match expected_parallelism {
         SupportedParallelism::Sequential => (
             SequentialOrParallel::Sequential(source.create_sequential_source().await?),
             SequentialOrParallel::Sequential(destination.create_sequential_destination().await?),
@@ -70,7 +74,6 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
         ),
     };
 
-    let definition = source.get_introspection().await?;
     let destination_definition = if options.differential {
         destination
             .try_get_introspeciton()
@@ -98,18 +101,9 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
         destination_definition.filtered_to_schema(target_schema);
     }
 
-    destination.begin_transaction().await?;
-
-    match &mut destination {
-        SequentialOrParallel::Sequential(ref mut d) => {
-            apply_pre_copy_structure(d, &target_definition, &destination_definition).await?;
-        }
-        SequentialOrParallel::Parallel(ref mut d) => {
-            apply_pre_copy_structure(d, &target_definition, &destination_definition).await?;
-        }
-    }
-
-    destination.commit_transaction().await?;
+    destination
+        .apply_pre_copy_structure_in_transaction(&target_definition, &destination_definition)
+        .await?;
 
     if !options.schema_only {
         let mut parallel_runner = ParallelRunner::new(options.get_max_parallel_or_1());
@@ -142,8 +136,8 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
                     }
                 };
 
-                match source {
-                    SequentialOrParallel::Sequential(ref source) => match &mut destination {
+                match &mut source {
+                    SequentialOrParallel::Sequential(ref mut source) => match &mut destination {
                         SequentialOrParallel::Sequential(ref mut destination) => {
                             do_copy(
                                 source,
@@ -173,8 +167,9 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
                     },
                     SequentialOrParallel::Parallel(ref source) => match &mut destination {
                         SequentialOrParallel::Sequential(ref mut destination) => {
+                            let mut source = source.clone();
                             do_copy(
-                                source,
+                                &mut source,
                                 destination,
                                 target_schema,
                                 target_table,
@@ -186,16 +181,14 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
                             .await?
                         }
                         SequentialOrParallel::Parallel(ref mut destination) => {
-                            let source = source.clone();
-                            let destination = destination.clone();
+                            let mut source = source.clone();
+                            let mut destination = destination.clone();
                             let df = data_format.clone();
                             let opt = &options;
                             parallel_runner
                                 .enqueue(async move {
-                                    let source = source;
-                                    let mut destination = destination;
                                     do_copy(
-                                        &source,
+                                        &mut source,
                                         &mut destination,
                                         target_schema,
                                         target_table,
@@ -248,25 +241,21 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
 /// * Creating views
 /// * Creating custom types
 #[instrument(skip_all)]
-async fn apply_pre_copy_structure<D: CopyDestination>(
-    destination: &mut D,
+async fn apply_pre_copy_structure<T: CopyTransaction>(
+    txn: &mut T,
+    identifier_quoter: &IdentifierQuoter,
     definition: &PostgresDatabase,
     target_definition: &PostgresDatabase,
 ) -> Result<()> {
-    let identifier_quoter = destination.get_identifier_quoter();
-
     for schema in &definition.schemas {
         let target_schema = target_definition.try_get_schema(&schema.name);
         if target_schema.is_none() {
-            destination
-                .apply_transactional_statement(&schema.get_create_statement(&identifier_quoter))
+            txn.apply_statement(&schema.get_create_statement(identifier_quoter))
                 .await?;
         }
 
-        if let Some(comment_statement) = schema.get_set_comment_statement(&identifier_quoter) {
-            destination
-                .apply_transactional_statement(&comment_statement)
-                .await?;
+        if let Some(comment_statement) = schema.get_set_comment_statement(identifier_quoter) {
+            txn.apply_statement(&comment_statement).await?;
         }
     }
 
@@ -280,8 +269,7 @@ async fn apply_pre_copy_structure<D: CopyDestination>(
             continue;
         }
 
-        destination
-            .apply_transactional_statement(&ext.get_create_statement(&identifier_quoter))
+        txn.apply_statement(&ext.get_create_statement(identifier_quoter))
             .await?;
     }
 
@@ -294,10 +282,7 @@ async fn apply_pre_copy_structure<D: CopyDestination>(
                 continue;
             }
 
-            destination
-                .apply_transactional_statement(
-                    &enumeration.get_create_statement(&identifier_quoter),
-                )
+            txn.apply_statement(&enumeration.get_create_statement(identifier_quoter))
                 .await?;
         }
     }
@@ -376,18 +361,47 @@ async fn apply_pre_copy_structure<D: CopyDestination>(
     let sorted = tables_and_functions.iter().sort_by_dependencies();
 
     for thing in sorted {
-        let sql = thing.get_create_sql(&identifier_quoter);
-        destination.apply_transactional_statement(&sql).await?;
+        let sql = thing.get_create_sql(identifier_quoter);
+        txn.apply_statement(&sql).await?;
     }
 
     Ok(())
+}
+
+async fn apply_pre_copy_in_txn(
+    dest: &mut impl CopyDestination,
+    target_definition: &PostgresDatabase,
+    destination_definition: &PostgresDatabase,
+) -> Result<()> {
+    let identifier_quoter = dest.get_identifier_quoter();
+    let mut txn = dest.begin_transaction().await?;
+    apply_pre_copy_structure(&mut txn, &identifier_quoter, target_definition, destination_definition)
+        .await?;
+    txn.commit().await
+}
+
+impl<S: CopyDestination, P: CopyDestination + Clone> SequentialOrParallel<S, P> {
+    async fn apply_pre_copy_structure_in_transaction(
+        &mut self,
+        target_definition: &PostgresDatabase,
+        destination_definition: &PostgresDatabase,
+    ) -> Result<()> {
+        match self {
+            SequentialOrParallel::Sequential(d) => {
+                apply_pre_copy_in_txn(d, target_definition, destination_definition).await
+            }
+            SequentialOrParallel::Parallel(d) => {
+                apply_pre_copy_in_txn(d, target_definition, destination_definition).await
+            }
+        }
+    }
 }
 
 /// Actually copies data between two tables.
 #[instrument(skip_all)]
 #[allow(clippy::too_many_arguments)]
 async fn do_copy<S: CopySource, D: CopyDestination>(
-    source: &S,
+    source: &mut S,
     destination: &mut D,
     target_schema: &PostgresSchema,
     target_table: &PostgresTable,
@@ -675,7 +689,7 @@ async fn apply_post_copy_structure_sequential<D: CopyDestination>(
 
 /// Applies the structures generated in [get_post_apply_statement_groups] to the destination in parallel.
 #[instrument(skip_all)]
-async fn apply_post_copy_structure_parallel<D: CopyDestination + Sync + Clone>(
+async fn apply_post_copy_structure_parallel<D: CopyDestination + Clone>(
     destination: &mut D,
     definition: &PostgresDatabase,
     options: &CopyDataOptions,

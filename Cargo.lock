@@ -556,6 +556,7 @@ name = "elefant-sync"
 version = "0.0.7"
 dependencies = [
  "clap",
+ "elefant-client",
  "elefant-test-macros",
  "elefant-tools",
  "serde_json",
@@ -589,7 +590,6 @@ dependencies = [
  "tar",
  "thiserror",
  "tokio",
- "tokio-postgres",
  "tracing",
  "tracing-subscriber",
  "uuid",

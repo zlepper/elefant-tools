@@ -1,16 +1,18 @@
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
 use crate::quoting::AllowedKeywordUsage;
+use crate::schema_reader::SchemaReader;
 use crate::storage::postgres::parallel_copy_destination::ParallelSafePostgresInstanceCopyDestinationStorage;
 use crate::storage::postgres::parallel_copy_source::ParallelSafePostgresInstanceCopySourceStorage;
 use crate::storage::postgres::sequential_copy_destination::SequentialSafePostgresInstanceCopyDestinationStorage;
 use crate::storage::postgres::sequential_copy_source::SequentialSafePostgresInstanceCopySourceStorage;
 use crate::{
     BaseCopyTarget, CopyDestinationFactory, CopySourceFactory, DataFormat, ElefantToolsError,
-    IdentifierQuoter, PostgresClientWrapper, SequentialOrParallel, SupportedParallelism,
+    IdentifierQuoter, PostgresClientWrapper, PostgresDatabase, SequentialOrParallel,
+    SupportedParallelism,
 };
+use elefant_client::PostgresDataRow;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio_postgres::Row;
 use tracing::instrument;
 
 /// A CopyTarget for Postgres.
@@ -65,9 +67,9 @@ struct Keyword {
 }
 
 impl FromRow for Keyword {
-    fn from_row(row: Row) -> crate::Result<Self> {
+    fn from_row(row: &PostgresDataRow<'_, '_>) -> crate::Result<Self> {
         Ok(Keyword {
-            word: row.try_get(0)?,
+            word: row.get(0)?,
             category: row.try_get_enum_value(1)?,
         })
     }
@@ -108,6 +110,11 @@ impl<'a> CopySourceFactory for PostgresInstanceStorage<'a> {
     type SequentialSource = SequentialSafePostgresInstanceCopySourceStorage<'a>;
     type ParallelSource = ParallelSafePostgresInstanceCopySourceStorage<'a>;
 
+    async fn get_introspection(&self) -> crate::Result<PostgresDatabase> {
+        let reader = SchemaReader::new(self.connection);
+        reader.introspect_database().await
+    }
+
     async fn create_source(
         &self,
     ) -> crate::Result<SequentialOrParallel<Self::SequentialSource, Self::ParallelSource>> {
@@ -135,7 +142,7 @@ impl<'a> CopyDestinationFactory<'a> for PostgresInstanceStorage<'a> {
         &'a mut self,
     ) -> crate::Result<SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>>
     {
-        let par = ParallelSafePostgresInstanceCopyDestinationStorage::new(self).await?;
+        let par = ParallelSafePostgresInstanceCopyDestinationStorage::new(self);
 
         Ok(SequentialOrParallel::Parallel(par))
     }

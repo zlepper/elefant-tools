@@ -6,13 +6,11 @@ use crate::models::SimplifiedDataType;
 use crate::quoting::{AttemptedKeywordUsage, IdentifierQuoter, Quotable};
 use crate::storage::data_format::DataFormat;
 use crate::storage::table_data::TableData;
-use crate::storage::{BaseCopyTarget, CopyDestination};
+use crate::storage::{BaseCopyTarget, CopyDestination, CopyTransaction};
 use crate::{
     AsyncCleanup, ColumnIdentity, CopyDestinationFactory, ParallelCopyDestinationNotAvailable,
-    PostgresClientWrapper, Result, SequentialOrParallel, SupportedParallelism,
+    PostgresClientWrapper, Result, SequentialOrParallel, SupportedParallelism, TableDataReader,
 };
-use bytes::Bytes;
-use futures::{pin_mut, SinkExt, Stream, StreamExt};
 use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 use std::sync::Arc;
@@ -180,13 +178,29 @@ impl<'a, F: AsyncWrite + Unpin + Send + Sync + 'a> CopyDestinationFactory<'a> fo
     }
 }
 
-impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
+impl<F: AsyncWrite + Unpin + Send + Sync> CopyTransaction for &mut SqlFile<F> {
     #[instrument(skip_all)]
-    async fn apply_data<S: Stream<Item = Result<Bytes>> + Send, C: AsyncCleanup>(
+    async fn apply_statement(&mut self, statement: &str) -> Result<()> {
+        self.write_statement(statement).await
+    }
+
+    async fn commit(self) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
+    type Transaction<'a>
+        = &'a mut SqlFile<F>
+    where
+        Self: 'a;
+
+    #[instrument(skip_all)]
+    async fn apply_data<R: TableDataReader, C: AsyncCleanup>(
         &mut self,
         schema: &PostgresSchema,
         table: &PostgresTable,
-        data: TableData<S, C>,
+        mut data: TableData<R, C>,
     ) -> Result<()> {
         let file = &mut self.file;
         if self.current_command_count > 0 {
@@ -194,15 +208,11 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
             self.current_command_count = 0;
         }
 
-        let stream = data.data;
-
-        pin_mut!(stream);
-
         if self.options.data_mode == SqlDataMode::InsertStatements {
-            self.write_data_stream_to_insert_statements(&mut stream, schema, table)
+            self.write_data_stream_to_insert_statements(&mut data.data, schema, table)
                 .await?;
         } else {
-            self.write_data_stream_to_copy_statements(&mut stream, schema, table)
+            self.write_data_stream_to_copy_statements(&mut data.data, schema, table)
                 .await?;
         }
 
@@ -210,7 +220,28 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
     }
 
     #[instrument(skip_all)]
-    async fn apply_transactional_statement(&mut self, statement: &str) -> Result<()> {
+    async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
+        self.write_statement(statement).await
+    }
+
+    async fn begin_transaction(&mut self) -> Result<&mut SqlFile<F>> {
+        Ok(self)
+    }
+
+    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
+        self.quoter.clone()
+    }
+
+    async fn finish(&mut self) -> Result<()> {
+        self.file.flush().await?;
+        Ok(())
+    }
+}
+
+impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
+    /// Writes a single DDL statement to the file, handling chunk separators.
+    #[instrument(skip_all)]
+    async fn write_statement(&mut self, statement: &str) -> Result<()> {
         if self.current_command_count.is_multiple_of(self.options.max_commands_per_chunk) {
             if !self.is_empty {
                 self.file.write_all(b"\n\n").await?;
@@ -234,37 +265,11 @@ impl<F: AsyncWrite + Unpin + Send + Sync> CopyDestination for &mut SqlFile<F> {
         Ok(())
     }
 
-    #[instrument(skip_all)]
-    async fn apply_non_transactional_statement(&mut self, statement: &str) -> Result<()> {
-        self.apply_transactional_statement(statement).await
-    }
-
-    async fn begin_transaction(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    async fn commit_transaction(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter> {
-        self.quoter.clone()
-    }
-
-    async fn finish(&mut self) -> Result<()> {
-        self.file.flush().await?;
-        Ok(())
-    }
-}
-
-impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     /// Writes the data stream to the file as insert statements.
     #[instrument(skip_all)]
-    async fn write_data_stream_to_insert_statements<
-        S: Stream<Item = Result<Bytes>> + Send + Unpin,
-    >(
+    async fn write_data_stream_to_insert_statements<R: TableDataReader>(
         &mut self,
-        stream: &mut S,
+        reader: &mut R,
         schema: &PostgresSchema,
         table: &PostgresTable,
     ) -> Result<()> {
@@ -276,69 +281,63 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
             .collect_vec();
 
         let mut count = 0;
-        while let Some(bytes) = stream.next().await {
+        while let Some(bytes) = reader.read_chunk().await? {
             if count == 0 {
                 file.write_all(b"\n").await?;
                 file.write_all(&self.chunk_separator).await?;
                 file.write_all(b"\n").await?;
             }
-            match bytes {
-                Ok(bytes) => {
-                    if count % self.options.max_rows_per_insert == 0 {
-                        if count > 0 {
-                            file.write_all(b";\n").await?;
-                            file.write_all(&self.chunk_separator).await?;
-                            file.write_all(b"\n").await?;
-                        }
 
-                        file.write_all(b"insert into ").await?;
-                        file.write_all(
-                            schema
-                                .name
-                                .quote(&self.quoter, AttemptedKeywordUsage::TypeOrFunctionName)
-                                .as_bytes(),
-                        )
-                        .await?;
-                        file.write_all(b".").await?;
-                        file.write_all(
-                            table
-                                .name
-                                .quote(&self.quoter, AttemptedKeywordUsage::TypeOrFunctionName)
-                                .as_bytes(),
-                        )
-                        .await?;
-                        file.write_all(b" (").await?;
-                        for (index, column) in table.get_writable_columns().enumerate() {
-                            if index != 0 {
-                                file.write_all(b", ").await?;
-                            }
-                            file.write_all(column.name.as_bytes()).await?;
-                        }
-                        file.write_all(b")").await?;
+            if count % self.options.max_rows_per_insert == 0 {
+                if count > 0 {
+                    file.write_all(b";\n").await?;
+                    file.write_all(&self.chunk_separator).await?;
+                    file.write_all(b"\n").await?;
+                }
 
-                        if table
-                            .columns
-                            .iter()
-                            .any(|c| c.identity == Some(ColumnIdentity::GeneratedAlways))
-                        {
-                            file.write_all(b" overriding system value").await?;
-                        }
-
-                        file.write_all(b" values").await?;
-
-                        file.write_all(b"\n").await?;
-                        count = 0;
-                    } else {
-                        file.write_all(b",\n").await?;
+                file.write_all(b"insert into ").await?;
+                file.write_all(
+                    schema
+                        .name
+                        .quote(&self.quoter, AttemptedKeywordUsage::TypeOrFunctionName)
+                        .as_bytes(),
+                )
+                .await?;
+                file.write_all(b".").await?;
+                file.write_all(
+                    table
+                        .name
+                        .quote(&self.quoter, AttemptedKeywordUsage::TypeOrFunctionName)
+                        .as_bytes(),
+                )
+                .await?;
+                file.write_all(b" (").await?;
+                for (index, column) in table.get_writable_columns().enumerate() {
+                    if index != 0 {
+                        file.write_all(b", ").await?;
                     }
-                    count += 1;
+                    file.write_all(column.name.as_bytes()).await?;
+                }
+                file.write_all(b")").await?;
 
-                    write_row(file, &column_types, bytes).await?;
+                if table
+                    .columns
+                    .iter()
+                    .any(|c| c.identity == Some(ColumnIdentity::GeneratedAlways))
+                {
+                    file.write_all(b" overriding system value").await?;
                 }
-                Err(e) => {
-                    return Err(e);
-                }
+
+                file.write_all(b" values").await?;
+
+                file.write_all(b"\n").await?;
+                count = 0;
+            } else {
+                file.write_all(b",\n").await?;
             }
+            count += 1;
+
+            write_row(file, &column_types, bytes).await?;
         }
 
         if count > 0 {
@@ -352,18 +351,16 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
 
     /// Writes the data stream to the file as copy statements.
     #[instrument(skip_all)]
-    async fn write_data_stream_to_copy_statements<
-        S: Stream<Item = Result<Bytes>> + Send + Unpin,
-    >(
+    async fn write_data_stream_to_copy_statements<R: TableDataReader>(
         &mut self,
-        stream: &mut S,
+        reader: &mut R,
         schema: &PostgresSchema,
         table: &PostgresTable,
     ) -> Result<()> {
         let file = &mut self.file;
 
         let mut count = 0;
-        while let Some(bytes) = stream.next().await {
+        while let Some(bytes) = reader.read_chunk().await? {
             if count == 0 {
                 file.write_all(b"\n").await?;
                 file.write_all(&self.chunk_separator).await?;
@@ -377,15 +374,9 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
                 file.write_all(&self.chunk_separator).await?;
                 file.write_all(b"\n").await?;
             }
-            match bytes {
-                Ok(bytes) => {
-                    file.write_all(&bytes).await?;
-                    count += 1;
-                }
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+
+            file.write_all(bytes).await?;
+            count += 1;
         }
 
         if count > 0 {
@@ -401,9 +392,9 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
 async fn write_row<F: AsyncWrite + Unpin + Send + Sync>(
     file: &mut F,
     column_types: &[SimplifiedDataType],
-    bytes: Bytes,
+    bytes: &[u8],
 ) -> Result<()> {
-    let without_line_break = bytes.slice(0..bytes.len() - 1);
+    let without_line_break = &bytes[..bytes.len() - 1];
     let column_bytes = without_line_break.split(|b| *b == b'\t');
 
     let cols = column_bytes.zip(column_types.iter());
@@ -527,9 +518,9 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(
                     if sql_chunk.starts_with("copy ")
                         && sql_chunk.ends_with(" from stdin with (format text, header false);\n")
                     {
-                        let copy_in_stream = target_connection.copy_in::<Bytes>(&sql_chunk).await?;
-
-                        pin_mut!(copy_in_stream);
+                        let mut client = target_connection.pool().get_client().await?;
+                        let mut copy_writer =
+                            client.copy_in(&*sql_chunk, &[]).await?;
 
                         loop {
                             sql_chunk.clear();
@@ -540,12 +531,11 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(
                             if sql_chunk.starts_with("\\.") {
                                 break;
                             }
-                            let byt = Bytes::from(sql_chunk.clone());
 
-                            copy_in_stream.feed(byt).await?;
+                            copy_writer.write(sql_chunk.as_bytes()).await?;
                         }
 
-                        copy_in_stream.close().await?;
+                        copy_writer.end().await?;
                     } else {
                         target_connection.execute_non_query(&sql_chunk).await?;
                     }

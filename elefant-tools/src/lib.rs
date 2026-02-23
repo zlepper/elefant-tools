@@ -19,6 +19,7 @@ pub use copy_data::*;
 pub use error::*;
 pub use models::*;
 pub use object_id::ObjectId;
+pub use elefant_client::PostgresConnectionSettings;
 pub use postgres_client_wrapper::PostgresClientWrapper;
 pub use quoting::IdentifierQuoter;
 pub use storage::*;

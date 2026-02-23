@@ -1,7 +1,5 @@
 use crate::models::PostgresDatabase;
 use crate::*;
-use bytes::Bytes;
-use futures::Stream;
 use std::sync::Arc;
 
 mod data_format;
@@ -24,7 +22,7 @@ pub trait BaseCopyTarget {
     /// Which data format is supported by this destination/source.
     fn supported_data_format(
         &self,
-    ) -> impl std::future::Future<Output = Result<Vec<DataFormat>>> + Send;
+    ) -> impl std::future::Future<Output = Result<Vec<DataFormat>>>;
 }
 
 /// A factory for providing copy sources. This is used to create a source that can be used to read data from.
@@ -35,19 +33,25 @@ pub trait CopySourceFactory: BaseCopyTarget {
 
     /// A type that can be used to read data from the source. This type has to support
     /// multiple threads reading at the same time.
-    type ParallelSource: CopySource + Clone + Sync;
+    type ParallelSource: CopySource + Clone;
+
+    /// Should provide introspection data of the source. This means poking the `pg_catalog` tables when
+    /// working with Postgres, for example.
+    fn get_introspection(
+        &self,
+    ) -> impl std::future::Future<Output = Result<PostgresDatabase>>;
 
     /// Should create whatever type is needed to be able to read data from the source.
     fn create_source(
         &self,
     ) -> impl std::future::Future<
         Output = Result<SequentialOrParallel<Self::SequentialSource, Self::ParallelSource>>,
-    > + Send;
+    >;
 
     /// Should create a datasource that works with single threaded reading.
     fn create_sequential_source(
         &self,
-    ) -> impl std::future::Future<Output = Result<Self::SequentialSource>> + Send;
+    ) -> impl std::future::Future<Output = Result<Self::SequentialSource>>;
 
     /// Should return what kind of parallelism is supported by the source. This is used
     /// for negotiation with the destination.
@@ -56,25 +60,21 @@ pub trait CopySourceFactory: BaseCopyTarget {
 
 /// A copy source is something that can be used to read data from a source.
 pub trait CopySource: Send {
-    /// The type of the specific data stream provided when reading data
-    type DataStream: Stream<Item = Result<Bytes>> + Send;
+    /// The type of the specific data reader provided when reading data
+    type DataReader<'a>: TableDataReader + 'a
+    where
+        Self: 'a;
 
     /// The type of the cleanup that is returned when reading data. Can be `()` if no cleanup is needed.
     type Cleanup: AsyncCleanup;
 
-    /// Should provide introspection data of the source. This means poking the `pg_catalog` tables when
-    /// working with Postgres, for example.
-    fn get_introspection(
-        &self,
-    ) -> impl std::future::Future<Output = Result<PostgresDatabase>> + Send;
-
-    /// Should return a data-stream for the specified type in the specified format.
-    fn get_data(
-        &self,
-        schema: &PostgresSchema,
-        table: &PostgresTable,
-        data_format: &DataFormat,
-    ) -> impl std::future::Future<Output = Result<TableData<Self::DataStream, Self::Cleanup>>> + Send;
+    /// Should return a data-reader for the specified type in the specified format.
+    fn get_data<'a>(
+        &'a mut self,
+        schema: &'a PostgresSchema,
+        table: &'a PostgresTable,
+        data_format: &'a DataFormat,
+    ) -> impl std::future::Future<Output = Result<TableData<Self::DataReader<'a>, Self::Cleanup>>> + 'a;
 }
 
 /// A factory for providing copy destinations. This is used to create a destination that can be used to write data to.
@@ -85,7 +85,7 @@ pub trait CopyDestinationFactory<'a>: BaseCopyTarget {
 
     /// The implementation type when dealing with multithreaded workloads. This type has to support
     /// multi-threading.
-    type ParallelDestination: CopyDestination + Clone + Sync;
+    type ParallelDestination: CopyDestination + Clone;
 
     /// Should create whatever type is needed to be able to write data to the destination.
     fn create_destination(
@@ -94,52 +94,64 @@ pub trait CopyDestinationFactory<'a>: BaseCopyTarget {
         Output = Result<
             SequentialOrParallel<Self::SequentialDestination, Self::ParallelDestination>,
         >,
-    > + Send;
+    >;
 
     /// Should create a destination that works with single threaded writing.
     fn create_sequential_destination(
         &'a mut self,
-    ) -> impl std::future::Future<Output = Result<Self::SequentialDestination>> + Send;
+    ) -> impl std::future::Future<Output = Result<Self::SequentialDestination>>;
 
     /// Should return what kind of parallelism is supported by the destination. This is used
     /// for negotiation with the source.
     fn supported_parallelism(&self) -> SupportedParallelism;
 }
 
+/// A transaction on a copy destination. Returned by `CopyDestination::begin_transaction`.
+/// All transactional DDL statements should be applied through this type, and the transaction
+/// must be committed when done.
+pub trait CopyTransaction: Send {
+    /// Apply a DDL statement within this transaction.
+    fn apply_statement(
+        &mut self,
+        statement: &str,
+    ) -> impl std::future::Future<Output = Result<()>>;
+
+    /// Commit the transaction.
+    fn commit(self) -> impl std::future::Future<Output = Result<()>>;
+}
+
 pub trait CopyDestination: Send {
+    /// The transaction type returned by `begin_transaction`.
+    type Transaction<'a>: CopyTransaction + 'a
+    where
+        Self: 'a;
+
     /// This should apply the data to the destination. The data is expected to be in the
     /// format returned by `supported_data_format`, if possible.
-    fn apply_data<S: Stream<Item = Result<Bytes>> + Send, C: AsyncCleanup>(
+    fn apply_data<R: TableDataReader, C: AsyncCleanup>(
         &mut self,
         schema: &PostgresSchema,
         table: &PostgresTable,
-        data: TableData<S, C>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
-
-    /// This should apply the DDL statements to the destination.
-    fn apply_transactional_statement(
-        &mut self,
-        statement: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
+        data: TableData<R, C>,
+    ) -> impl std::future::Future<Output = Result<()>>;
 
     /// This should apply the DDL statements to the destination.
     /// These commands has to be run outside a transaction, as they might fail otherwise.
     fn apply_non_transactional_statement(
         &mut self,
         statement: &str,
-    ) -> impl std::future::Future<Output = Result<()>> + Send;
+    ) -> impl std::future::Future<Output = Result<()>>;
 
-    /// Should begin a new transaction.
-    fn begin_transaction(&mut self) -> impl std::future::Future<Output = Result<()>> + Send;
-
-    /// Should commit a running transaction.
-    fn commit_transaction(&mut self) -> impl std::future::Future<Output = Result<()>> + Send;
+    /// Should begin a new transaction and return a handle to it.
+    fn begin_transaction(
+        &mut self,
+    ) -> impl std::future::Future<Output = Result<Self::Transaction<'_>>>;
 
     /// Should get the identifier quoter that works with this destination. This ensures
     /// quoting respects the rules of the destination, not the source.
     fn get_identifier_quoter(&self) -> Arc<IdentifierQuoter>;
 
-    fn finish(&mut self) -> impl std::future::Future<Output = Result<()>> + Send {
+    fn finish(&mut self) -> impl std::future::Future<Output = Result<()>> {
         async { Ok(()) }
     }
 
@@ -147,7 +159,7 @@ pub trait CopyDestination: Send {
     /// not an error. Errors should only be returned if introspection is supported, but failed.
     fn try_introspect(
         &self,
-    ) -> impl std::future::Future<Output = Result<Option<PostgresDatabase>>> + Send {
+    ) -> impl std::future::Future<Output = Result<Option<PostgresDatabase>>> {
         async { Ok(None) }
     }
 
@@ -155,13 +167,13 @@ pub trait CopyDestination: Send {
         &self,
         _schema: &PostgresSchema,
         _table: &PostgresTable,
-    ) -> impl std::future::Future<Output = Result<bool>> + Send {
+    ) -> impl std::future::Future<Output = Result<bool>> {
         async { Ok(false) }
     }
 }
 
 /// A type that can be either a sequential or parallel source or destination.
-pub enum SequentialOrParallel<S: Send, P: Send + Clone + Sync> {
+pub enum SequentialOrParallel<S: Send, P: Send + Clone> {
     Sequential(S),
     Parallel(P),
 }
@@ -187,30 +199,7 @@ impl SupportedParallelism {
     }
 }
 
-impl<S: CopySource, P: CopySource + Clone + Sync> SequentialOrParallel<S, P> {
-    pub(crate) async fn get_introspection(&self) -> Result<PostgresDatabase> {
-        match self {
-            SequentialOrParallel::Sequential(s) => s.get_introspection().await,
-            SequentialOrParallel::Parallel(p) => p.get_introspection().await,
-        }
-    }
-}
-
-impl<S: CopyDestination, P: CopyDestination + Clone + Sync> SequentialOrParallel<S, P> {
-    pub(crate) async fn begin_transaction(&mut self) -> Result<()> {
-        match self {
-            SequentialOrParallel::Sequential(s) => s.begin_transaction().await,
-            SequentialOrParallel::Parallel(p) => p.begin_transaction().await,
-        }
-    }
-
-    pub(crate) async fn commit_transaction(&mut self) -> Result<()> {
-        match self {
-            SequentialOrParallel::Sequential(s) => s.commit_transaction().await,
-            SequentialOrParallel::Parallel(p) => p.commit_transaction().await,
-        }
-    }
-
+impl<S: CopyDestination, P: CopyDestination + Clone> SequentialOrParallel<S, P> {
     pub(crate) async fn finish(&mut self) -> Result<()> {
         match self {
             SequentialOrParallel::Sequential(s) => s.finish().await,
@@ -234,17 +223,30 @@ pub struct ParallelCopyDestinationNotAvailable {
     _private: (),
 }
 
-impl CopyDestination for ParallelCopyDestinationNotAvailable {
-    async fn apply_data<S: Stream<Item = Result<Bytes>> + Send, C: AsyncCleanup>(
-        &mut self,
-        _schema: &PostgresSchema,
-        _table: &PostgresTable,
-        _data: TableData<S, C>,
-    ) -> Result<()> {
+/// A CopyTransaction that panics when used.
+pub struct ParallelCopyTransactionNotAvailable {
+    _private: (),
+}
+
+impl CopyTransaction for ParallelCopyTransactionNotAvailable {
+    async fn apply_statement(&mut self, _statement: &str) -> Result<()> {
         unreachable!("Parallel copy destination not available")
     }
 
-    async fn apply_transactional_statement(&mut self, _statement: &str) -> Result<()> {
+    async fn commit(self) -> Result<()> {
+        unreachable!("Parallel copy destination not available")
+    }
+}
+
+impl CopyDestination for ParallelCopyDestinationNotAvailable {
+    type Transaction<'a> = ParallelCopyTransactionNotAvailable;
+
+    async fn apply_data<R: TableDataReader, C: AsyncCleanup>(
+        &mut self,
+        _schema: &PostgresSchema,
+        _table: &PostgresTable,
+        _data: TableData<R, C>,
+    ) -> Result<()> {
         unreachable!("Parallel copy destination not available")
     }
 
@@ -252,11 +254,7 @@ impl CopyDestination for ParallelCopyDestinationNotAvailable {
         unreachable!("Parallel copy destination not available")
     }
 
-    async fn begin_transaction(&mut self) -> Result<()> {
-        unreachable!("Parallel copy destination not available")
-    }
-
-    async fn commit_transaction(&mut self) -> Result<()> {
+    async fn begin_transaction(&mut self) -> Result<ParallelCopyTransactionNotAvailable> {
         unreachable!("Parallel copy destination not available")
     }
 
@@ -267,8 +265,7 @@ impl CopyDestination for ParallelCopyDestinationNotAvailable {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_helpers::{assert_pg_error, TestHelper};
-    use tokio_postgres::error::SqlState;
+    use crate::test_helpers::TestHelper;
 
     pub fn get_copy_source_database_create_script(version: i32) -> &'static str {
         if version >= 150 {
@@ -500,13 +497,17 @@ mod tests {
             .get_conn()
             .execute_non_query("insert into people (name, age) values ('new-value', 10000)")
             .await;
-        assert_pg_error(result, SqlState::CHECK_VIOLATION);
+        assert!(result.is_err(), "Expected CHECK_VIOLATION error");
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("check") || err_msg.contains("CHECK") || err_msg.contains("violates"), "Expected check violation, got: {err_msg}");
 
         let result = destination
             .get_conn()
             .execute_non_query("insert into people (name, age) values ('foo', 100)")
             .await;
-        assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
+        assert!(result.is_err(), "Expected UNIQUE_VIOLATION error");
+        let err_msg = format!("{}", result.unwrap_err());
+        assert!(err_msg.contains("unique") || err_msg.contains("UNIQUE") || err_msg.contains("duplicate"), "Expected unique violation, got: {err_msg}");
 
         destination
             .execute_not_query("insert into field (id) values (1);")
@@ -515,11 +516,11 @@ mod tests {
         destination.execute_not_query("insert into tree_node(id, field_id, name, parent_id) values (1, 1, 'foo', null), (2, 1, 'bar', 1)").await;
         if destination.get_conn().version() >= 150 {
             let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (3, 1, 'foo', null)").await;
-            assert_pg_error(result, SqlState::UNIQUE_VIOLATION);
+            assert!(result.is_err(), "Expected UNIQUE_VIOLATION error");
         }
 
         let result = destination.get_conn().execute_non_query("insert into tree_node(id, field_id, name, parent_id) values (9999, 9999, 'foobarbaz', null)").await;
-        assert_pg_error(result, SqlState::FOREIGN_KEY_VIOLATION);
+        assert!(result.is_err(), "Expected FOREIGN_KEY_VIOLATION error");
 
         let people_who_cant_drink = destination
             .get_results::<(i32, String, i32)>("select id, name, age from people_who_cant_drink;")

@@ -89,7 +89,7 @@ impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> 
         let mut writer = client.copy_in(&*copy_statement, &[]).await?;
 
         while let Some(chunk) = data.data.read_chunk().await? {
-            writer.write(&chunk).await?;
+            writer.write(chunk).await?;
         }
 
         writer.end().await?;

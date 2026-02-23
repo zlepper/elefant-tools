@@ -149,6 +149,16 @@ mod tests {
     }
 
     #[test]
+    pub async fn connect_with_options_sets_search_path() {
+        let mut settings = get_settings();
+        settings.options = Some("-c search_path=pg_catalog".to_string());
+
+        let mut client = new_client(settings).await.unwrap();
+        let search_path: String = client.read_single_value_simple("SHOW search_path").await;
+        assert_eq!(search_path, "pg_catalog");
+    }
+
+    #[test]
     pub async fn connect_to_all_the_postgres() {
         let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516];
 

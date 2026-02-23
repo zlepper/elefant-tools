@@ -158,9 +158,8 @@ fn consume_token(
                 let (month, day) = scale_date(val, DAYS_PER_MONTH);
                 interval.months += month;
                 interval.days += day;
-                delim_list.retain(|x| {
-                    *x != "months" && *x != "month" && *x != "mons" && *x != "mon"
-                });
+                delim_list
+                    .retain(|x| *x != "months" && *x != "month" && *x != "mons" && *x != "mon");
                 Ok(())
             }
             "days" | "day" => {

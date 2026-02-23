@@ -104,9 +104,9 @@ impl<'a> FromSqlBinary<'a> for Decimal {
             // Add trailing zeros for extra weight positions
             let extra_zero_positions = (digits_before_decimal - total_digit_positions) * 4;
             for _ in 0..extra_zero_positions {
-                mantissa = mantissa
-                    .checked_mul(10)
-                    .ok_or("Numeric value exceeds rust_decimal precision (trailing zeros overflow)")?;
+                mantissa = mantissa.checked_mul(10).ok_or(
+                    "Numeric value exceeds rust_decimal precision (trailing zeros overflow)",
+                )?;
             }
         } else {
             // Mixed: some before, some after decimal point
@@ -288,22 +288,26 @@ mod tests {
 
             // Test zero
             let zero: Decimal = client
-                .read_single_value_dual_mode("select 0::numeric").await;
+                .read_single_value_dual_mode("select 0::numeric")
+                .await;
             assert_eq!(zero, Decimal::from(0));
 
             // Test positive integer
             let positive: Decimal = client
-                .read_single_value_dual_mode("select 12345::numeric").await;
+                .read_single_value_dual_mode("select 12345::numeric")
+                .await;
             assert_eq!(positive, Decimal::from(12345));
 
             // Test negative integer
             let negative: Decimal = client
-                .read_single_value_dual_mode("select -67890::numeric").await;
+                .read_single_value_dual_mode("select -67890::numeric")
+                .await;
             assert_eq!(negative, Decimal::from(-67890));
 
             // Test decimal
             let decimal: Decimal = client
-                .read_single_value_dual_mode("select 123.456::numeric").await;
+                .read_single_value_dual_mode("select 123.456::numeric")
+                .await;
             assert_eq!(decimal, "123.456".parse::<Decimal>().unwrap());
         }
 
@@ -328,7 +332,8 @@ mod tests {
 
             // Test large integer
             let large_int: Decimal = client
-                .read_single_value_dual_mode("select 999999999999999999::numeric").await;
+                .read_single_value_dual_mode("select 999999999999999999::numeric")
+                .await;
             assert_eq!(large_int, "999999999999999999".parse::<Decimal>().unwrap());
         }
 
@@ -338,7 +343,8 @@ mod tests {
 
             // Test what PostgreSQL actually sends for small decimals
             let small_decimal: Decimal = client
-                .read_single_value_dual_mode("select 0.000000001::numeric").await;
+                .read_single_value_dual_mode("select 0.000000001::numeric")
+                .await;
 
             let expected = "0.000000001".parse::<Decimal>().unwrap();
             assert_eq!(small_decimal, expected, "Direct PostgreSQL read failed");
@@ -362,7 +368,8 @@ mod tests {
                 .unwrap();
 
             let retrieved: Decimal = client
-                .read_single_value_dual_mode("select value from test_numeric_debug").await;
+                .read_single_value_dual_mode("select value from test_numeric_debug")
+                .await;
 
             assert_eq!(
                 retrieved, test_value,
@@ -395,7 +402,8 @@ mod tests {
                     .read_single_value(
                         "select value from test_numeric_table order by value desc limit 1;",
                         &[],
-                    ).await;
+                    )
+                    .await;
 
                 assert_eq!(&retrieved, test_value, "Round-trip failed for {test_value}");
 
@@ -412,7 +420,8 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_value: Option<Decimal> = client
-                .read_single_value_dual_mode("select null::numeric").await;
+                .read_single_value_dual_mode("select null::numeric")
+                .await;
             assert_eq!(null_value, None);
         }
 
@@ -422,12 +431,14 @@ mod tests {
 
             // Test very small number
             let small: Decimal = client
-                .read_single_value_dual_mode("select 0.0001::numeric").await;
+                .read_single_value_dual_mode("select 0.0001::numeric")
+                .await;
             assert_eq!(small, "0.0001".parse::<Decimal>().unwrap());
 
             // Test number with trailing zeros
             let trailing_zeros: Decimal = client
-                .read_single_value_dual_mode("select 123.4500::numeric").await;
+                .read_single_value_dual_mode("select 123.4500::numeric")
+                .await;
             assert_eq!(trailing_zeros, "123.45".parse::<Decimal>().unwrap()); // PostgreSQL should normalize
         }
 

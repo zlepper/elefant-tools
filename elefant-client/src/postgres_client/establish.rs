@@ -10,7 +10,10 @@ use md5::Digest;
 use std::borrow::Cow;
 
 impl<F: ConnectionFactory> PostgresClient<F> {
-    pub(crate) async fn establish(&mut self, settings: &PostgresConnectionSettings) -> Result<(), ElefantClientError> {
+    pub(crate) async fn establish(
+        &mut self,
+        settings: &PostgresConnectionSettings,
+    ) -> Result<(), ElefantClientError> {
         self.connection
             .write_frontend_message(&FrontendMessage::StartupMessage(StartupMessage {
                 parameters: vec![

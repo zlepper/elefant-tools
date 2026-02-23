@@ -95,13 +95,9 @@ impl CopyDestination for SequentialSafePostgresInstanceCopyDestinationStorage<'_
         Ok(())
     }
 
-    async fn begin_transaction(
-        &mut self,
-    ) -> crate::Result<SequentialPostgresTransaction<'_>> {
+    async fn begin_transaction(&mut self) -> crate::Result<SequentialPostgresTransaction<'_>> {
         self.client
-            .execute_non_query_simple(
-                "begin transaction isolation level serializable read write;",
-            )
+            .execute_non_query_simple("begin transaction isolation level serializable read write;")
             .await?;
         Ok(SequentialPostgresTransaction {
             client: &mut self.client,

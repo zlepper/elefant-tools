@@ -326,12 +326,14 @@ mod tests {
 
             let pg_epoch = date!(2000 - 01 - 01);
             let value: Date = client
-                .read_single_value_dual_mode("select '2000-01-01'::date").await;
+                .read_single_value_dual_mode("select '2000-01-01'::date")
+                .await;
             assert_eq!(value, pg_epoch);
 
             let current_date = date!(2024 - 01 - 15);
             let value: Date = client
-                .read_single_value_dual_mode("select '2024-01-15'::date").await;
+                .read_single_value_dual_mode("select '2024-01-15'::date")
+                .await;
             assert_eq!(value, current_date);
 
             // Test round-trip with parameter binding
@@ -341,11 +343,13 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: Date = client
-                .read_single_value("select value from test_date_table;", &[]).await;
+                .read_single_value("select value from test_date_table;", &[])
+                .await;
             assert_eq!(retrieved, current_date);
 
             let null_value: Option<Date> = client
-                .read_single_value_dual_mode("select null::date").await;
+                .read_single_value_dual_mode("select null::date")
+                .await;
             assert_eq!(null_value, None);
         }
 
@@ -355,12 +359,14 @@ mod tests {
 
             let midnight = time!(00:00:00);
             let value: Time = client
-                .read_single_value_dual_mode("select '00:00:00'::time").await;
+                .read_single_value_dual_mode("select '00:00:00'::time")
+                .await;
             assert_eq!(value, midnight);
 
             let precise_time = time!(12:34:56.123456);
             let value: Time = client
-                .read_single_value_dual_mode("select '12:34:56.123456'::time").await;
+                .read_single_value_dual_mode("select '12:34:56.123456'::time")
+                .await;
             assert_eq!(value, precise_time);
 
             // Test round-trip with parameter binding
@@ -370,11 +376,13 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: Time = client
-                .read_single_value("select value from test_time_table;", &[]).await;
+                .read_single_value("select value from test_time_table;", &[])
+                .await;
             assert_eq!(retrieved, precise_time);
 
             let null_value: Option<Time> = client
-                .read_single_value_dual_mode("select null::time").await;
+                .read_single_value_dual_mode("select null::time")
+                .await;
             assert_eq!(null_value, None);
         }
 
@@ -384,12 +392,14 @@ mod tests {
 
             let pg_epoch = datetime!(2000-01-01 00:00:00);
             let value: PrimitiveDateTime = client
-                .read_single_value_dual_mode("select '2000-01-01 00:00:00'::timestamp").await;
+                .read_single_value_dual_mode("select '2000-01-01 00:00:00'::timestamp")
+                .await;
             assert_eq!(value, pg_epoch);
 
             let precise_timestamp = datetime!(2024-01-15 12:34:56.123456);
             let value: PrimitiveDateTime = client
-                .read_single_value_dual_mode("select '2024-01-15 12:34:56.123456'::timestamp").await;
+                .read_single_value_dual_mode("select '2024-01-15 12:34:56.123456'::timestamp")
+                .await;
             assert_eq!(value, precise_timestamp);
 
             // Test round-trip with parameter binding
@@ -402,11 +412,13 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: PrimitiveDateTime = client
-                .read_single_value("select value from test_timestamp_table;", &[]).await;
+                .read_single_value("select value from test_timestamp_table;", &[])
+                .await;
             assert_eq!(retrieved, precise_timestamp);
 
             let null_value: Option<PrimitiveDateTime> = client
-                .read_single_value_dual_mode("select null::timestamp").await;
+                .read_single_value_dual_mode("select null::timestamp")
+                .await;
             assert_eq!(null_value, None);
         }
 
@@ -416,12 +428,14 @@ mod tests {
 
             let pg_epoch_utc = datetime!(2000-01-01 00:00:00).assume_utc();
             let value: OffsetDateTime = client
-                .read_single_value_dual_mode("select '2000-01-01 00:00:00+00'::timestamptz").await;
+                .read_single_value_dual_mode("select '2000-01-01 00:00:00+00'::timestamptz")
+                .await;
             assert_eq!(value, pg_epoch_utc);
 
             let utc_timestamp = datetime!(2024-01-15 12:34:56.123456).assume_utc();
             let value: OffsetDateTime = client
-                .read_single_value_dual_mode("select '2024-01-15 12:34:56.123456+00'::timestamptz").await;
+                .read_single_value_dual_mode("select '2024-01-15 12:34:56.123456+00'::timestamptz")
+                .await;
             assert_eq!(value, utc_timestamp);
 
             // Test round-trip with parameter binding
@@ -434,7 +448,8 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: OffsetDateTime = client
-                .read_single_value("select value from test_timestamptz_table;", &[]).await;
+                .read_single_value("select value from test_timestamptz_table;", &[])
+                .await;
             assert_eq!(retrieved, utc_timestamp);
 
             // Test timezone conversion - EST to UTC
@@ -451,14 +466,16 @@ mod tests {
                 .read_single_value(
                     "select value from test_timestamptz_table order by value desc limit 1;",
                     &[],
-                ).await;
+                )
+                .await;
             // Should be converted to UTC (EST -5 hours = UTC +5 hours)
             let expected_utc = datetime!(2024-01-15 12:34:56.123456).assume_utc();
             assert_eq!(retrieved_utc, expected_utc);
 
             // Test NULL handling
             let null_value: Option<OffsetDateTime> = client
-                .read_single_value("select null::timestamptz;", &[]).await;
+                .read_single_value("select null::timestamptz;", &[])
+                .await;
             assert_eq!(null_value, None);
         }
 
@@ -473,13 +490,15 @@ mod tests {
                 date!(2024 - 12 - 31),
             ];
             let value: Vec<Date> = client
-                .read_single_value("select '{2000-01-01,2024-01-15,2024-12-31}'::date[];", &[]).await;
+                .read_single_value("select '{2000-01-01,2024-01-15,2024-12-31}'::date[];", &[])
+                .await;
             assert_eq!(value, dates);
 
             // Test TIME array
             let times = vec![time!(00:00:00), time!(12:34:56), time!(23:59:59.999999)];
             let value: Vec<Time> = client
-                .read_single_value("select '{00:00:00,12:34:56,23:59:59.999999}'::time[];", &[]).await;
+                .read_single_value("select '{00:00:00,12:34:56,23:59:59.999999}'::time[];", &[])
+                .await;
             assert_eq!(value, times);
 
             // Test TIMESTAMP array with NULLs
@@ -492,7 +511,8 @@ mod tests {
                 .read_single_value(
                     "select '{\"2000-01-01 00:00:00\",null,\"2024-01-15 12:34:56\"}'::timestamp[];",
                     &[],
-                ).await;
+                )
+                .await;
             assert_eq!(value, timestamps);
         }
     }

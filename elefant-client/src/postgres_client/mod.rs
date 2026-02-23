@@ -13,7 +13,7 @@ use std::sync::atomic::AtomicU64;
 use tracing::{debug, trace};
 
 pub use copy::{CopyReader, CopyWriter, OwnedCopyReader};
-pub use query::{PostgresDataRow, QueryResult, SimpleQueryResult, QueryResultSet, RowResultReader};
+pub use query::{PostgresDataRow, QueryResult, QueryResultSet, RowResultReader, SimpleQueryResult};
 pub use statements::*;
 
 pub struct PostgresClient<F: ConnectionFactory> {
@@ -100,17 +100,14 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         {
             debug!("Rolling back lingering transaction during pool reset");
             self.connection
-                .write_frontend_message(&FrontendMessage::Query(
-                    crate::protocol::Query {
-                        query: std::borrow::Cow::Borrowed("ROLLBACK;"),
-                    },
-                ))
+                .write_frontend_message(&FrontendMessage::Query(crate::protocol::Query {
+                    query: std::borrow::Cow::Borrowed("ROLLBACK;"),
+                }))
                 .await?;
             self.connection.flush().await?;
             self.ready_for_query = false;
             loop {
-                if let BackendMessage::ReadyForQuery(rfq) =
-                    self.read_next_backend_message().await?
+                if let BackendMessage::ReadyForQuery(rfq) = self.read_next_backend_message().await?
                 {
                     self.current_transaction_status = rfq.current_transaction_status;
                     self.ready_for_query = true;

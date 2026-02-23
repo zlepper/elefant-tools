@@ -183,14 +183,12 @@ mod tests {
 
             // Test empty object
             let empty_object = json!({});
-            let value: Value = client
-                .read_single_value("select '{}'::json;", &[]).await;
+            let value: Value = client.read_single_value("select '{}'::json;", &[]).await;
             assert_eq!(value, empty_object);
 
             // Test empty array
             let empty_array = json!([]);
-            let value: Value = client
-                .read_single_value("select '[]'::json;", &[]).await;
+            let value: Value = client.read_single_value("select '[]'::json;", &[]).await;
             assert_eq!(value, empty_array);
 
             // Test complex JSON object
@@ -218,12 +216,13 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: Value = client
-                .read_single_value("select value from test_json_table;", &[]).await;
+                .read_single_value("select value from test_json_table;", &[])
+                .await;
             assert_eq!(retrieved, complex_json);
 
             // Test NULL handling
-            let null_value: Option<Value> = client
-                .read_single_value("select null::json;", &[]).await;
+            let null_value: Option<Value> =
+                client.read_single_value("select null::json;", &[]).await;
             assert_eq!(null_value, None);
         }
 
@@ -262,7 +261,8 @@ mod tests {
                     .read_single_value(
                         "select value from test_json_multi where id = $1;",
                         &[expected_id],
-                    ).await;
+                    )
+                    .await;
                 assert_eq!(&retrieved, expected_json, "Failed for ID {expected_id}");
             }
         }
@@ -311,7 +311,8 @@ mod tests {
                     .read_single_value(
                         "select value from test_json_escaping where id = $1;",
                         &[expected_id],
-                    ).await;
+                    )
+                    .await;
                 assert_eq!(
                     &retrieved, expected_json,
                     "JSON escaping failed for test case ID {expected_id}"
@@ -341,7 +342,8 @@ mod tests {
                 .read_single_value(
                     "select value from test_json_escaping where id = $1;",
                     &[&99],
-                ).await;
+                )
+                .await;
             assert_eq!(
                 retrieved_complex, complex_case,
                 "Complex JSON escaping case failed"
@@ -368,12 +370,14 @@ mod tests {
 
             let empty_object = json!({});
             let value: Value = client
-                .read_single_value_dual_mode("select '{}'::jsonb").await;
+                .read_single_value_dual_mode("select '{}'::jsonb")
+                .await;
             assert_eq!(value, empty_object);
 
             let empty_array = json!([]);
             let value: Value = client
-                .read_single_value_dual_mode("select '[]'::jsonb").await;
+                .read_single_value_dual_mode("select '[]'::jsonb")
+                .await;
             assert_eq!(value, empty_array);
 
             let complex_jsonb = json!({
@@ -399,11 +403,13 @@ mod tests {
                 .await
                 .unwrap();
             let retrieved: Value = client
-                .read_single_value("select value from test_jsonb_table;", &[]).await;
+                .read_single_value("select value from test_jsonb_table;", &[])
+                .await;
             assert_eq!(retrieved, complex_jsonb);
 
             let null_value: Option<Value> = client
-                .read_single_value_dual_mode("select null::jsonb").await;
+                .read_single_value_dual_mode("select null::jsonb")
+                .await;
             assert_eq!(null_value, None);
         }
 
@@ -432,12 +438,14 @@ mod tests {
 
             // Retrieve both values
             let json_val: Value = client
-                .read_single_value("select json_val from test_jsonb_vs_json where id = 1;", &[]).await;
+                .read_single_value("select json_val from test_jsonb_vs_json where id = 1;", &[])
+                .await;
             let jsonb_val: Value = client
                 .read_single_value(
                     "select jsonb_val from test_jsonb_vs_json where id = 1;",
                     &[],
-                ).await;
+                )
+                .await;
 
             // Both should have the same logical content
             let expected = json!({"z_last": 3, "a_first": 1, "middle": 2});
@@ -470,7 +478,8 @@ mod tests {
                 .unwrap();
 
             let retrieved_array: Value = client
-                .read_single_value("select value from test_jsonb_arrays;", &[]).await;
+                .read_single_value("select value from test_jsonb_arrays;", &[])
+                .await;
             assert_eq!(retrieved_array, json_array_value);
         }
 
@@ -507,7 +516,8 @@ mod tests {
                 .unwrap();
 
             let retrieved: Value = client
-                .read_single_value("select value from test_jsonb_version;", &[]).await;
+                .read_single_value("select value from test_jsonb_version;", &[])
+                .await;
             assert_eq!(retrieved, test_json);
         }
 
@@ -543,12 +553,14 @@ mod tests {
                 .read_single_value(
                     "select json_col from test_json_jsonb_params where id = 1;",
                     &[],
-                ).await;
+                )
+                .await;
             let jsonb_result: Value = client
                 .read_single_value(
                     "select jsonb_col from test_json_jsonb_params where id = 1;",
                     &[],
-                ).await;
+                )
+                .await;
 
             assert_eq!(json_result, test_value);
             assert_eq!(jsonb_result, test_value);
@@ -598,7 +610,8 @@ mod tests {
                     .read_single_value(
                         "select value from test_jsonb_escaping where id = $1;",
                         &[expected_id],
-                    ).await;
+                    )
+                    .await;
                 assert_eq!(
                     &retrieved, expected_json,
                     "JSONB escaping failed for test case ID {expected_id}"
@@ -628,7 +641,8 @@ mod tests {
                 .read_single_value(
                     "select value from test_jsonb_escaping where id = $1;",
                     &[&99],
-                ).await;
+                )
+                .await;
             assert_eq!(
                 retrieved_complex, complex_case,
                 "Complex JSONB escaping case failed"
@@ -661,7 +675,8 @@ mod tests {
                 .read_single_value(
                     "select jsonb_col from test_default_behavior where id = 1;",
                     &[],
-                ).await;
+                )
+                .await;
             assert_eq!(retrieved, test_value);
         }
     }

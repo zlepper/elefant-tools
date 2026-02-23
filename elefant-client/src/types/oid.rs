@@ -1,5 +1,8 @@
 use crate::protocol::FieldDescription;
-use crate::{impl_from_sql_for_domain_type, DomainType, FromSqlBase, FromSqlBinary, FromSqlText, PostgresType};
+use crate::{
+    impl_from_sql_for_domain_type, DomainType, FromSqlBase, FromSqlBinary, FromSqlText,
+    PostgresType,
+};
 use std::error::Error;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -30,8 +33,7 @@ mod tests {
         async fn handles_oid() {
             let mut client = get_tokio_test_client().await;
 
-            let oid: Oid = client
-                .read_single_value_dual_mode("select '26'::oid").await;
+            let oid: Oid = client.read_single_value_dual_mode("select '26'::oid").await;
 
             assert_eq!(oid, Oid(26));
         }

@@ -88,7 +88,10 @@ impl PostgresCopyOutReader {
 }
 
 impl CopySource for ParallelSafePostgresInstanceCopySourceStorage<'_> {
-    type DataReader<'a> = PostgresCopyOutReader where Self: 'a;
+    type DataReader<'a>
+        = PostgresCopyOutReader
+    where
+        Self: 'a;
     type Cleanup = ();
 
     #[instrument(skip_all)]

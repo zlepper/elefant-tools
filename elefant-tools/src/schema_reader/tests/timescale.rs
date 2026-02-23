@@ -1,4 +1,3 @@
-use elefant_client::Interval;
 use crate::schema_reader::tests::test_introspection;
 use crate::test_helpers;
 use crate::test_helpers::TestHelper;
@@ -11,6 +10,7 @@ use crate::{
     TableTypeDetails, TimescaleContinuousAggregateRefreshOptions, TimescaleDbUserDefinedJob,
     TimescaleSupport, ViewOptions,
 };
+use elefant_client::Interval;
 use elefant_test_macros::pg_test;
 use ordered_float::NotNan;
 

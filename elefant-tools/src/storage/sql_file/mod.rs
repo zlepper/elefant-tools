@@ -242,7 +242,10 @@ impl<F: AsyncWrite + Unpin + Send + Sync> SqlFile<F> {
     /// Writes a single DDL statement to the file, handling chunk separators.
     #[instrument(skip_all)]
     async fn write_statement(&mut self, statement: &str) -> Result<()> {
-        if self.current_command_count.is_multiple_of(self.options.max_commands_per_chunk) {
+        if self
+            .current_command_count
+            .is_multiple_of(self.options.max_commands_per_chunk)
+        {
             if !self.is_empty {
                 self.file.write_all(b"\n\n").await?;
             }
@@ -519,8 +522,7 @@ pub async fn apply_sql_file<F: AsyncBufRead + Unpin + Send + Sync>(
                         && sql_chunk.ends_with(" from stdin with (format text, header false);\n")
                     {
                         let mut client = target_connection.pool().get_client().await?;
-                        let mut copy_writer =
-                            client.copy_in(&*sql_chunk, &[]).await?;
+                        let mut copy_writer = client.copy_in(&*sql_chunk, &[]).await?;
 
                         loop {
                             sql_chunk.clear();

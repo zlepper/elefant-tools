@@ -110,8 +110,8 @@ mod tests {
     mod tokio_connection {
         use crate::test_helpers::get_settings;
         use crate::tokio_connection::new_client;
-        use tokio::test;
         use crate::Point;
+        use tokio::test;
 
         #[test]
         async fn test_point_edge_cases() {
@@ -210,7 +210,8 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_point: Option<Point> = client
-                .read_single_value_dual_mode("select null::point").await;
+                .read_single_value_dual_mode("select null::point")
+                .await;
             assert_eq!(null_point, None);
         }
 
@@ -219,7 +220,9 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let point_array: Vec<Point> = client
-                .read_single_value_dual_mode::<Vec<Point>>("select ARRAY[point(0,0), point(1,1), point(-1,-1)]")
+                .read_single_value_dual_mode::<Vec<Point>>(
+                    "select ARRAY[point(0,0), point(1,1), point(-1,-1)]",
+                )
                 .await;
 
             let expected = [

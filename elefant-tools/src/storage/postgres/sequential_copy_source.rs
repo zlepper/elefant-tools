@@ -53,7 +53,10 @@ impl TableDataReader for BorrowedPostgresCopyOutReader<'_> {
 }
 
 impl CopySource for SequentialSafePostgresInstanceCopySourceStorage<'_> {
-    type DataReader<'a> = BorrowedPostgresCopyOutReader<'a> where Self: 'a;
+    type DataReader<'a>
+        = BorrowedPostgresCopyOutReader<'a>
+    where
+        Self: 'a;
     type Cleanup = ();
 
     #[instrument(skip_all)]

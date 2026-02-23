@@ -1,8 +1,8 @@
 use crate::object_id::ObjectId;
-use elefant_client::Interval;
 use crate::quoting::AttemptedKeywordUsage::TypeOrFunctionName;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
+use elefant_client::Interval;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]

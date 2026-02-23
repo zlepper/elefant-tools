@@ -124,32 +124,36 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             // Test BYTEA (Vec<u8>)
-            let empty_bytes: Vec<u8> = client
-                .read_single_value_dual_mode("select ''::bytea").await;
+            let empty_bytes: Vec<u8> = client.read_single_value_dual_mode("select ''::bytea").await;
             assert_eq!(empty_bytes, Vec::<u8>::new());
 
             let test_bytes: Vec<u8> = client
-                .read_single_value_dual_mode("select '\\x48656C6C6F'::bytea").await;
+                .read_single_value_dual_mode("select '\\x48656C6C6F'::bytea")
+                .await;
             assert_eq!(test_bytes, b"Hello".to_vec());
 
             let binary_data: Vec<u8> = client
-                .read_single_value_dual_mode("select '\\x00010203FF'::bytea").await;
+                .read_single_value_dual_mode("select '\\x00010203FF'::bytea")
+                .await;
             assert_eq!(binary_data, vec![0, 1, 2, 3, 255]);
 
             // Test round-trip for BYTEA (manual test since Vec<u8> doesn't implement Display)
             let test_data = vec![0u8, 255u8, 42u8];
             let round_trip_result: Vec<u8> = client
-                .read_single_value("select $1::bytea;", &[&test_data]).await;
+                .read_single_value("select $1::bytea;", &[&test_data])
+                .await;
             assert_eq!(round_trip_result, test_data);
 
             let empty_data = Vec::<u8>::new();
             let round_trip_empty: Vec<u8> = client
-                .read_single_value("select $1::bytea;", &[&empty_data]).await;
+                .read_single_value("select $1::bytea;", &[&empty_data])
+                .await;
             assert_eq!(round_trip_empty, empty_data);
 
             let large_data = vec![1u8; 1000];
             let round_trip_large: Vec<u8> = client
-                .read_single_value("select $1::bytea;", &[&large_data]).await;
+                .read_single_value("select $1::bytea;", &[&large_data])
+                .await;
             assert_eq!(round_trip_large, large_data);
 
             // Test with parameter
@@ -157,7 +161,8 @@ mod tests {
                 .read_single_value(
                     "select $1::bytea;",
                     &[&vec![72u8, 101u8, 108u8, 108u8, 111u8]],
-                ).await;
+                )
+                .await;
             assert_eq!(param_bytes, b"Hello".to_vec());
         }
 
@@ -168,7 +173,8 @@ mod tests {
             // Test ToSql for &[u8] with parameter binding (this uses binary format internally)
             let test_slice: &[u8] = b"World";
             let received_from_slice: Vec<u8> = client
-                .read_single_value("select $1::bytea;", &[&test_slice]).await;
+                .read_single_value("select $1::bytea;", &[&test_slice])
+                .await;
             assert_eq!(received_from_slice, b"World".to_vec());
 
             // Note: &[u8] FromSql only works with binary format since we can't create borrowed slices
@@ -191,7 +197,8 @@ mod tests {
                 .unwrap();
 
             let bytea_value: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(bytea_value, Some(b"Hello".to_vec()));
 
             client
@@ -199,7 +206,8 @@ mod tests {
                 .await
                 .unwrap();
             let null_bytea: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(null_bytea, None);
 
             // Test inserting NULL BYTEA via parameter
@@ -215,7 +223,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(value, None);
 
             // Test inserting Some(Vec<u8>) via parameter
@@ -231,7 +240,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(value, Some(vec![1, 2, 3]));
 
             // Test &[u8] parameter binding (works fine since it uses binary format)
@@ -245,7 +255,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(value, Some(b"SliceTest".to_vec()));
 
             // Test Option<&[u8]> parameter binding
@@ -259,7 +270,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(value, Some(b"OptionSlice".to_vec()));
 
             // Test None for Option<&[u8]>
@@ -273,7 +285,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_table")
+                .await;
             assert_eq!(value, None);
 
             // Note: &[u8] FromSql only works with binary format since we can't create borrowed slices
@@ -298,7 +311,8 @@ mod tests {
 
             client.execute_non_query("insert into test_bytea_array_table values (array['\\x48656C6C6F'::bytea, '\\x576F726C64'::bytea]);", &[]).await.unwrap();
             let bytea_array: Vec<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_array_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_array_table")
+                .await;
             assert_eq!(bytea_array, vec![b"Hello".to_vec(), b"World".to_vec()]);
 
             client
@@ -309,7 +323,8 @@ mod tests {
                 .await
                 .unwrap();
             let empty_bytea_array: Vec<Vec<u8>> = client
-                .read_single_value_dual_mode("select data from test_bytea_array_table").await;
+                .read_single_value_dual_mode("select data from test_bytea_array_table")
+                .await;
             assert_eq!(empty_bytea_array, Vec::<Vec<u8>>::new());
         }
     }

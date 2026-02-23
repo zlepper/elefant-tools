@@ -79,12 +79,12 @@ mod tests {
         async fn test_text_types() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            let s: &str = client
-                .read_single_value("select 'hello'::text;", &[]).await;
+            let s: &str = client.read_single_value("select 'hello'::text;", &[]).await;
             assert_eq!(s, "hello");
 
             let s: String = client
-                .read_single_value_dual_mode("select 'hello'::text").await;
+                .read_single_value_dual_mode("select 'hello'::text")
+                .await;
             assert_eq!(s, "hello");
         }
     }

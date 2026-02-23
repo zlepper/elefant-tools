@@ -4,7 +4,10 @@ use crate::postgres_client::PostgresClient;
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, RowDescription, ValueFormat,
 };
-use crate::{protocol, ElefantClientError, FromSql, FromSqlBinary, FromSqlBinaryOwned, FromSqlText, FromSqlTextOwned, FromSqlRowOwned, ToSql};
+use crate::{
+    protocol, ElefantClientError, FromSql, FromSqlBinary, FromSqlBinaryOwned, FromSqlRowOwned,
+    FromSqlText, FromSqlTextOwned, ToSql,
+};
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::rc::Rc;
@@ -544,10 +547,7 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
 
         if let Some(raw) = self.data_row.values[index] {
             let raw_str = std::str::from_utf8(raw).map_err(|e| {
-                ElefantClientError::IoError(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    e,
-                ))
+                ElefantClientError::IoError(std::io::Error::new(std::io::ErrorKind::InvalidData, e))
             })?;
             let value = T::from_sql_text(raw_str, field).map_err(|e| {
                 ElefantClientError::DataTypeParseError {

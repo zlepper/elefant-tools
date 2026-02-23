@@ -84,7 +84,8 @@ mod tests {
                 .unwrap();
 
             let value: Option<i16> = client
-                .read_single_value("select value from test_table;", &[]).await;
+                .read_single_value("select value from test_table;", &[])
+                .await;
             assert_eq!(value, Some(42));
 
             client
@@ -95,7 +96,8 @@ mod tests {
                 .unwrap();
 
             let value: Option<i16> = client
-                .read_single_value("select value from test_table;", &[]).await;
+                .read_single_value("select value from test_table;", &[])
+                .await;
             assert_eq!(value, None);
 
             let result = client
@@ -118,7 +120,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<i16> = client
-                .read_single_value("select value from test_table;", &[]).await;
+                .read_single_value("select value from test_table;", &[])
+                .await;
             assert_eq!(value, None);
 
             client
@@ -131,7 +134,8 @@ mod tests {
                 .await
                 .unwrap();
             let value: Option<i16> = client
-                .read_single_value("select value from test_table;", &[]).await;
+                .read_single_value("select value from test_table;", &[])
+                .await;
             assert_eq!(value, Some(42));
         }
     }

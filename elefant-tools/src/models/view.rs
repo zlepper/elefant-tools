@@ -1,10 +1,10 @@
 use crate::models::hypertable_retention::HypertableRetention;
 use crate::object_id::{HaveDependencies, ObjectId};
-use elefant_client::Interval;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
 use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 use crate::{HypertableCompression, PostgresSchema};
+use elefant_client::Interval;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]

@@ -131,9 +131,7 @@ impl CopyDestination for ParallelSafePostgresInstanceCopyDestinationStorage<'_> 
         let mut client = self.wrapper.pool().get_client().await?;
         client.execute_non_query_simple(IMPORT_PREFIX).await?;
         client
-            .execute_non_query_simple(
-                "begin transaction isolation level serializable read write;",
-            )
+            .execute_non_query_simple("begin transaction isolation level serializable read write;")
             .await?;
         Ok(PostgresTransaction { client })
     }

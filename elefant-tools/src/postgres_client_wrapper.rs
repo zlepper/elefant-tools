@@ -61,13 +61,12 @@ impl PostgresClientWrapper {
     /// Execute a query that does not return any results.
     pub async fn execute_non_query(&self, sql: &str) -> Result {
         let mut client = self.pool.get_client().await?;
-        client
-            .execute_non_query_simple(sql)
-            .await
-            .map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
+        client.execute_non_query_simple(sql).await.map_err(|e| {
+            crate::ElefantToolsError::PostgresErrorWithQuery {
                 source: e,
                 query: sql.to_string(),
-            })?;
+            }
+        })?;
 
         Ok(())
     }
@@ -140,12 +139,10 @@ impl<'a, T: FromRow> elefant_client::FromSqlRow<'a> for RowAdapter<T> {
     fn from_sql_row(
         row: &'a PostgresDataRow<'_, '_>,
     ) -> std::result::Result<Self, elefant_client::ElefantClientError> {
-        T::from_row(row)
-            .map(RowAdapter)
-            .map_err(|e| match e {
-                crate::ElefantToolsError::PostgresError(inner) => inner,
-                other => elefant_client::ElefantClientError::PostgresError(other.to_string()),
-            })
+        T::from_row(row).map(RowAdapter).map_err(|e| match e {
+            crate::ElefantToolsError::PostgresError(inner) => inner,
+            other => elefant_client::ElefantClientError::PostgresError(other.to_string()),
+        })
     }
 }
 

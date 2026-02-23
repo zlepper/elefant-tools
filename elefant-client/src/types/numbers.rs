@@ -51,7 +51,12 @@ macro_rules! impl_number {
 
 impl_number!(i16, PostgresType::INT2);
 impl_number!(i32, PostgresType::INT4, PostgresType::INT2);
-impl_number!(i64, PostgresType::INT8, PostgresType::INT4, PostgresType::INT2);
+impl_number!(
+    i64,
+    PostgresType::INT8,
+    PostgresType::INT4,
+    PostgresType::INT2
+);
 impl_number!(f32, PostgresType::FLOAT4);
 impl_number!(f64, PostgresType::FLOAT8, PostgresType::FLOAT4);
 

@@ -106,12 +106,10 @@ async fn do_import(db_args: ImportDbArgs, source: Storage, _usize: NonZeroUsize)
 
 #[instrument(skip_all)]
 async fn do_copy(copy_args: CopyArgs, max_parallel: NonZeroUsize) -> Result<()> {
-    let source_connection =
-        PostgresClientWrapper::new(copy_args.source.get_settings()).await?;
+    let source_connection = PostgresClientWrapper::new(copy_args.source.get_settings()).await?;
     let source = PostgresInstanceStorage::new(&source_connection).await?;
 
-    let target_connection =
-        PostgresClientWrapper::new(copy_args.target.get_settings()).await?;
+    let target_connection = PostgresClientWrapper::new(copy_args.target.get_settings()).await?;
     let mut target = PostgresInstanceStorage::new(&target_connection).await?;
 
     copy_data(

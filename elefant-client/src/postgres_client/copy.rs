@@ -181,7 +181,7 @@ impl<'a, F: ConnectionFactory> CopyReader<'a, F> {
                 BackendMessage::CopyData(_) | BackendMessage::CopyDone => {
                     // Ignore extra copy data messages
                 }
-                BackendMessage::CommandComplete(_)| BackendMessage::ReadyForQuery(_) => {
+                BackendMessage::CommandComplete(_) | BackendMessage::ReadyForQuery(_) => {
                     self.client.ready_for_query = true;
                     break;
                 }

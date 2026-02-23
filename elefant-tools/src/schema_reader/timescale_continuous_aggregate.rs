@@ -1,6 +1,6 @@
-use elefant_client::Interval;
 use crate::postgres_client_wrapper::FromRow;
 use crate::schema_reader::define_working_query;
+use elefant_client::Interval;
 
 pub struct ContinuousAggregateResult {
     // pub hypertable_schema: String,

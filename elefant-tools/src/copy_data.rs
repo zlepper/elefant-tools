@@ -375,8 +375,13 @@ async fn apply_pre_copy_in_txn(
 ) -> Result<()> {
     let identifier_quoter = dest.get_identifier_quoter();
     let mut txn = dest.begin_transaction().await?;
-    apply_pre_copy_structure(&mut txn, &identifier_quoter, target_definition, destination_definition)
-        .await?;
+    apply_pre_copy_structure(
+        &mut txn,
+        &identifier_quoter,
+        target_definition,
+        destination_definition,
+    )
+    .await?;
     txn.commit().await
 }
 

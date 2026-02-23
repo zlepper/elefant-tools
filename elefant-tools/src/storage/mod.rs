@@ -20,9 +20,7 @@ pub use table_data::*;
 /// A trait for thing that are either a CopyDestination or CopySource.
 pub trait BaseCopyTarget {
     /// Which data format is supported by this destination/source.
-    fn supported_data_format(
-        &self,
-    ) -> impl std::future::Future<Output = Result<Vec<DataFormat>>>;
+    fn supported_data_format(&self) -> impl std::future::Future<Output = Result<Vec<DataFormat>>>;
 }
 
 /// A factory for providing copy sources. This is used to create a source that can be used to read data from.
@@ -37,9 +35,7 @@ pub trait CopySourceFactory: BaseCopyTarget {
 
     /// Should provide introspection data of the source. This means poking the `pg_catalog` tables when
     /// working with Postgres, for example.
-    fn get_introspection(
-        &self,
-    ) -> impl std::future::Future<Output = Result<PostgresDatabase>>;
+    fn get_introspection(&self) -> impl std::future::Future<Output = Result<PostgresDatabase>>;
 
     /// Should create whatever type is needed to be able to read data from the source.
     fn create_source(
@@ -111,10 +107,8 @@ pub trait CopyDestinationFactory<'a>: BaseCopyTarget {
 /// must be committed when done.
 pub trait CopyTransaction: Send {
     /// Apply a DDL statement within this transaction.
-    fn apply_statement(
-        &mut self,
-        statement: &str,
-    ) -> impl std::future::Future<Output = Result<()>>;
+    fn apply_statement(&mut self, statement: &str)
+        -> impl std::future::Future<Output = Result<()>>;
 
     /// Commit the transaction.
     fn commit(self) -> impl std::future::Future<Output = Result<()>>;
@@ -493,7 +487,10 @@ mod tests {
             .await;
         assert!(result.is_err(), "Expected CHECK_VIOLATION error");
         let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("check") || err_msg.contains("CHECK") || err_msg.contains("violates"), "Expected check violation, got: {err_msg}");
+        assert!(
+            err_msg.contains("check") || err_msg.contains("CHECK") || err_msg.contains("violates"),
+            "Expected check violation, got: {err_msg}"
+        );
 
         let result = destination
             .get_conn()
@@ -501,7 +498,12 @@ mod tests {
             .await;
         assert!(result.is_err(), "Expected UNIQUE_VIOLATION error");
         let err_msg = format!("{}", result.unwrap_err());
-        assert!(err_msg.contains("unique") || err_msg.contains("UNIQUE") || err_msg.contains("duplicate"), "Expected unique violation, got: {err_msg}");
+        assert!(
+            err_msg.contains("unique")
+                || err_msg.contains("UNIQUE")
+                || err_msg.contains("duplicate"),
+            "Expected unique violation, got: {err_msg}"
+        );
 
         destination
             .execute_not_query("insert into field (id) values (1);")

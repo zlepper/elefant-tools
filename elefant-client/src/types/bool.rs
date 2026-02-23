@@ -60,20 +60,18 @@ mod tests {
         async fn test_bool_type() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            let b: bool = client
-                .read_single_value("select 't'::bool;", &[]).await;
+            let b: bool = client.read_single_value("select 't'::bool;", &[]).await;
             assert!(b);
 
-            let b: bool = client
-                .read_single_value("select 'f'::bool;", &[]).await;
+            let b: bool = client.read_single_value("select 'f'::bool;", &[]).await;
             assert!(!b);
 
-            let b: bool = client
-                .read_single_value("select $1::bool;", &[&true]).await;
+            let b: bool = client.read_single_value("select $1::bool;", &[&true]).await;
             assert!(b);
 
             let b: bool = client
-                .read_single_value("select $1::bool;", &[&false]).await;
+                .read_single_value("select $1::bool;", &[&false])
+                .await;
             assert!(!b);
         }
 
@@ -81,20 +79,20 @@ mod tests {
         async fn test_bool_dual_mode() {
             let mut client = new_client(get_settings()).await.unwrap();
 
-            let value: bool = client
-                .read_single_value_dual_mode("select 't'::bool").await;
+            let value: bool = client.read_single_value_dual_mode("select 't'::bool").await;
             assert!(value);
 
             let value: bool = client
-                .read_single_value_dual_mode("select false::bool").await;
+                .read_single_value_dual_mode("select false::bool")
+                .await;
             assert!(!value);
 
             let value: bool = client
-                .read_single_value_dual_mode("select true::bool").await;
+                .read_single_value_dual_mode("select true::bool")
+                .await;
             assert!(value);
 
-            let value: bool = client
-                .read_single_value_dual_mode("select 'f'::bool").await;
+            let value: bool = client.read_single_value_dual_mode("select 'f'::bool").await;
             assert!(!value);
         }
     }

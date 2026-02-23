@@ -185,36 +185,42 @@ mod tests {
     mod tokio_connection {
         use crate::test_helpers::get_settings;
         use crate::tokio_connection::new_client;
+        use crate::{Cidr, Inet};
         use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
         use tokio::test;
-        use crate::{Cidr, Inet};
 
         #[test]
         async fn test_inet_edge_cases() {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let localhost_v4: Inet = client
-                .read_single_value_dual_mode("select '127.0.0.1'::inet").await;
+                .read_single_value_dual_mode("select '127.0.0.1'::inet")
+                .await;
             assert_eq!(localhost_v4.to_string(), "127.0.0.1");
 
             let localhost_v6: Inet = client
-                .read_single_value_dual_mode("select '::1'::inet").await;
+                .read_single_value_dual_mode("select '::1'::inet")
+                .await;
             assert_eq!(localhost_v6.to_string(), "::1");
 
             let class_a: Inet = client
-                .read_single_value_dual_mode("select '10.0.0.0/8'::inet").await;
+                .read_single_value_dual_mode("select '10.0.0.0/8'::inet")
+                .await;
             assert_eq!(class_a.prefix_len, Some(8));
 
             let class_b: Inet = client
-                .read_single_value_dual_mode("select '172.16.0.0/12'::inet").await;
+                .read_single_value_dual_mode("select '172.16.0.0/12'::inet")
+                .await;
             assert_eq!(class_b.prefix_len, Some(12));
 
             let class_c: Inet = client
-                .read_single_value_dual_mode("select '192.168.0.0/16'::inet").await;
+                .read_single_value_dual_mode("select '192.168.0.0/16'::inet")
+                .await;
             assert_eq!(class_c.prefix_len, Some(16));
 
             let ipv6_64: Inet = client
-                .read_single_value_dual_mode("select 'fe80::/64'::inet").await;
+                .read_single_value_dual_mode("select 'fe80::/64'::inet")
+                .await;
             assert_eq!(ipv6_64.prefix_len, Some(64));
         }
 
@@ -223,22 +229,26 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let ipv4: Inet = client
-                .read_single_value_dual_mode("select '192.168.1.1'::inet").await;
+                .read_single_value_dual_mode("select '192.168.1.1'::inet")
+                .await;
             assert_eq!(ipv4.ip, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 1)));
             assert_eq!(ipv4.prefix_len, None);
 
             let ipv4_cidr: Inet = client
-                .read_single_value_dual_mode("select '10.0.0.0/8'::inet").await;
+                .read_single_value_dual_mode("select '10.0.0.0/8'::inet")
+                .await;
             assert_eq!(ipv4_cidr.ip, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0)));
             assert_eq!(ipv4_cidr.prefix_len, Some(8));
 
             let ipv6: Inet = client
-                .read_single_value_dual_mode("select '::1'::inet").await;
+                .read_single_value_dual_mode("select '::1'::inet")
+                .await;
             assert_eq!(ipv6.ip, IpAddr::V6(Ipv6Addr::LOCALHOST));
             assert_eq!(ipv6.prefix_len, None);
 
             let ipv6_cidr: Inet = client
-                .read_single_value_dual_mode("select '2001:db8::/32'::inet").await;
+                .read_single_value_dual_mode("select '2001:db8::/32'::inet")
+                .await;
             if let IpAddr::V6(v6) = ipv6_cidr.ip {
                 assert_eq!(v6.segments(), [0x2001, 0xdb8, 0, 0, 0, 0, 0, 0]);
             } else {
@@ -253,7 +263,8 @@ mod tests {
 
             // Test CIDR type (should work the same as INET)
             let cidr: Cidr = client
-                .read_single_value_dual_mode("select '192.168.0.0/16'::cidr").await;
+                .read_single_value_dual_mode("select '192.168.0.0/16'::cidr")
+                .await;
             assert_eq!(cidr.ip, IpAddr::V4(Ipv4Addr::new(192, 168, 0, 0)));
             assert_eq!(cidr.prefix_len, Some(16));
         }
@@ -263,7 +274,8 @@ mod tests {
             let mut client = new_client(get_settings()).await.unwrap();
 
             let null_inet: Option<Inet> = client
-                .read_single_value_dual_mode("select null::inet").await;
+                .read_single_value_dual_mode("select null::inet")
+                .await;
             assert_eq!(null_inet, None);
         }
 
@@ -301,7 +313,8 @@ mod tests {
 
             for (id, expected_ip_str, expected_prefix) in test_cases {
                 let result: Inet = client
-                    .read_single_value("select addr from test_inet_binary where id = $1;", &[&id]).await;
+                    .read_single_value("select addr from test_inet_binary where id = $1;", &[&id])
+                    .await;
 
                 // Verify IP address
                 let expected_ip: IpAddr = expected_ip_str.parse().unwrap();
@@ -344,7 +357,8 @@ mod tests {
                     .read_single_value(
                         "select addr from test_inet_roundtrip where addr = $1;",
                         &[test_value],
-                    ).await;
+                    )
+                    .await;
 
                 assert_eq!(retrieved.ip, test_value.ip, "Round-trip IP mismatch");
                 assert_eq!(

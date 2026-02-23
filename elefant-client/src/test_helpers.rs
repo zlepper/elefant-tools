@@ -1,6 +1,9 @@
 use crate::pool::ConnectionFactory;
 use crate::postgres_client::{PostgresClient, QueryResultSet};
-use crate::{ElefantClientError, FromSql, FromSqlBinary, FromSqlOwned, FromSqlText, PostgresConnectionSettings, Statement, ToSql};
+use crate::{
+    ElefantClientError, FromSql, FromSqlBinary, FromSqlOwned, FromSqlText,
+    PostgresConnectionSettings, Statement, ToSql,
+};
 use std::fmt::Debug;
 
 pub(crate) fn get_settings() -> PostgresConnectionSettings {
@@ -51,7 +54,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
     pub async fn read_single_value<'postgres_client, T>(
         &'postgres_client mut self,
         query: &(impl Statement + ?Sized),
-        parameters: &[&dyn ToSql ],
+        parameters: &[&dyn ToSql],
     ) -> T
     where
         T: FromSqlBinary<'postgres_client>,
@@ -147,10 +150,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
     /// - Only supports literal SQL values (no $1, $2 parameters)
     /// - Type T must implement FromSqlOwned (both binary and text modes, without borrowing)
     /// - Type T must implement PartialEq + Debug + Clone for comparison
-    pub async fn read_single_value_dual_mode<T>(
-        &mut self,
-        query: &str,
-    ) -> T
+    pub async fn read_single_value_dual_mode<T>(&mut self, query: &str) -> T
     where
         T: FromSqlOwned + PartialEq + Debug + Clone,
     {
@@ -160,7 +160,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
     pub async fn read_single_column_and_row_exactly<'a, S, T>(
         &'a mut self,
         sql: &S,
-        parameters: &[&dyn ToSql ],
+        parameters: &[&dyn ToSql],
     ) -> T
     where
         T: FromSql<'a>,

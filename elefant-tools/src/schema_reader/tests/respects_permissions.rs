@@ -1,4 +1,3 @@
-use elefant_client::Interval;
 use crate::schema_reader::SchemaReader;
 use crate::test_helpers::{get_test_connection_full, TestHelper};
 use crate::TableTypeDetails::TimescaleHypertable;
@@ -11,6 +10,7 @@ use crate::{
     test_helpers, HypertableDimension, ObjectId, PostgresIndex, PostgresIndexColumnDirection,
     PostgresIndexKeyColumn, PostgresIndexNullsOrder, PostgresIndexType,
 };
+use elefant_client::Interval;
 use elefant_test_macros::pg_test;
 
 #[pg_test(arg(postgres = 12))]

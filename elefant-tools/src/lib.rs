@@ -1,3 +1,14 @@
+/// Dispatches through a `SequentialOrParallel` enum, running the same expression
+/// for both variants.
+macro_rules! with_both {
+    ($val:expr, |$binding:ident| $body:expr) => {
+        match $val {
+            SequentialOrParallel::Sequential($binding) => $body,
+            SequentialOrParallel::Parallel($binding) => $body,
+        }
+    };
+}
+
 #[cfg(any(test, feature = "test_utilities"))]
 pub mod test_helpers;
 

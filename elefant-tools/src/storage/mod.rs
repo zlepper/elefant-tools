@@ -201,17 +201,11 @@ impl SupportedParallelism {
 
 impl<S: CopyDestination, P: CopyDestination + Clone> SequentialOrParallel<S, P> {
     pub(crate) async fn finish(&mut self) -> Result<()> {
-        match self {
-            SequentialOrParallel::Sequential(s) => s.finish().await,
-            SequentialOrParallel::Parallel(p) => p.finish().await,
-        }
+        with_both!(self, |d| d.finish().await)
     }
 
     pub(crate) async fn try_get_introspeciton(&self) -> Result<Option<PostgresDatabase>> {
-        match self {
-            SequentialOrParallel::Sequential(s) => s.try_introspect().await,
-            SequentialOrParallel::Parallel(p) => p.try_introspect().await,
-        }
+        with_both!(self, |d| d.try_introspect().await)
     }
 }
 

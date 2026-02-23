@@ -101,9 +101,9 @@ pub async fn copy_data<'d, S: CopySourceFactory, D: CopyDestinationFactory<'d>>(
         destination_definition.filtered_to_schema(target_schema);
     }
 
-    destination
-        .apply_pre_copy_structure_in_transaction(&target_definition, &destination_definition)
-        .await?;
+    with_both!(&mut destination, |d| {
+        apply_pre_copy_in_txn(d, &target_definition, &destination_definition).await
+    })?;
 
     if !options.schema_only {
         let mut parallel_runner = ParallelRunner::new(options.get_max_parallel_or_1());
@@ -378,23 +378,6 @@ async fn apply_pre_copy_in_txn(
     apply_pre_copy_structure(&mut txn, &identifier_quoter, target_definition, destination_definition)
         .await?;
     txn.commit().await
-}
-
-impl<S: CopyDestination, P: CopyDestination + Clone> SequentialOrParallel<S, P> {
-    async fn apply_pre_copy_structure_in_transaction(
-        &mut self,
-        target_definition: &PostgresDatabase,
-        destination_definition: &PostgresDatabase,
-    ) -> Result<()> {
-        match self {
-            SequentialOrParallel::Sequential(d) => {
-                apply_pre_copy_in_txn(d, target_definition, destination_definition).await
-            }
-            SequentialOrParallel::Parallel(d) => {
-                apply_pre_copy_in_txn(d, target_definition, destination_definition).await
-            }
-        }
-    }
 }
 
 /// Actually copies data between two tables.

@@ -1,3 +1,4 @@
+mod enum_type;
 mod from_sql_row;
 mod oid;
 mod standard_types;
@@ -23,6 +24,7 @@ mod numeric_type;
 mod point_type;
 pub use point_type::Point;
 mod network_type;
+pub use enum_type::*;
 pub use network_type::{Cidr, Inet};
 
 use crate::protocol::FieldDescription;
@@ -38,6 +40,13 @@ pub trait FromSqlBase<'a>: Sized {
     }
 
     fn accepts_postgres_type(oid: i32) -> bool;
+
+    /// Extended accepts check with access to the enum type registry.
+    /// Override for enum types and collections of enums.
+    /// Default delegates to the static `accepts` check.
+    fn accepts_with_registry(field: &FieldDescription, _registry: &EnumTypeRegistry) -> bool {
+        Self::accepts(field)
+    }
 
     fn from_null(field: &FieldDescription) -> Result<Self, ElefantClientError> {
         Err(ElefantClientError::UnexpectedNullValue {

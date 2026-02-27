@@ -7,11 +7,9 @@ use crate::{
 use std::fmt::Debug;
 
 pub(crate) fn get_settings() -> PostgresConnectionSettings {
-    PostgresConnectionSettings {
-        password: "passw0rd".to_string(),
-        port: 5415,
-        ..Default::default()
-    }
+    PostgresConnectionSettings::new("localhost")
+        .port(5415)
+        .password("passw0rd")
 }
 
 #[cfg(feature = "tokio")]

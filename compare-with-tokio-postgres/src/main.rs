@@ -34,14 +34,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test elefant-client connection
     println!("Testing elefant-client connection...");
-    let settings = PostgresConnectionSettings {
-        host: DB_HOST.to_string(),
-        port: DB_PORT,
-        user: DB_USER.to_string(),
-        password: DB_PASSWORD.to_string(),
-        database: "postgres".to_string(),
-        options: None,
-    };
+    let settings = PostgresConnectionSettings::new(DB_HOST)
+        .port(DB_PORT)
+        .user(DB_USER)
+        .password(DB_PASSWORD);
 
     let _elefant_client = tokio_connection::new_client(settings).await?;
 

@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText};
+use crate::types::{EnumTypeRegistry, FromSqlBase, FromSqlBinary, FromSqlText};
 use crate::PostgresType;
 use std::error::Error;
 
@@ -20,6 +20,23 @@ where
                     Some(element_type) => T::accepts_postgres_type(element_type.oid),
                 }
             }
+        }
+    }
+
+    fn accepts_with_registry(field: &FieldDescription, registry: &EnumTypeRegistry) -> bool {
+        // Static check for built-in array types
+        if Self::accepts(field) {
+            return true;
+        }
+        // Dynamic check: verify this is a registered enum array AND the element type matches T
+        if let Some(element_oid) = registry.element_oid_for_array_oid(field.data_type_oid) {
+            let element_field = FieldDescription {
+                data_type_oid: element_oid,
+                ..field.clone()
+            };
+            T::accepts_with_registry(&element_field, registry)
+        } else {
+            false
         }
     }
 }
@@ -56,9 +73,7 @@ where
             return Err(format!("Only one-dimensional arrays are supported. Error occurred when parsing field {field:?}").into());
         }
 
-        if !T::accepts_postgres_type(element_oid) {
-            return Err(format!("Element type of the array is not supported. Error occurred when parsing field {field:?}").into());
-        }
+        let _ = element_oid; // Validated at the outer accepts_with_registry level
 
         let mut result: Vec<T> = Vec::with_capacity(size_of_first_dimension as usize);
 
@@ -89,8 +104,11 @@ where
         raw: &'a str,
         field: &FieldDescription,
     ) -> Result<Self, Box<dyn Error + Sync + Send>> {
-        let typ = PostgresType::get_by_oid(field.data_type_oid)
-            .ok_or_else(|| format!("Unknown type oid: {}", field.data_type_oid))?;
+        // For enum arrays (unknown OID), default delimiter is ','
+        let delimiter_char = match PostgresType::get_by_oid(field.data_type_oid) {
+            Some(typ) => typ.array_delimiter,
+            None => ',',
+        };
 
         let mut result = Vec::new();
 
@@ -114,7 +132,6 @@ where
         // Parse array elements while respecting quoted boundaries
         let mut element_start = 0;
         let mut in_quotes = false;
-        let delimiter_char = typ.array_delimiter;
         let bytes = narrowed.as_bytes();
 
         for (i, &byte) in bytes.iter().enumerate() {

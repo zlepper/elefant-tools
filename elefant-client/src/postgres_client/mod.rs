@@ -8,8 +8,10 @@ use crate::pool::{ConnectionFactory, PostgresPool};
 use crate::protocol::{
     BackendMessage, CurrentTransactionStatus, FrontendMessage, PostgresConnection,
 };
+use crate::types::EnumTypeRegistry;
 use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSettings};
 use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 use tracing::{debug, trace};
 
 pub use copy::{CopyReader, CopyWriter, OwnedCopyReader};
@@ -25,6 +27,7 @@ pub struct PostgresClient<F: ConnectionFactory> {
     pub(crate) prepared_query_counter: u64,
     sync_required: bool,
     current_transaction_status: CurrentTransactionStatus,
+    pub(crate) enum_registry: Arc<EnumTypeRegistry>,
 }
 
 impl<F: ConnectionFactory> PostgresClient<F> {
@@ -122,6 +125,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
     pub(crate) async fn new(
         connection: PostgresConnection<F::Connection>,
         settings: &PostgresConnectionSettings,
+        enum_registry: Arc<EnumTypeRegistry>,
     ) -> Result<Self, ElefantClientError> {
         let mut client = Self {
             connection,
@@ -132,6 +136,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
             prepared_query_counter: 1,
             sync_required: false,
             current_transaction_status: CurrentTransactionStatus::Idle,
+            enum_registry,
         };
 
         client.establish(settings).await?;

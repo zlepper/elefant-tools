@@ -50,7 +50,7 @@ pub type TokioPoolableClient = PoolableClient<TokioConnectionFactory>;
 pub async fn new_client(
     settings: PostgresConnectionSettings,
 ) -> Result<TokioPoolableClient, ElefantClientError> {
-    let pool = PostgresPool::new(TokioConnectionFactory, settings);
+    let pool = PostgresPool::new(TokioConnectionFactory, settings).await?;
     pool.get_client().await
 }
 
@@ -163,14 +163,11 @@ mod tests {
         let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516];
 
         for port in pg_ports {
-            let _client = new_client(PostgresConnectionSettings {
-                user: "postgres".to_string(),
-                host: "localhost".to_string(),
-                database: "postgres".to_string(),
-                port,
-                password: "passw0rd".to_string(),
-                options: None,
-            })
+            let _client = new_client(
+                PostgresConnectionSettings::new("localhost")
+                    .port(port)
+                    .password("passw0rd"),
+            )
             .await
             .unwrap_or_else(|_| panic!("Failed to connect to port {port}"));
         }

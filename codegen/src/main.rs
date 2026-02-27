@@ -5,14 +5,11 @@ use std::fs;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut client = elefant_client::tokio_connection::new_client(PostgresConnectionSettings {
-        database: "postgres".to_string(),
-        host: "localhost".to_string(),
-        password: "passw0rd".to_string(),
-        user: "postgres".to_string(),
-        port: 5416, // Postgres 16 for now
-        options: None,
-    })
+    let mut client = elefant_client::tokio_connection::new_client(
+        PostgresConnectionSettings::new("localhost")
+            .port(5416)
+            .password("passw0rd"),
+    )
     .await?;
 
     client
@@ -22,14 +19,12 @@ async fn main() -> Result<()> {
         .execute_non_query("create database type_codegen", &[])
         .await?;
 
-    let mut client = elefant_client::tokio_connection::new_client(PostgresConnectionSettings {
-        database: "type_codegen".to_string(),
-        host: "localhost".to_string(),
-        password: "passw0rd".to_string(),
-        user: "postgres".to_string(),
-        port: 5416, // Postgres 16 for now
-        options: None,
-    })
+    let mut client = elefant_client::tokio_connection::new_client(
+        PostgresConnectionSettings::new("localhost")
+            .port(5416)
+            .password("passw0rd")
+            .database("type_codegen"),
+    )
     .await?;
 
     let mut query_results = client.query(r#"select t.oid, t.typname::text, t.typdelim, t.typelem, t.typtype, t_elem.typarray = t.oid as is_array_type

@@ -6,14 +6,11 @@ async fn main() -> Result<()> {
     let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5515, 5516];
 
     for port in pg_ports {
-        let mut client = elefant_client::tokio_connection::new_client(PostgresConnectionSettings {
-            user: "postgres".to_string(),
-            host: "localhost".to_string(),
-            database: "postgres".to_string(),
-            port,
-            password: "passw0rd".to_string(),
-            options: None,
-        })
+        let mut client = elefant_client::tokio_connection::new_client(
+            PostgresConnectionSettings::new("localhost")
+                .port(port)
+                .password("passw0rd"),
+        )
         .await?;
 
         let databases = client

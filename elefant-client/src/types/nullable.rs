@@ -1,5 +1,5 @@
 use crate::protocol::FieldDescription;
-use crate::types::{FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
+use crate::types::{EnumTypeRegistry, FromSqlBase, FromSqlBinary, FromSqlText, ToSql};
 use crate::ElefantClientError;
 use std::error::Error;
 
@@ -9,6 +9,10 @@ where
 {
     fn accepts_postgres_type(oid: i32) -> bool {
         T::accepts_postgres_type(oid)
+    }
+
+    fn accepts_with_registry(field: &FieldDescription, registry: &EnumTypeRegistry) -> bool {
+        T::accepts_with_registry(field, registry)
     }
 
     fn from_null(_field: &FieldDescription) -> Result<Self, ElefantClientError> {

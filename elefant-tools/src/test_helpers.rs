@@ -137,14 +137,11 @@ impl TestHelper {
 
     /// Gets a connection to a specific schema in the database.
     pub async fn get_schema_connection(&self, schema: &str) -> PostgresClientWrapper {
-        let settings = PostgresConnectionSettings {
-            host: "localhost".to_string(),
-            port: self.port,
-            user: "postgres".to_string(),
-            password: "passw0rd".to_string(),
-            database: self.test_db_name.clone(),
-            options: Some(format!("--search_path={schema},public")),
-        };
+        let settings = PostgresConnectionSettings::new("localhost")
+            .port(self.port)
+            .password("passw0rd")
+            .database(self.test_db_name.clone())
+            .options(format!("--search_path={schema},public"));
         PostgresClientWrapper::new(settings)
             .await
             .expect("Connection to test database failed. Is postgres running?")
@@ -174,14 +171,14 @@ pub(crate) async fn get_test_connection_full(
     password: &str,
     schema: Option<&str>,
 ) -> PostgresClientWrapper {
-    let settings = PostgresConnectionSettings {
-        host: "localhost".to_string(),
-        port,
-        user: user.to_string(),
-        password: password.to_string(),
-        database: database_name.to_string(),
-        options: schema.map(|s| format!("--search_path={s}")),
-    };
+    let mut settings = PostgresConnectionSettings::new("localhost")
+        .port(port)
+        .user(user)
+        .password(password)
+        .database(database_name);
+    if let Some(s) = schema {
+        settings = settings.options(format!("--search_path={s}"));
+    }
 
     PostgresClientWrapper::new(settings)
         .await

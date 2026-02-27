@@ -20,7 +20,8 @@ impl PostgresClientWrapper {
         let pool = TokioPostgresPool::new(
             elefant_client::tokio_connection::TokioConnectionFactory,
             settings,
-        );
+        )
+        .await?;
 
         let mut client = pool.get_client().await?;
 

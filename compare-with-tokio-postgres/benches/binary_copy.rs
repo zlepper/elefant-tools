@@ -204,14 +204,11 @@ async fn elefant_client_tokio_copy_benchmark(_num_rows: usize) {
     use elefant_client::PostgresConnectionSettings;
     use elefant_client::tokio_connection;
 
-    let settings = PostgresConnectionSettings {
-        host: DB_HOST.to_string(),
-        port: DB_PORT,
-        user: DB_USER.to_string(),
-        password: DB_PASSWORD.to_string(),
-        database: BENCHMARK_DB.to_string(),
-        options: None,
-    };
+    let settings = PostgresConnectionSettings::new(DB_HOST)
+        .port(DB_PORT)
+        .user(DB_USER)
+        .password(DB_PASSWORD)
+        .database(BENCHMARK_DB);
 
     let mut source_client = tokio_connection::new_client(settings.clone())
         .await

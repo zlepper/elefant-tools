@@ -7,7 +7,7 @@ members = [
     "drop-all-test-databases",
     "benchmark-import-prepare",
     "elefant-client",
-    "codegen", "compare-with-tokio-postgres"]
+    "codegen", "compare-with-tokio-postgres", "elefant-client-macros"]
 
 
 [profile.dev]

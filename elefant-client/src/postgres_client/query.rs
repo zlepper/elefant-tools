@@ -4,6 +4,7 @@ use crate::postgres_client::PostgresClient;
 use crate::protocol::{
     BackendMessage, FieldDescription, FrontendMessage, RowDescription, ValueFormat,
 };
+use crate::types::EnumTypeRegistry;
 use crate::{
     protocol, ElefantClientError, FromSql, FromSqlBinary, FromSqlBinaryOwned, FromSqlRowOwned,
     FromSqlText, FromSqlTextOwned, ToSql,
@@ -11,6 +12,7 @@ use crate::{
 use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::Arc;
 use tracing::{debug, trace};
 
 #[macro_export]
@@ -210,9 +212,11 @@ impl<'postgres_client, F: ConnectionFactory> QueryResultBase<'postgres_client, F
             return match prepared.as_ref() {
                 PreparedQueryResult::RowDescription(rd) => {
                     let client: &mut PostgresClient<F> = reborrow_until_polonius!(self.client);
+                    let registry = client.enum_registry.clone();
                     Ok(QueryResultSet::RowDescriptionReceived(RowResultReader {
                         client,
                         row_description: rd.clone(),
+                        enum_registry: registry,
                         query_result_res: PhantomData,
                     }))
                 }
@@ -229,9 +233,11 @@ impl<'postgres_client, F: ConnectionFactory> QueryResultBase<'postgres_client, F
                     debug!("Command complete: {:?}", cc);
                 }
                 BackendMessage::RowDescription(rd) => {
+                    let registry = client.enum_registry.clone();
                     return Ok(QueryResultSet::RowDescriptionReceived(RowResultReader {
                         client,
                         row_description: rd,
+                        enum_registry: registry,
                         query_result_res: PhantomData,
                     }));
                 }
@@ -413,6 +419,7 @@ pub enum QueryResultSet<'postgres_client, 'query_result_set, F: ConnectionFactor
 pub struct RowResultReader<'postgres_client, 'query_result_set, F: ConnectionFactory> {
     client: &'postgres_client mut PostgresClient<F>,
     row_description: RowDescription,
+    enum_registry: Arc<EnumTypeRegistry>,
     // Ensures that the QueryResult cannot be used while we are processing rows.
     query_result_res: PhantomData<&'query_result_set QueryResult<'postgres_client, F>>,
 }
@@ -431,6 +438,7 @@ impl<'postgres_client, 'query_result_set, F: ConnectionFactory>
             BackendMessage::DataRow(dr) => Ok(Some(PostgresDataRow {
                 row_description: &self.row_description,
                 data_row: dr,
+                enum_registry: &self.enum_registry,
             })),
             BackendMessage::CommandComplete(cc) => {
                 debug!("Command complete: {:?}", cc);
@@ -454,6 +462,7 @@ impl<'postgres_client, 'query_result_set, F: ConnectionFactory>
 pub struct PostgresDataRow<'postgres_client, 'row_result_reader> {
     row_description: &'row_result_reader RowDescription,
     data_row: protocol::DataRow<'postgres_client>,
+    enum_registry: &'row_result_reader EnumTypeRegistry,
 }
 
 impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
@@ -467,7 +476,7 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
     {
         let field = &self.row_description.fields[index];
 
-        if !T::accepts(field) {
+        if !T::accepts_with_registry(field, self.enum_registry) {
             return Err(ElefantClientError::UnsupportedFieldType {
                 postgres_field: field.clone(),
                 desired_rust_type: std::any::type_name::<T>(),
@@ -511,7 +520,7 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
     {
         let field = &self.row_description.fields[index];
 
-        if !T::accepts(field) {
+        if !T::accepts_with_registry(field, self.enum_registry) {
             return Err(ElefantClientError::UnsupportedFieldType {
                 postgres_field: field.clone(),
                 desired_rust_type: std::any::type_name::<T>(),
@@ -538,7 +547,7 @@ impl<'postgres_client> PostgresDataRow<'postgres_client, '_> {
     {
         let field = &self.row_description.fields[index];
 
-        if !T::accepts(field) {
+        if !T::accepts_with_registry(field, self.enum_registry) {
             return Err(ElefantClientError::UnsupportedFieldType {
                 postgres_field: field.clone(),
                 desired_rust_type: std::any::type_name::<T>(),

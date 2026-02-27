@@ -17,7 +17,6 @@ use crate::schema_reader::view::ViewResult;
 use crate::schema_reader::view_column::ViewColumnResult;
 use crate::TableTypeDetails::TimescaleHypertable;
 use crate::{ElefantToolsError, ObjectId, Result};
-use futures::try_join;
 use std::collections::HashMap;
 
 use itertools::Itertools;
@@ -62,43 +61,23 @@ impl SchemaReader<'_> {
         let mut object_id_generator = ObjectIdGenerator::new();
         let mut object_id_mapping = PgOidToObjectIdMapping::default();
 
-        let (
-            extensions,
-            schemas,
-            tables,
-            columns,
-            check_constraints,
-            unique_constraints,
-            indices,
-            index_columns,
-            sequences,
-            foreign_keys,
-            foreign_key_columns,
-            views,
-            view_columns,
-            functions,
-            triggers,
-            enums,
-            domains,
-        ) = try_join!(
-            self.get_extensions(),
-            self.get_schemas(),
-            self.get_tables(),
-            self.get_columns(),
-            self.get_check_constraints(),
-            self.get_unique_constraints(),
-            self.get_indices(),
-            self.get_index_columns(),
-            self.get_sequences(),
-            self.get_foreign_keys(),
-            self.get_foreign_key_columns(),
-            self.get_views(),
-            self.get_view_columns(),
-            self.get_functions(),
-            self.get_triggers(),
-            self.get_enums(),
-            self.get_domains()
-        )?;
+        let extensions = self.get_extensions().await?;
+        let schemas = self.get_schemas().await?;
+        let tables = self.get_tables().await?;
+        let columns = self.get_columns().await?;
+        let check_constraints = self.get_check_constraints().await?;
+        let unique_constraints = self.get_unique_constraints().await?;
+        let indices = self.get_indices().await?;
+        let index_columns = self.get_index_columns().await?;
+        let sequences = self.get_sequences().await?;
+        let foreign_keys = self.get_foreign_keys().await?;
+        let foreign_key_columns = self.get_foreign_key_columns().await?;
+        let views = self.get_views().await?;
+        let view_columns = self.get_view_columns().await?;
+        let functions = self.get_functions().await?;
+        let triggers = self.get_triggers().await?;
+        let enums = self.get_enums().await?;
+        let domains = self.get_domains().await?;
 
         let mut extensions = extensions;
 
@@ -119,12 +98,11 @@ impl SchemaReader<'_> {
 
         let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) =
             if db.timescale_support.is_enabled {
-                try_join!(
-                    self.get_hypertables(),
-                    self.get_hypertable_dimensions(),
-                    self.get_continuous_aggregates(),
-                    self.get_timescale_jobs()
-                )?
+                let hypertables = self.get_hypertables().await?;
+                let hypertable_dimensions = self.get_hypertable_dimensions().await?;
+                let continuous_aggregates = self.get_continuous_aggregates().await?;
+                let timescale_jobs = self.get_timescale_jobs().await?;
+                (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs)
             } else {
                 (vec![], vec![], vec![], vec![])
             };

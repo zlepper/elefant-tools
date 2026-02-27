@@ -206,19 +206,18 @@ fn get_pg_attr(attrs: &[syn::Attribute], key: &str) -> syn::Result<Option<String
 /// Convert a PascalCase or camelCase name to snake_case.
 fn to_snake_case(s: &str) -> String {
     let mut result = String::with_capacity(s.len() + 4);
-    let mut chars = s.chars().peekable();
+    let chars: Vec<char> = s.chars().collect();
 
-    while let Some(c) = chars.next() {
+    for i in 0..chars.len() {
+        let c = chars[i];
         if c.is_uppercase() {
-            if !result.is_empty() {
+            if i > 0 {
                 // Insert underscore before uppercase if:
-                // - previous char was lowercase, or
+                // - previous original char was lowercase/digit, or
                 // - next char is lowercase (handles "XMLParser" -> "xml_parser")
-                let prev_was_lower = result
-                    .chars()
-                    .last()
-                    .is_some_and(|p| p.is_lowercase() || p.is_ascii_digit());
-                let next_is_lower = chars.peek().is_some_and(|n| n.is_lowercase());
+                let prev_was_lower =
+                    chars[i - 1].is_lowercase() || chars[i - 1].is_ascii_digit();
+                let next_is_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
 
                 if prev_was_lower || next_is_lower {
                     result.push('_');

@@ -28,6 +28,10 @@ impl<S> Framed<S> {
             needs_more: false,
         }
     }
+
+    pub fn get_stream_mut(&mut self) -> &mut S {
+        &mut self.stream
+    }
 }
 
 const KB8: usize = 8192;

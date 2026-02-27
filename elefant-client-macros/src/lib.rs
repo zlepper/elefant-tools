@@ -67,8 +67,8 @@ fn impl_postgres_enum(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStre
     let variant_info: Vec<(&syn::Ident, String)> = variants
         .iter()
         .map(|v| {
-            let label =
-                get_pg_attr(&v.attrs, "label")?.unwrap_or_else(|| to_snake_case(&v.ident.to_string()));
+            let label = get_pg_attr(&v.attrs, "label")?
+                .unwrap_or_else(|| to_snake_case(&v.ident.to_string()));
             Ok((&v.ident, label))
         })
         .collect::<syn::Result<Vec<_>>>()?;

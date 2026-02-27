@@ -178,11 +178,12 @@ pub struct ImportDbArgs {
 
 impl ImportDbArgs {
     pub(crate) fn get_settings(&self) -> elefant_client::PostgresConnectionSettings {
-        let mut settings = elefant_client::PostgresConnectionSettings::new(self.target_db_host.clone())
-            .port(self.target_db_port)
-            .user(self.target_db_user.clone())
-            .password(self.target_db_password.clone())
-            .database(self.target_db_name.clone());
+        let mut settings =
+            elefant_client::PostgresConnectionSettings::new(self.target_db_host.clone())
+                .port(self.target_db_port)
+                .user(self.target_db_user.clone())
+                .password(self.target_db_password.clone())
+                .database(self.target_db_name.clone());
         if let Some(s) = &self.target_schema {
             settings = settings.options(format!("--search_path={s},public"));
         }

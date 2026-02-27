@@ -135,7 +135,7 @@ pub struct ScramSha256 {
 impl ScramSha256 {
     /// Constructs a new instance which will use the provided password for authentication.
     pub fn new(password: &[u8], channel_binding: ChannelBinding) -> ScramSha256 {
-        // rand 0.5's ThreadRng is cryptographically secure
+        // rand's thread-local RNG is cryptographically secure
         let mut rng = rand::rng();
         let nonce = (0..NONCE_LENGTH)
             .map(|_| {
@@ -391,7 +391,7 @@ impl<'a> Parser<'a> {
     }
 
     fn value(&mut self) -> io::Result<&'a str> {
-        self.take_while(|c| matches!(c, '\0' | '=' | ','))
+        self.take_while(|c| !matches!(c, '\0' | '=' | ','))
     }
 
     fn server_error(&mut self) -> io::Result<Option<&'a str>> {

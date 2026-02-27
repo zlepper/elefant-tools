@@ -20,10 +20,15 @@ rust_decimal = { version = "1.36", optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 tracing = "0.1"
 elefant-client-macros = { path = "../elefant-client-macros", optional = true }
+rustls = { version = "0.23", optional = true, default-features = false, features = ["std"] }
+rustls-pki-types = { version = "1", optional = true }
+x509-cert = { version = "0.2", optional = true, default-features = false }
+der = { version = "0.7", optional = true, default-features = false }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full"] }
 time = { version = "0.3", features = ["macros"] }
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
 
 [features]
 tokio = ["dep:tokio", "dep:tokio-util", "futures"]
@@ -35,3 +40,4 @@ decimal = ["dep:rust_decimal"]
 pg_interval = []
 serde = ["dep:serde"]
 derive = ["dep:elefant-client-macros"]
+rustls = ["dep:rustls", "dep:rustls-pki-types", "dep:x509-cert", "dep:der"]

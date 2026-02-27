@@ -19,6 +19,7 @@ postgres-15 = { max-threads = 1 }
 postgres-16 = { max-threads = 1 }
 timescale-15 = { max-threads = 1 }
 timescale-16 = { max-threads = 1 }
+postgres-15-ssl = { max-threads = 1 }
 
 # --- Default Profile ---
 
@@ -60,6 +61,10 @@ test-group = 'timescale-15'
 [[profile.default.overrides]]
 filter = 'test(/timescale_16_/)'
 test-group = 'timescale-16'
+
+[[profile.default.overrides]]
+filter = 'test(/tls_/)'
+test-group = 'postgres-15-ssl'
 
 # elefant-client tests all connect to port 5415 (postgres 15).
 # This catch-all must come after the regex-based overrides above.

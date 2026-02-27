@@ -77,3 +77,20 @@ services:
       POSTGRES_PASSWORD: passw0rd
       POSTGRES_HOST_AUTH_METHOD: trust
     command: *cmd
+
+  pg_15_ssl:
+    image: docker.io/library/postgres:15
+    ports:
+      - "5603:5432"
+    environment: *env
+    entrypoint:
+      - bash
+      - -c
+      - |
+        cp /tmp/server.key /var/lib/postgresql/server.key
+        chmod 600 /var/lib/postgresql/server.key
+        chown postgres:postgres /var/lib/postgresql/server.key
+        exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/var/lib/postgresql/server.crt -c ssl_key_file=/var/lib/postgresql/server.key
+    volumes:
+      - ./test-certs/server.crt:/var/lib/postgresql/server.crt:ro
+      - ./test-certs/server.key:/tmp/server.key:ro

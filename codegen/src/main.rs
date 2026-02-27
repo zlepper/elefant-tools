@@ -12,6 +12,7 @@ async fn main() -> Result<()> {
         user: "postgres".to_string(),
         port: 5416, // Postgres 16 for now
         options: None,
+        ..Default::default()
     })
     .await?;
 
@@ -29,6 +30,7 @@ async fn main() -> Result<()> {
         user: "postgres".to_string(),
         port: 5416, // Postgres 16 for now
         options: None,
+        ..Default::default()
     })
     .await?;
 

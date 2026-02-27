@@ -13,6 +13,7 @@ async fn main() -> Result<()> {
             port,
             password: "passw0rd".to_string(),
             options: None,
+            ..Default::default()
         })
         .await?;
 

@@ -85,6 +85,7 @@ impl ExportDbArgs {
             password: self.source_db_password.clone(),
             database: self.source_db_name.clone(),
             options: None,
+            ..Default::default()
         }
     }
 
@@ -191,6 +192,7 @@ impl ImportDbArgs {
                 .target_schema
                 .as_ref()
                 .map(|s| format!("--search_path={s},public")),
+            ..Default::default()
         }
     }
 

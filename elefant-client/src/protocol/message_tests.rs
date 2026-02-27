@@ -5,26 +5,26 @@ use tokio::test;
 
 async fn assert_backend_message_round_trip(input: BackendMessage<'_>) {
     let mut cursor = Cursor::new(Vec::<u8>::new());
-    let mut writer = PostgresConnection::new(&mut cursor);
+    let mut writer = PostgresConnection::new(&mut cursor).0;
     writer.write_backend_message(&input).await.unwrap();
     writer.flush().await.unwrap();
     let bytes = cursor.into_inner();
 
     let mut cursor = Cursor::new(bytes);
-    let mut reader = PostgresConnection::new(&mut cursor);
+    let mut reader = PostgresConnection::new(&mut cursor).0;
     let result = reader.read_backend_message().await.unwrap();
     assert_eq!(result, input);
 }
 
 async fn assert_frontend_message_round_trip(input: FrontendMessage<'_>) {
     let mut cursor = Cursor::new(Vec::new());
-    let mut writer = PostgresConnection::new(&mut cursor);
+    let mut writer = PostgresConnection::new(&mut cursor).0;
     writer.write_frontend_message(&input).await.unwrap();
     writer.flush().await.unwrap();
     let bytes = cursor.into_inner();
 
     let mut cursor = Cursor::new(bytes);
-    let mut reader = PostgresConnection::new(&mut cursor);
+    let mut reader = PostgresConnection::new(&mut cursor).0;
     let result = reader.parse_frontend_message().await.unwrap();
     assert_eq!(result, input);
 }

@@ -144,6 +144,7 @@ impl TestHelper {
             password: "passw0rd".to_string(),
             database: self.test_db_name.clone(),
             options: Some(format!("--search_path={schema},public")),
+            ..Default::default()
         };
         PostgresClientWrapper::new(settings)
             .await
@@ -181,6 +182,7 @@ pub(crate) async fn get_test_connection_full(
         password: password.to_string(),
         database: database_name.to_string(),
         options: schema.map(|s| format!("--search_path={s}")),
+        ..Default::default()
     };
 
     PostgresClientWrapper::new(settings)

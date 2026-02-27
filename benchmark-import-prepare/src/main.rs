@@ -10,6 +10,7 @@ async fn main() -> Result<()> {
         password: "passw0rd".to_string(),
         database: "postgres".to_string(),
         options: None,
+        ..Default::default()
     })
     .await?;
 

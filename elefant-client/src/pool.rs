@@ -12,7 +12,7 @@ pub trait ConnectionFactory {
     fn create_connection(
         &self,
         settings: &PostgresConnectionSettings,
-    ) -> impl std::future::Future<Output = Result<PostgresConnection<Self::Connection>, ElefantClientError>>;
+    ) -> impl std::future::Future<Output = Result<Self::Connection, ElefantClientError>>;
 }
 
 pub struct PostgresPool<F: ConnectionFactory>(Arc<PostgresPoolInner<F>>);
@@ -85,8 +85,9 @@ impl<F: ConnectionFactory> PostgresPool<F> {
         }
 
         // No idle connection available, create a new one
-        let connection = self.0.factory.create_connection(&self.0.settings).await?;
-        let mut client = crate::postgres_client::PostgresClient::new(connection, &self.0.settings).await?;
+        let raw_stream = self.0.factory.create_connection(&self.0.settings).await?;
+        let (connection, channel_binding_data) = PostgresConnection::new_maybe_tls(raw_stream, &self.0.settings).await?;
+        let mut client = crate::postgres_client::PostgresClient::new(connection, &self.0.settings, channel_binding_data).await?;
         client.pool = Some(self.clone());
         Ok(PoolableClient {
             client: Some(client),

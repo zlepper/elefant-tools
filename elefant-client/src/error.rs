@@ -26,6 +26,7 @@ pub enum ElefantClientError {
         actual: usize,
     },
     UnsupportedAuthenticationMethod(String),
+    TlsError(String),
 }
 
 impl From<std::io::Error> for ElefantClientError {
@@ -87,6 +88,9 @@ impl Display for ElefantClientError {
             }
             ElefantClientError::UnsupportedAuthenticationMethod(method) => {
                 write!(f, "Unsupported authentication method: {method}")
+            }
+            ElefantClientError::TlsError(msg) => {
+                write!(f, "TLS error: {msg}")
             }
         }
     }

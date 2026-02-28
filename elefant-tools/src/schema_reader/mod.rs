@@ -1,17 +1,25 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::object_id::ObjectIdGenerator;
-use crate::postgres_client_wrapper::PostgresClientWrapper;
+use crate::postgres_client_wrapper::{collect_next_result_set, PostgresClientWrapper};
 use crate::schema_reader::check_constraint::CheckConstraintResult;
+use crate::schema_reader::domain::DomainResult;
+use crate::schema_reader::enumeration::EnumResult;
+use crate::schema_reader::extension::ExtensionResult;
 use crate::schema_reader::foreign_key::ForeignKeyResult;
 use crate::schema_reader::foreign_key_column::ForeignKeyColumnResult;
+use crate::schema_reader::function::FunctionResult;
 use crate::schema_reader::index::IndexResult;
 use crate::schema_reader::index_column::IndexColumnResult;
+use crate::schema_reader::schema::SchemaResult;
+use crate::schema_reader::sequence::SequenceResult;
 use crate::schema_reader::table::TablesResult;
 use crate::schema_reader::table_column::TableColumnsResult;
 use crate::schema_reader::timescale_continuous_aggregate::ContinuousAggregateResult;
 use crate::schema_reader::timescale_hypertable::HypertableResult;
 use crate::schema_reader::timescale_hypertable_dimension::TimescaleHypertableDimensionResult;
+use crate::schema_reader::timescale_job::TimescaleJobResult;
+use crate::schema_reader::trigger::TriggerResult;
 use crate::schema_reader::unique_constraint::UniqueConstraintResult;
 use crate::schema_reader::view::ViewResult;
 use crate::schema_reader::view_column::ViewColumnResult;
@@ -61,25 +69,69 @@ impl SchemaReader<'_> {
         let mut object_id_generator = ObjectIdGenerator::new();
         let mut object_id_mapping = PgOidToObjectIdMapping::default();
 
-        let extensions = self.get_extensions().await?;
-        let schemas = self.get_schemas().await?;
-        let tables = self.get_tables().await?;
-        let columns = self.get_columns().await?;
-        let check_constraints = self.get_check_constraints().await?;
-        let unique_constraints = self.get_unique_constraints().await?;
-        let indices = self.get_indices().await?;
-        let index_columns = self.get_index_columns().await?;
-        let sequences = self.get_sequences().await?;
-        let foreign_keys = self.get_foreign_keys().await?;
-        let foreign_key_columns = self.get_foreign_key_columns().await?;
-        let views = self.get_views().await?;
-        let view_columns = self.get_view_columns().await?;
-        let functions = self.get_functions().await?;
-        let triggers = self.get_triggers().await?;
-        let enums = self.get_enums().await?;
-        let domains = self.get_domains().await?;
+        let functions_query = if self.connection.version() >= 140 {
+            function::QUERY_V14
+        } else {
+            function::QUERY_LEGACY
+        };
+        let indices_query = if self.connection.version() >= 150 {
+            index::QUERY_V15
+        } else {
+            index::QUERY_LEGACY
+        };
+        let fk_columns_query = if self.connection.version() >= 150 {
+            foreign_key_column::QUERY_V15
+        } else {
+            foreign_key_column::QUERY_LEGACY
+        };
 
-        let mut extensions = extensions;
+        let batch_query = format!(
+            "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
+            extension::QUERY,
+            schema::QUERY,
+            table::QUERY,
+            table_column::QUERY,
+            check_constraint::QUERY,
+            unique_constraint::QUERY,
+            indices_query,
+            index_column::QUERY,
+            sequence::QUERY,
+            foreign_key::QUERY,
+            fk_columns_query,
+            view::QUERY,
+            view_column::QUERY,
+            functions_query,
+            trigger::QUERY,
+            enumeration::QUERY,
+            domain::QUERY,
+        );
+
+        let mut client = self.connection.pool().get_client().await?;
+        let mut result = client.query_simple(&batch_query).await?;
+
+        let mut extensions = collect_next_result_set::<ExtensionResult, _>(&mut result).await?;
+        let schemas = collect_next_result_set::<SchemaResult, _>(&mut result).await?;
+        let tables = collect_next_result_set::<TablesResult, _>(&mut result).await?;
+        let columns = collect_next_result_set::<TableColumnsResult, _>(&mut result).await?;
+        let check_constraints =
+            collect_next_result_set::<CheckConstraintResult, _>(&mut result).await?;
+        let unique_constraints =
+            collect_next_result_set::<UniqueConstraintResult, _>(&mut result).await?;
+        let indices = collect_next_result_set::<IndexResult, _>(&mut result).await?;
+        let index_columns = collect_next_result_set::<IndexColumnResult, _>(&mut result).await?;
+        let sequences = collect_next_result_set::<SequenceResult, _>(&mut result).await?;
+        let foreign_keys = collect_next_result_set::<ForeignKeyResult, _>(&mut result).await?;
+        let foreign_key_columns =
+            collect_next_result_set::<ForeignKeyColumnResult, _>(&mut result).await?;
+        let views = collect_next_result_set::<ViewResult, _>(&mut result).await?;
+        let view_columns = collect_next_result_set::<ViewColumnResult, _>(&mut result).await?;
+        let functions = collect_next_result_set::<FunctionResult, _>(&mut result).await?;
+        let triggers = collect_next_result_set::<TriggerResult, _>(&mut result).await?;
+        let enums = collect_next_result_set::<EnumResult, _>(&mut result).await?;
+        let domains = collect_next_result_set::<DomainResult, _>(&mut result).await?;
+
+        drop(result);
+        drop(client);
 
         let mut db = PostgresDatabase::default();
 
@@ -98,11 +150,36 @@ impl SchemaReader<'_> {
 
         let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) =
             if db.timescale_support.is_enabled {
-                let hypertables = self.get_hypertables().await?;
-                let hypertable_dimensions = self.get_hypertable_dimensions().await?;
-                let continuous_aggregates = self.get_continuous_aggregates().await?;
-                let timescale_jobs = self.get_timescale_jobs().await?;
-                (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs)
+                let timescale_batch = format!(
+                    "{}{}{}{}",
+                    timescale_hypertable::QUERY,
+                    timescale_hypertable_dimension::QUERY,
+                    timescale_continuous_aggregate::QUERY,
+                    timescale_job::QUERY,
+                );
+
+                let mut client = self.connection.pool().get_client().await?;
+                let mut result = client.query_simple(&timescale_batch).await?;
+
+                let hypertables =
+                    collect_next_result_set::<HypertableResult, _>(&mut result).await?;
+                let hypertable_dimensions =
+                    collect_next_result_set::<TimescaleHypertableDimensionResult, _>(&mut result)
+                        .await?;
+                let continuous_aggregates =
+                    collect_next_result_set::<ContinuousAggregateResult, _>(&mut result).await?;
+                let timescale_jobs =
+                    collect_next_result_set::<TimescaleJobResult, _>(&mut result).await?;
+
+                drop(result);
+                drop(client);
+
+                (
+                    hypertables,
+                    hypertable_dimensions,
+                    continuous_aggregates,
+                    timescale_jobs,
+                )
             } else {
                 (vec![], vec![], vec![], vec![])
             };
@@ -988,19 +1065,6 @@ impl SchemaReader<'_> {
         result
     }
 }
-
-macro_rules! define_working_query {
-    ($fn_name:ident, $result:ident, $query:literal) => {
-        impl $crate::schema_reader::SchemaReader<'_> {
-            #[tracing::instrument(skip_all)]
-            pub(in crate::schema_reader) async fn $fn_name(&self) -> $crate::Result<Vec<$result>> {
-                self.connection.get_results($query).await
-            }
-        }
-    };
-}
-
-pub(crate) use define_working_query;
 
 fn none_if_irrelevant(s: String) -> Option<String> {
     if s == "-" || s == "0" {

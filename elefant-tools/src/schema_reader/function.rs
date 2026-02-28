@@ -91,14 +91,8 @@ impl FromRow for FunctionResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_functions(
-        &self,
-    ) -> crate::Result<Vec<FunctionResult>> {
-        //language=postgresql
-        let query = if self.connection.version() >= 140 {
-            r#"
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_V14: &str = r#"
 select ns.nspname as schema_name,
     proc.proname as function_name,
        pl.lanname as language_name,
@@ -151,9 +145,10 @@ from pg_proc proc
 where ns.nspname = 'public' and ext.extname is null
       and has_function_privilege(proc.oid, 'EXECUTE')
 order by ns.nspname, proc.proname;
-"#
-        } else {
-            r#"
+"#;
+
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_LEGACY: &str = r#"
 select ns.nspname as schema_name,
     proc.proname as function_name,
        pl.lanname as language_name,
@@ -208,7 +203,17 @@ from pg_proc proc
 where ns.nspname = 'public' and ext.extname is null
       and has_function_privilege(proc.oid, 'EXECUTE')
 order by ns.nspname, proc.proname;
-"#
+"#;
+
+impl SchemaReader<'_> {
+    #[instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_functions(
+        &self,
+    ) -> crate::Result<Vec<FunctionResult>> {
+        let query = if self.connection.version() >= 140 {
+            QUERY_V14
+        } else {
+            QUERY_LEGACY
         };
         self.connection.get_results(query).await
     }

@@ -34,12 +34,8 @@ impl FromRow for IndexResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_indices(&self) -> crate::Result<Vec<IndexResult>> {
-        let query = if self.connection.version() >= 150 {
-            //language=postgresql
-            r#"
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_V15: &str = r#"
 select n.nspname           as table_schema,
        table_class.relname as table_name,
        index_class.relname as index_name,
@@ -63,10 +59,10 @@ where table_class.oid > 16384
 and table_class.relkind = 'r'
 and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name;
-"#
-        } else {
-            //language=postgresql
-            r#"
+"#;
+
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_LEGACY: &str = r#"
 select n.nspname           as table_schema,
        table_class.relname as table_name,
        index_class.relname as index_name,
@@ -90,9 +86,16 @@ where table_class.oid > 16384
 and table_class.relkind = 'r'
 and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name;
-"#
-        };
+"#;
 
+impl SchemaReader<'_> {
+    #[instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_indices(&self) -> crate::Result<Vec<IndexResult>> {
+        let query = if self.connection.version() >= 150 {
+            QUERY_V15
+        } else {
+            QUERY_LEGACY
+        };
         self.connection.get_results(query).await
     }
 }

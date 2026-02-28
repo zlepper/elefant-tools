@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 pub struct EnumResult {
     pub schema_name: String,
@@ -20,10 +20,7 @@ impl FromRow for EnumResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_enums,
-    EnumResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select enums.nspname, enums.typname, max(enums.description) as description, array_agg(enums.enumlabel)  from (
 select ns.nspname, t.typname, e.enumlabel, d.description
 from pg_enum e
@@ -36,5 +33,11 @@ where (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, t.typname, e.enumsortorder
 ) as enums
 group by enums.nspname, enums.typname;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_enums(&self) -> crate::Result<Vec<EnumResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

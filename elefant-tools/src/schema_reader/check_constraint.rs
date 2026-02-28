@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct CheckConstraintResult {
@@ -23,10 +23,7 @@ impl FromRow for CheckConstraintResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_check_constraints,
-    CheckConstraintResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select ns.nspname                                     as table_schema,
        cl.relname                                     as table_name,
        ct.conname                                     as constraint_name,
@@ -41,5 +38,11 @@ where ct.oid > 16384
   and ct.contype = 'c'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, ct.conname;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_check_constraints(&self) -> crate::Result<Vec<CheckConstraintResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

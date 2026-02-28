@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use crate::{PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming};
 
 pub struct TriggerResult {
@@ -68,10 +68,7 @@ impl FromRow for TriggerResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_triggers,
-    TriggerResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 SELECT n.nspname     AS trigger_schema,
        t.tgname      AS trigger_name,
        c.relname     AS table_name,
@@ -97,5 +94,11 @@ WHERE
   and (dep.objid is null or dep.deptype <> 'e' )
     and has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE')
 order by trigger_schema, trigger_name;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_triggers(&self) -> crate::Result<Vec<TriggerResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

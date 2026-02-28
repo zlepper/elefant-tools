@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use crate::{ColumnIdentity, PostgresColumn};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -55,10 +55,7 @@ impl TableColumnsResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_columns,
-    TableColumnsResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select ns.nspname,
        cl.relname,
        attr.attname,
@@ -90,5 +87,11 @@ where cl.relkind in ('r', 'p')
   and attr.attnum > 0
   and (dep.objid is null or dep.deptype <> 'e')
 order by ns.nspname, cl.relname, attr.attnum;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_columns(&self) -> crate::Result<Vec<TableColumnsResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

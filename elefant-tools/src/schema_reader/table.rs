@@ -1,4 +1,4 @@
-use super::define_working_query;
+use super::SchemaReader;
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
 use crate::{ElefantToolsError, TablePartitionStrategy};
 
@@ -61,10 +61,7 @@ impl FromRow for TablesResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_tables,
-    TablesResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select
     ns.nspname,
     cl.relname,
@@ -95,5 +92,11 @@ where cl.relkind in ('r', 'p')
   and (dep.objid is null or dep.deptype <> 'e' )
     and has_table_privilege(cl.oid, 'SELECT, INSERT, UPDATE')
 order by ns.nspname, cl.relname;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_tables(&self) -> crate::Result<Vec<TablesResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

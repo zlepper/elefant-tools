@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
 pub struct HypertableResult {
@@ -37,10 +37,7 @@ impl FromRow for HypertableResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_hypertables,
-    HypertableResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select ht.schema_name,
          ht.table_name,
          ht.compression_state = 1 as compression_enabled,
@@ -67,8 +64,14 @@ left join _timescaledb_config.bgw_job compression_job on compression_job.hyperta
 left join _timescaledb_catalog.compression_settings cs on cs.relid = (ht.schema_name || '.' || ht.table_name)::regclass
 left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
 ORDER BY ht.schema_name, ht.table_name;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_hypertables(&self) -> crate::Result<Vec<HypertableResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}
 
 /*
 SELECT j.id           AS job_id,

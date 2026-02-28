@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 pub struct IndexColumnResult {
     pub table_schema: String,
@@ -28,10 +28,7 @@ impl FromRow for IndexColumnResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_index_columns,
-    IndexColumnResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select n.nspname                                              as table_schema,
       table_class.relname                                    as table_name,
       index_class.relname                                    as index_name,
@@ -52,6 +49,12 @@ where a.attnum > 0
  and table_class.oid > 16384
 and table_class.relkind = 'r'
   and (dep.objid is null or dep.deptype <> 'e' )
-order by table_schema, table_name, index_name, ordinal_position
-"#
-);
+order by table_schema, table_name, index_name, ordinal_position;
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_index_columns(&self) -> crate::Result<Vec<IndexColumnResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

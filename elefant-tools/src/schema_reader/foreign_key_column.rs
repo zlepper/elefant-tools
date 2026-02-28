@@ -26,14 +26,8 @@ impl FromRow for ForeignKeyColumnResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_foreign_key_columns(
-        &self,
-    ) -> crate::Result<Vec<ForeignKeyColumnResult>> {
-        //language=postgresql
-        let query = if self.connection.version() >= 150 {
-            r#"
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_V15: &str = r#"
 select con.conname       as constraint_name,
        con_ns.nspname    as constraint_schema_name,
        tab.relname       as source_table_name,
@@ -54,9 +48,10 @@ from pg_constraint con
 where con.contype = 'f'
 and (dep.objid is null or dep.deptype <> 'e' )
 order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
-"#
-        } else {
-            r#"
+"#;
+
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_LEGACY: &str = r#"
 select con.conname       as constraint_name,
        con_ns.nspname    as constraint_schema_name,
        tab.relname       as source_table_name,
@@ -75,9 +70,18 @@ from pg_constraint con
                    on target_table_attr.attrelid = con.confrelid and target_table_attr.attnum = cols.confkey
 where con.contype = 'f'
 order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
-"#
-        };
+"#;
 
+impl SchemaReader<'_> {
+    #[instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_foreign_key_columns(
+        &self,
+    ) -> crate::Result<Vec<ForeignKeyColumnResult>> {
+        let query = if self.connection.version() >= 150 {
+            QUERY_V15
+        } else {
+            QUERY_LEGACY
+        };
         self.connection.get_results(query).await
     }
 }

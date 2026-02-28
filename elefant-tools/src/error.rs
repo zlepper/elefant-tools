@@ -106,6 +106,9 @@ pub enum ElefantToolsError {
 
     #[error("Aggregate function '{0}' is missing transition function")]
     AggregateFunctionMissingTransitionFunction(String),
+
+    #[error("Batch query ended unexpectedly: expected more result sets")]
+    BatchQueryUnexpectedEnd,
 }
 
 /// A result type that uses the ElefantToolsError as the error type

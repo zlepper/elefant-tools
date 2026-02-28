@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use crate::ReferenceAction;
 
 pub struct ForeignKeyResult {
@@ -31,10 +31,7 @@ impl FromRow for ForeignKeyResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_foreign_keys,
-    ForeignKeyResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select con.conname              as constraint_name,
        con_ns.nspname           as constraint_schema_name,
        tab.relname              as source_table_name,
@@ -55,5 +52,11 @@ from pg_catalog.pg_constraint con
 where con.contype = 'f'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by constraint_schema_name, source_table_name, constraint_name;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_foreign_keys(&self) -> crate::Result<Vec<ForeignKeyResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

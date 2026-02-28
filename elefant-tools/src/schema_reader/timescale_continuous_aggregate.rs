@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
 pub struct ContinuousAggregateResult {
@@ -51,10 +51,7 @@ impl FromRow for ContinuousAggregateResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_continuous_aggregates,
-    ContinuousAggregateResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 
 SELECT ht.schema_name                                       AS hypertable_schema,
        ht.table_name                                        AS hypertable_name,
@@ -93,6 +90,12 @@ FROM _timescaledb_catalog.continuous_agg cagg
                       compress_job.proc_schema = '_timescaledb_functions'
          left join _timescaledb_catalog.compression_settings cs
                    on cs.relid = (mat_ht.schema_name || '.' || mat_ht.table_name)::regclass
-left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = mat_ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
-"#
-);
+left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = mat_ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions';
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_continuous_aggregates(&self) -> crate::Result<Vec<ContinuousAggregateResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

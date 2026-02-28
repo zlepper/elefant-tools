@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
 pub struct TimescaleJobResult {
@@ -29,10 +29,7 @@ impl FromRow for TimescaleJobResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_timescale_jobs,
-    TimescaleJobResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select job.proc_name,
        job.proc_schema,
        job.schedule_interval,
@@ -42,6 +39,12 @@ select job.proc_name,
        job.check_name,
        job.fixed_schedule
 from _timescaledb_config.bgw_job job
-where job.proc_schema <> '_timescaledb_functions'
-"#
-);
+where job.proc_schema <> '_timescaledb_functions';
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_timescale_jobs(&self) -> crate::Result<Vec<TimescaleJobResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

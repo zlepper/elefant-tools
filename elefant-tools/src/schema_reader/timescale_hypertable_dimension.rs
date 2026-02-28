@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
 pub struct TimescaleHypertableDimensionResult {
@@ -27,10 +27,7 @@ impl FromRow for TimescaleHypertableDimensionResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_hypertable_dimensions,
-    TimescaleHypertableDimensionResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select h.hypertable_schema,
        h.hypertable_name,
        h.dimension_number,
@@ -39,6 +36,12 @@ select h.hypertable_schema,
        h.integer_interval,
        h.num_partitions
 from timescaledb_information.dimensions h
-order by h.hypertable_schema, h.hypertable_name, h.dimension_number
-"#
-);
+order by h.hypertable_schema, h.hypertable_name, h.dimension_number;
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_hypertable_dimensions(&self) -> crate::Result<Vec<TimescaleHypertableDimensionResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

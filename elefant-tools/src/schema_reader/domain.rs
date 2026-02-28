@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 pub struct DomainResult {
     pub schema_name: String,
@@ -34,10 +34,7 @@ impl FromRow for DomainResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_domains,
-    DomainResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select nsp.nspname                                     as schema_name,
        typ.typname                                     as domain_name,
        con.conname                                     as constraint_name,
@@ -65,5 +62,11 @@ where typ.oid > 16384
   and typ.typtype = 'd'
   and has_type_privilege(typ.oid, 'USAGE')
 order by nsp.nspname, typ.typname, con.conname;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_domains(&self) -> crate::Result<Vec<DomainResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

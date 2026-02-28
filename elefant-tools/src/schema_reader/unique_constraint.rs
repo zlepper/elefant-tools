@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct UniqueConstraintResult {
@@ -23,10 +23,7 @@ impl FromRow for UniqueConstraintResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_unique_constraints,
-    UniqueConstraintResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select ns.nspname                                     as table_schema,
        cl.relname                                     as table_name,
        con.conname                                     as constraint_name,
@@ -43,5 +40,11 @@ where con.oid > 16384
   and con.contype = 'u'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, con.conname;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_unique_constraints(&self) -> crate::Result<Vec<UniqueConstraintResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

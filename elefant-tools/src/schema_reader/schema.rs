@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 pub struct SchemaResult {
     pub name: String,
@@ -16,10 +16,7 @@ impl FromRow for SchemaResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_schemas,
-    SchemaResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 SELECT n.nspname AS name,
        d.description AS comment
 FROM pg_namespace n
@@ -29,5 +26,11 @@ WHERE (n.oid > 16384 or n.nspname = 'public')
     and (dep.objid is null or dep.deptype <> 'e' )
     and has_schema_privilege(n.oid, 'CREATE')
 ORDER BY n.nspname;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_schemas(&self) -> crate::Result<Vec<SchemaResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

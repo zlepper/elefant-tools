@@ -1,6 +1,9 @@
 use crate::Result;
 use elefant_client::tokio_connection::TokioPostgresPool;
-use elefant_client::{FromSqlOwned, PostgresConnectionSettings, PostgresDataRow};
+use elefant_client::{
+    ConnectionFactory, FromSqlOwned, PostgresConnectionSettings, PostgresDataRow, QueryResultSet,
+    SimpleQueryResult,
+};
 use tracing::instrument;
 
 /// A wrapper around the elefant-client connection pool, providing a convenient interface.
@@ -233,6 +236,27 @@ impl RowEnumExt for PostgresDataRow<'_, '_> {
             Some('\0') => Ok(None),
             Some(c) => Ok(Some(T::from_pg_char(c)?)),
             None => Ok(None),
+        }
+    }
+}
+
+/// Collect the next result set from a batched simple query into a `Vec<T>`.
+///
+/// Expects the next result set to contain rows. Returns an error if
+/// the query has already completed (no more result sets).
+pub(crate) async fn collect_next_result_set<T: FromRow, F: ConnectionFactory>(
+    result: &mut SimpleQueryResult<'_, F>,
+) -> Result<Vec<T>> {
+    match result.next_result_set().await? {
+        QueryResultSet::RowDescriptionReceived(mut reader) => {
+            let mut rows = Vec::new();
+            while let Some(row) = reader.next_row().await? {
+                rows.push(T::from_row(&row)?);
+            }
+            Ok(rows)
+        }
+        QueryResultSet::QueryProcessingComplete => {
+            Err(crate::ElefantToolsError::BatchQueryUnexpectedEnd)
         }
     }
 }

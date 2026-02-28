@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 pub struct ViewColumnResult {
     pub view_name: String,
@@ -22,10 +22,7 @@ impl FromRow for ViewColumnResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_view_columns,
-    ViewColumnResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 select tab.relname  as view_name,
        ns.nspname   as schema_name,
        attr.attname as column_name,
@@ -41,5 +38,11 @@ where tab.oid > 16384
   and attr.attnum > 0
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, tab.relname, attr.attnum;
-"#
-);
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_view_columns(&self) -> crate::Result<Vec<ViewColumnResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

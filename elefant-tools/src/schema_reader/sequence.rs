@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::FromRow;
-use crate::schema_reader::define_working_query;
+use crate::schema_reader::SchemaReader;
 
 pub struct SequenceResult {
     pub schema_name: String,
@@ -40,10 +40,7 @@ impl FromRow for SequenceResult {
 }
 
 //language=postgresql
-define_working_query!(
-    get_sequences,
-    SequenceResult,
-    r#"
+pub(in crate::schema_reader) const QUERY: &str = r#"
 SELECT n.nspname      AS schemaname,
        c.relname      AS sequencename,
        t.typname      AS data_type,
@@ -74,6 +71,12 @@ WHERE NOT pg_is_other_temp_schema(n.oid)
   and c.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e')
   and has_sequence_privilege(s.seqrelid, 'SELECT,USAGE,UPDATE')
-order by schemaname, sequencename
-"#
-);
+order by schemaname, sequencename;
+"#;
+
+impl SchemaReader<'_> {
+    #[tracing::instrument(skip_all)]
+    pub(in crate::schema_reader) async fn get_sequences(&self) -> crate::Result<Vec<SequenceResult>> {
+        self.connection.get_results(QUERY).await
+    }
+}

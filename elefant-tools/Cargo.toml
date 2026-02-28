@@ -13,7 +13,7 @@ keywords = ["pg_dump", "pg_restore", "postgres", "backup", "restore"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tokio = { workspace = true, features = ["rt", "fs"] }
+tokio = { workspace = true, features = ["rt", "fs", "sync"] }
 elefant-client = { workspace = true, features = ["tokio", "pg_interval", "serde"] }
 thiserror = { workspace = true }
 itertools = { workspace = true }

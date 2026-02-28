@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 
 pub struct SequenceResult {
     pub schema_name: String,
@@ -80,9 +79,3 @@ impl QueryResult for SequenceResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_sequences(&self) -> crate::Result<Vec<SequenceResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
 pub struct HypertableResult {
@@ -72,12 +71,6 @@ impl QueryResult for HypertableResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_hypertables(&self) -> crate::Result<Vec<HypertableResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}
 
 /*
 SELECT j.id           AS job_id,

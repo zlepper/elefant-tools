@@ -1,6 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
-use tracing::instrument;
 
 pub struct ForeignKeyColumnResult {
     pub constraint_name: String,
@@ -82,16 +80,3 @@ impl QueryResult for ForeignKeyColumnResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_foreign_key_columns(
-        &self,
-    ) -> crate::Result<Vec<ForeignKeyColumnResult>> {
-        let query = if self.connection.version() >= 150 {
-            QUERY_V15
-        } else {
-            QUERY_LEGACY
-        };
-        self.connection.get_results(query).await
-    }
-}

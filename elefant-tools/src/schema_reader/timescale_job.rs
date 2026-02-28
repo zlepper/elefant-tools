@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
 pub struct TimescaleJobResult {
@@ -48,9 +47,3 @@ impl QueryResult for TimescaleJobResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_timescale_jobs(&self) -> crate::Result<Vec<TimescaleJobResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

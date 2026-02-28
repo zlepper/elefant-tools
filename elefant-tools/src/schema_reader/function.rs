@@ -1,7 +1,5 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
-use crate::schema_reader::SchemaReader;
 use crate::{FinalModify, FunctionKind, Parallel, Volatility};
-use tracing::instrument;
 
 pub struct FunctionResult {
     pub schema_name: String,
@@ -215,16 +213,3 @@ impl QueryResult for FunctionResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_functions(
-        &self,
-    ) -> crate::Result<Vec<FunctionResult>> {
-        let query = if self.connection.version() >= 140 {
-            QUERY_V14
-        } else {
-            QUERY_LEGACY
-        };
-        self.connection.get_results(query).await
-    }
-}

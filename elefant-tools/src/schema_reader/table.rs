@@ -1,4 +1,3 @@
-use super::SchemaReader;
 use crate::postgres_client_wrapper::{FromPgChar, FromRow, QueryResult, RowEnumExt};
 use crate::{ElefantToolsError, TablePartitionStrategy};
 
@@ -100,9 +99,3 @@ impl QueryResult for TablesResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_tables(&self) -> crate::Result<Vec<TablesResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

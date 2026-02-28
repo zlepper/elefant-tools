@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct UniqueConstraintResult {
@@ -48,9 +47,3 @@ impl QueryResult for UniqueConstraintResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_unique_constraints(&self) -> crate::Result<Vec<UniqueConstraintResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

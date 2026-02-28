@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 
 pub struct IndexColumnResult {
     pub table_schema: String,
@@ -58,9 +57,3 @@ impl QueryResult for IndexColumnResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_index_columns(&self) -> crate::Result<Vec<IndexColumnResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

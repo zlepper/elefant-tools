@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 
 pub struct ViewResult {
     pub oid: i64,
@@ -58,9 +57,3 @@ impl QueryResult for ViewResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_views(&self) -> crate::Result<Vec<ViewResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

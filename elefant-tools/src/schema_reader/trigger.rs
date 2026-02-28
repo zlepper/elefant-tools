@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 use crate::{PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming};
 
 pub struct TriggerResult {
@@ -102,9 +101,3 @@ impl QueryResult for TriggerResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_triggers(&self) -> crate::Result<Vec<TriggerResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

@@ -1,6 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
-use tracing::instrument;
 
 pub struct IndexResult {
     pub table_schema: String,
@@ -98,14 +96,3 @@ impl QueryResult for IndexResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_indices(&self) -> crate::Result<Vec<IndexResult>> {
-        let query = if self.connection.version() >= 150 {
-            QUERY_V15
-        } else {
-            QUERY_LEGACY
-        };
-        self.connection.get_results(query).await
-    }
-}

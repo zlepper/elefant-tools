@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
-use crate::schema_reader::SchemaReader;
 use crate::ReferenceAction;
 
 pub struct ForeignKeyResult {
@@ -60,9 +59,3 @@ impl QueryResult for ForeignKeyResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_foreign_keys(&self) -> crate::Result<Vec<ForeignKeyResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

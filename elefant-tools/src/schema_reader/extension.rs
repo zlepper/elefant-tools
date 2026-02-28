@@ -1,5 +1,4 @@
 use crate::postgres_client_wrapper::{FromRow, QueryResult};
-use crate::schema_reader::SchemaReader;
 
 pub struct ExtensionResult {
     pub extension_name: String,
@@ -36,9 +35,3 @@ impl QueryResult for ExtensionResult {
     }
 }
 
-impl SchemaReader<'_> {
-    #[tracing::instrument(skip_all)]
-    pub(in crate::schema_reader) async fn get_extensions(&self) -> crate::Result<Vec<ExtensionResult>> {
-        self.connection.get_results(QUERY).await
-    }
-}

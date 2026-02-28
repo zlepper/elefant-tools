@@ -300,6 +300,58 @@ impl<Prev: CollectBatch, T: QueryResult> CollectBatch for (Prev, Vec<T>) {
     }
 }
 
+/// Appends an element to a flat tuple, producing a tuple one element larger.
+pub(crate) trait TupleAppend<T> {
+    type Output;
+    fn append(self, item: T) -> Self::Output;
+}
+
+macro_rules! impl_tuple_append {
+    (@emit $($idx:tt: $T:ident),* $(,)?) => {
+        impl<$($T,)* New> TupleAppend<New> for ($($T,)*) {
+            type Output = ($($T,)* New,);
+            #[inline]
+            fn append(self, item: New) -> Self::Output {
+                ($(self.$idx,)* item,)
+            }
+        }
+    };
+    (@step [$($done:tt)*]) => {
+        impl_tuple_append!(@emit $($done)*);
+    };
+    (@step [$($done:tt)*] $idx:tt: $T:ident $(, $($rest:tt)*)?) => {
+        impl_tuple_append!(@emit $($done)*);
+        impl_tuple_append!(@step [$($done)* $idx: $T,] $($($rest)*)?);
+    };
+    ($($all:tt)*) => {
+        impl_tuple_append!(@step [] $($all)*);
+    };
+}
+
+impl_tuple_append!(0: T0, 1: T1, 2: T2, 3: T3, 4: T4, 5: T5, 6: T6, 7: T7,
+    8: T8, 9: T9, 10: T10, 11: T11, 12: T12, 13: T13, 14: T14, 15: T15);
+
+/// Flattens a nested left-associated tuple like `((((), A), B), C)` into `(A, B, C)`.
+pub(crate) trait FlattenTuple {
+    type Output;
+    fn flatten(self) -> Self::Output;
+}
+
+impl FlattenTuple for () {
+    type Output = ();
+    fn flatten(self) {}
+}
+
+impl<Prev: FlattenTuple, T> FlattenTuple for (Prev, T)
+where
+    Prev::Output: TupleAppend<T>,
+{
+    type Output = <Prev::Output as TupleAppend<T>>::Output;
+    fn flatten(self) -> Self::Output {
+        self.0.flatten().append(self.1)
+    }
+}
+
 /// Type-safe batch query builder. Each `.add::<T>()` appends a query (from the
 /// `QueryResult` trait) and its corresponding result type, ensuring the query
 /// order and collect order are always in sync.
@@ -317,15 +369,15 @@ impl<Batch> BatchQueryBuilder<Batch> {
     }
 }
 
-impl<Batch: CollectBatch> BatchQueryBuilder<Batch> {
+impl<Batch: CollectBatch + FlattenTuple> BatchQueryBuilder<Batch> {
     pub(crate) async fn execute(
         self,
         connection: &PostgresClientWrapper,
-    ) -> Result<Batch> {
+    ) -> Result<Batch::Output> {
         let mut query = String::new();
         Batch::append_queries(&mut query, connection.version());
         let mut client = connection.pool().get_client().await?;
         let mut result = client.query_simple(&query).await?;
-        Batch::collect(&mut result).await
+        Ok(Batch::collect(&mut result).await?.flatten())
     }
 }

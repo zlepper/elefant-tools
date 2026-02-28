@@ -69,24 +69,10 @@ impl SchemaReader<'_> {
         let mut object_id_generator = ObjectIdGenerator::new();
         let mut object_id_mapping = PgOidToObjectIdMapping::default();
 
-        let ((((((((((((((((((),
-            mut extensions),
-            schemas),
-            tables),
-            columns),
-            check_constraints),
-            unique_constraints),
-            indices),
-            index_columns),
-            sequences),
-            foreign_keys),
-            foreign_key_columns),
-            views),
-            view_columns),
-            functions),
-            triggers),
-            enums),
-            domains)
+        let (mut extensions, schemas, tables, columns, check_constraints,
+            unique_constraints, indices, index_columns, sequences, foreign_keys,
+            foreign_key_columns, views, view_columns, functions, triggers,
+            enums, domains)
             = BatchQueryBuilder::new()
                 .add::<ExtensionResult>()
                 .add::<SchemaResult>()
@@ -124,24 +110,12 @@ impl SchemaReader<'_> {
 
         let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) =
             if db.timescale_support.is_enabled {
-                let (((((),
-                    hypertables),
-                    hypertable_dimensions),
-                    continuous_aggregates),
-                    timescale_jobs)
-                    = BatchQueryBuilder::new()
-                        .add::<HypertableResult>()
-                        .add::<TimescaleHypertableDimensionResult>()
-                        .add::<ContinuousAggregateResult>()
-                        .add::<TimescaleJobResult>()
-                        .execute(self.connection).await?;
-
-                (
-                    hypertables,
-                    hypertable_dimensions,
-                    continuous_aggregates,
-                    timescale_jobs,
-                )
+                BatchQueryBuilder::new()
+                    .add::<HypertableResult>()
+                    .add::<TimescaleHypertableDimensionResult>()
+                    .add::<ContinuousAggregateResult>()
+                    .add::<TimescaleJobResult>()
+                    .execute(self.connection).await?
             } else {
                 (vec![], vec![], vec![], vec![])
             };

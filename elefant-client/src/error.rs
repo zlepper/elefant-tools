@@ -27,6 +27,7 @@ pub enum ElefantClientError {
     },
     UnsupportedAuthenticationMethod(String),
     TlsError(String),
+    BatchQueryUnexpectedEnd,
 }
 
 impl From<std::io::Error> for ElefantClientError {
@@ -91,6 +92,9 @@ impl Display for ElefantClientError {
             }
             ElefantClientError::TlsError(msg) => {
                 write!(f, "TLS error: {msg}")
+            }
+            ElefantClientError::BatchQueryUnexpectedEnd => {
+                write!(f, "Batch query ended unexpectedly: expected more result sets")
             }
         }
     }

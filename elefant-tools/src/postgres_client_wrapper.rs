@@ -1,8 +1,8 @@
 use crate::Result;
 use elefant_client::tokio_connection::TokioPostgresPool;
 use elefant_client::{
-    ConnectionFactory, ElefantClientError, FromSqlOwned, FromSqlRowOwned, PostgresConnectionSettings,
-    PostgresDataRow, QueryResultSet, SimpleQueryResult,
+    CollectBatch, ElefantClientError, FlattenTuple, FromSqlOwned, FromSqlRowOwned,
+    PostgresConnectionSettings, PostgresDataRow,
 };
 use tracing::instrument;
 
@@ -175,126 +175,39 @@ impl RowEnumExt for PostgresDataRow<'_, '_> {
     }
 }
 
-/// Collect the next result set from a batched simple query into a `Vec<T>`.
-///
-/// Expects the next result set to contain rows. Returns an error if
-/// the query has already completed (no more result sets).
-async fn collect_next_result_set<T: FromSqlRowOwned, F: ConnectionFactory>(
-    result: &mut SimpleQueryResult<'_, F>,
-) -> Result<Vec<T>> {
-    match result.next_result_set().await? {
-        QueryResultSet::RowDescriptionReceived(reader) => Ok(reader.collect_to_vec().await?),
-        QueryResultSet::QueryProcessingComplete => {
-            Err(crate::ElefantToolsError::BatchQueryUnexpectedEnd)
-        }
-    }
-}
-
 /// A result type that knows its own SQL query. Implemented by each schema reader
 /// result struct so the batch builder can tie query selection to result collection.
 pub(crate) trait QueryResult: FromSqlRowOwned {
     fn query(version: i32) -> &'static str;
 }
 
-/// Recursive trait for collecting results from a batched simple query.
-/// The base case is `()`, and each `.add::<T>()` wraps the previous batch
-/// in a `(Prev, Vec<T>)` tuple.
-pub(crate) trait CollectBatch: Sized {
-    fn append_queries(query: &mut String, version: i32);
-    async fn collect<F: ConnectionFactory>(
-        result: &mut SimpleQueryResult<'_, F>,
-    ) -> Result<Self>;
-}
-
-impl CollectBatch for () {
-    fn append_queries(_query: &mut String, _version: i32) {}
-    async fn collect<F: ConnectionFactory>(
-        _result: &mut SimpleQueryResult<'_, F>,
-    ) -> Result<Self> {
-        Ok(())
-    }
-}
-
-impl<Prev: CollectBatch, T: QueryResult> CollectBatch for (Prev, Vec<T>) {
-    fn append_queries(query: &mut String, version: i32) {
-        Prev::append_queries(query, version);
-        query.push_str(T::query(version));
-    }
-    async fn collect<F: ConnectionFactory>(
-        result: &mut SimpleQueryResult<'_, F>,
-    ) -> Result<Self> {
-        let prev = Prev::collect(result).await?;
-        let current = collect_next_result_set::<T, F>(result).await?;
-        Ok((prev, current))
-    }
-}
-
-/// Appends an element to a flat tuple, producing a tuple one element larger.
-pub(crate) trait TupleAppend<T> {
-    type Output;
-    fn append(self, item: T) -> Self::Output;
-}
-
-macro_rules! impl_tuple_append {
-    (@emit $($idx:tt: $T:ident),* $(,)?) => {
-        impl<$($T,)* New> TupleAppend<New> for ($($T,)*) {
-            type Output = ($($T,)* New,);
-            #[inline]
-            fn append(self, item: New) -> Self::Output {
-                ($(self.$idx,)* item,)
-            }
-        }
-    };
-    (@step [$($done:tt)*]) => {
-        impl_tuple_append!(@emit $($done)*);
-    };
-    (@step [$($done:tt)*] $idx:tt: $T:ident $(, $($rest:tt)*)?) => {
-        impl_tuple_append!(@emit $($done)*);
-        impl_tuple_append!(@step [$($done)* $idx: $T,] $($($rest)*)?);
-    };
-    ($($all:tt)*) => {
-        impl_tuple_append!(@step [] $($all)*);
-    };
-}
-
-impl_tuple_append!(0: T0, 1: T1, 2: T2, 3: T3, 4: T4, 5: T5, 6: T6, 7: T7,
-    8: T8, 9: T9, 10: T10, 11: T11, 12: T12, 13: T13, 14: T14, 15: T15);
-
-/// Flattens a nested left-associated tuple like `((((), A), B), C)` into `(A, B, C)`.
-pub(crate) trait FlattenTuple {
-    type Output;
-    fn flatten(self) -> Self::Output;
-}
-
-impl FlattenTuple for () {
-    type Output = ();
-    fn flatten(self) {}
-}
-
-impl<Prev: FlattenTuple, T> FlattenTuple for (Prev, T)
-where
-    Prev::Output: TupleAppend<T>,
-{
-    type Output = <Prev::Output as TupleAppend<T>>::Output;
-    fn flatten(self) -> Self::Output {
-        self.0.flatten().append(self.1)
-    }
-}
-
 /// Type-safe batch query builder. Each `.add::<T>()` appends a query (from the
 /// `QueryResult` trait) and its corresponding result type, ensuring the query
 /// order and collect order are always in sync.
-pub(crate) struct BatchQueryBuilder<Batch>(std::marker::PhantomData<Batch>);
+pub(crate) struct BatchQueryBuilder<Batch> {
+    query: String,
+    version: i32,
+    _batch: std::marker::PhantomData<Batch>,
+}
 
 impl BatchQueryBuilder<()> {
-    pub(crate) fn new() -> Self {
-        Self(std::marker::PhantomData)
+    pub(crate) fn new(connection: &PostgresClientWrapper) -> Self {
+        Self {
+            query: String::new(),
+            version: connection.version(),
+            _batch: std::marker::PhantomData,
+        }
     }
 }
 
 impl<Batch> BatchQueryBuilder<Batch> {
-    pub(crate) fn add<T: QueryResult>(self) -> BatchQueryBuilder<(Batch, Vec<T>)> {
-        BatchQueryBuilder(std::marker::PhantomData)
+    pub(crate) fn add<T: QueryResult>(mut self) -> BatchQueryBuilder<(Batch, Vec<T>)> {
+        self.query.push_str(T::query(self.version));
+        BatchQueryBuilder {
+            query: self.query,
+            version: self.version,
+            _batch: std::marker::PhantomData,
+        }
     }
 }
 
@@ -303,10 +216,8 @@ impl<Batch: CollectBatch + FlattenTuple> BatchQueryBuilder<Batch> {
         self,
         connection: &PostgresClientWrapper,
     ) -> Result<Batch::Output> {
-        let mut query = String::new();
-        Batch::append_queries(&mut query, connection.version());
         let mut client = connection.pool().get_client().await?;
-        let mut result = client.query_simple(&query).await?;
+        let mut result = client.query_simple(&self.query).await?;
         Ok(Batch::collect(&mut result).await?.flatten())
     }
 }

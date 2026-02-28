@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod batch;
 mod error;
 #[cfg(feature = "pg_interval")]
 pub mod pg_interval;
@@ -15,6 +16,7 @@ pub mod tls;
 pub mod tokio_connection;
 mod types;
 
+pub use batch::{CollectBatch, FlattenTuple, TupleAppend};
 pub use error::ElefantClientError;
 #[cfg(feature = "pg_interval")]
 pub use pg_interval::Interval;

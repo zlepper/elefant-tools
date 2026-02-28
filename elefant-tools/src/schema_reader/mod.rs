@@ -73,7 +73,7 @@ impl SchemaReader<'_> {
             unique_constraints, indices, index_columns, sequences, foreign_keys,
             foreign_key_columns, views, view_columns, functions, triggers,
             enums, domains)
-            = BatchQueryBuilder::new()
+            = BatchQueryBuilder::new(self.connection)
                 .add::<ExtensionResult>()
                 .add::<SchemaResult>()
                 .add::<TablesResult>()
@@ -110,7 +110,7 @@ impl SchemaReader<'_> {
 
         let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) =
             if db.timescale_support.is_enabled {
-                BatchQueryBuilder::new()
+                BatchQueryBuilder::new(self.connection)
                     .add::<HypertableResult>()
                     .add::<TimescaleHypertableDimensionResult>()
                     .add::<ContinuousAggregateResult>()

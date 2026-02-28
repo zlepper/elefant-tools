@@ -182,6 +182,10 @@ jobs:
           cat ./benchmarks/results/import-from-sql.md >> $GITHUB_STEP_SUMMARY
           printf "\n\n# Copying between databases\n" >> $GITHUB_STEP_SUMMARY
           cat ./benchmarks/results/sync-between-databases.md >> $GITHUB_STEP_SUMMARY
+          printf "\n\n# Wide copy\n" >> $GITHUB_STEP_SUMMARY
+          cat ./benchmarks/results/wide-copy.md >> $GITHUB_STEP_SUMMARY
+          printf "\n\n# Narrow copy\n" >> $GITHUB_STEP_SUMMARY
+          cat ./benchmarks/results/narrow-copy.md >> $GITHUB_STEP_SUMMARY
 
   publish:
     name: Publish release

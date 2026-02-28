@@ -26,28 +26,26 @@ impl PostgresClientWrapper {
         )
         .await?;
 
-        let mut client = pool.get_client().await?;
+        let client = pool.get_client().await?;
 
-        let version_str: String = client
-            .query_simple("SHOW server_version_num;")
-            .await?
-            .collect_single_column_to_vec::<String>()
-            .await?
-            .into_iter()
-            .next()
+        let version_str = client
+            .get_parameter("server_version")
             .ok_or(crate::ElefantToolsError::InvalidPostgresVersionResponse)?;
 
-        let version: i32 = version_str
-            .parse()
-            .map_err(|_| crate::ElefantToolsError::InvalidPostgresVersionResponse)?;
+        // server_version is e.g. "15.3" or "15.3 (Debian 15.3-1.pgdg120+1)"
+        let major_version: i32 = version_str
+            .split('.')
+            .next()
+            .and_then(|s| s.parse().ok())
+            .ok_or(crate::ElefantToolsError::InvalidPostgresVersionResponse)?;
 
-        if version < 120000 {
+        if major_version < 12 {
             return Err(crate::ElefantToolsError::UnsupportedPostgresVersion(
-                version,
+                version_str.to_string(),
             ));
         }
 
-        let version = version / 1000;
+        let version = major_version * 10;
 
         Ok(PostgresClientWrapper { pool, version })
     }

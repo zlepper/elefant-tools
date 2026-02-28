@@ -77,7 +77,7 @@ pub enum ElefantToolsError {
     PartitionedTableWithBothPartitionColumnsAndExpression(String),
 
     #[error("Unsupported postgres version: {0}. Minimum supported version is 12")]
-    UnsupportedPostgresVersion(i32),
+    UnsupportedPostgresVersion(String),
 
     #[error("Invalid response from postgres when checking version")]
     InvalidPostgresVersionResponse,

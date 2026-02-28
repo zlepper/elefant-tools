@@ -10,6 +10,7 @@ use crate::protocol::{
 };
 use crate::types::EnumTypeRegistry;
 use crate::{reborrow_until_polonius, ElefantClientError, PostgresConnectionSettings};
+use std::collections::HashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tracing::{debug, trace};
@@ -28,6 +29,7 @@ pub struct PostgresClient<F: ConnectionFactory> {
     sync_required: bool,
     current_transaction_status: CurrentTransactionStatus,
     pub(crate) enum_registry: Arc<EnumTypeRegistry>,
+    parameter_statuses: HashMap<String, String>,
 }
 
 impl<F: ConnectionFactory> PostgresClient<F> {
@@ -122,6 +124,15 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         Ok(())
     }
 
+    /// Get a server parameter received via ParameterStatus messages.
+    ///
+    /// PostgreSQL sends these during connection startup and whenever a session
+    /// parameter changes. Common parameters include `server_version`,
+    /// `server_encoding`, `TimeZone`, etc.
+    pub fn get_parameter(&self, name: &str) -> Option<&str> {
+        self.parameter_statuses.get(name).map(|s| s.as_str())
+    }
+
     /// Gracefully close this connection by sending a Terminate message to the backend
     /// and a TLS close_notify (if applicable). Consumes the client so it cannot be used afterward.
     pub async fn close(mut self) -> Result<(), ElefantClientError> {
@@ -150,6 +161,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
             sync_required: false,
             current_transaction_status: CurrentTransactionStatus::Idle,
             enum_registry,
+            parameter_statuses: HashMap::new(),
         };
 
         client.establish(settings, channel_binding_data).await?;
@@ -170,6 +182,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 }
                 BackendMessage::ParameterStatus(ps) => {
                     debug!("Received parameter status from postgres: {:?}", ps);
+                    self.parameter_statuses.insert(ps.name.into_owned(), ps.value.into_owned());
                 }
                 _ => {
                     return Ok(msg);

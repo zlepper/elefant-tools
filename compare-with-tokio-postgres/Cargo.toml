@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1", features = ["full"] }
-tokio-postgres = "0.7"
-elefant-client = { path = "../elefant-client", features = ["tokio"] }
-futures = "0.3"
+tokio = { workspace = true, features = ["full"] }
+tokio-postgres = { workspace = true }
+elefant-client = { workspace = true, features = ["tokio"] }
+futures = { workspace = true }
 
 [dev-dependencies]
-criterion = { version = "0.6", features = ["async_tokio"] }
+criterion = { workspace = true, features = ["async_tokio"] }
 
 [[bench]]
 name = "binary_copy"

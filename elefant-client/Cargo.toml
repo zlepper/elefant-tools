@@ -4,34 +4,33 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-futures = { version = "0.3", optional = true }
-tokio = { version = "1", default-features = false, features = ["net", "io-util"], optional = true }
-tokio-util = { version = "0.7", optional = true, default-features = false, features = ["compat"] }
-rand = "0.9"
-base64 = "0.22"
-hmac = "0.12"
-md-5 = "0.10"
-sha2 = "0.10"
-stringprep = "0.1"
-time = { version = "0.3", features = ["formatting", "parsing"], optional = true }
-uuid = { version = "1.0", optional = true }
-serde_json = { version = "1.0", optional = true }
-rust_decimal = { version = "1.36", optional = true }
-serde = { version = "1.0", features = ["derive"], optional = true }
-tracing = "0.1"
-elefant-client-macros = { path = "../elefant-client-macros", optional = true }
-rustls = { version = "0.23", optional = true, default-features = false, features = ["std"] }
-rustls-pki-types = { version = "1", optional = true }
-x509-cert = { version = "0.2", optional = true, default-features = false }
-der = { version = "0.7", optional = true, default-features = false }
+futures = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["net", "io-util"], optional = true }
+rand = { workspace = true }
+base64 = { workspace = true }
+hmac = { workspace = true }
+md-5 = { workspace = true }
+sha2 = { workspace = true }
+stringprep = { workspace = true }
+time = { workspace = true, features = ["formatting", "parsing"], optional = true }
+uuid = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+rust_decimal = { workspace = true, optional = true }
+serde = { workspace = true, optional = true }
+tracing = { workspace = true }
+elefant-client-macros = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true, features = ["std"] }
+rustls-pki-types = { workspace = true, optional = true }
+x509-cert = { workspace = true, optional = true }
+der = { workspace = true, optional = true }
 
 [dev-dependencies]
-tokio = { version = "1", features = ["full"] }
-time = { version = "0.3", features = ["macros"] }
-rustls = { version = "0.23", features = ["aws_lc_rs"] }
+tokio = { workspace = true, features = ["full"] }
+time = { workspace = true, features = ["macros"] }
+rustls = { workspace = true, features = ["aws_lc_rs"] }
 
 [features]
-tokio = ["dep:tokio", "dep:tokio-util", "futures"]
+tokio = ["dep:tokio", "futures"]
 futures = ["dep:futures"]
 time = ["dep:time"]
 uuid = ["dep:uuid"]

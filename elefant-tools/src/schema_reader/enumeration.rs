@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct EnumResult {
@@ -34,6 +34,12 @@ order by ns.nspname, t.typname, e.enumsortorder
 ) as enums
 group by enums.nspname, enums.typname;
 "#;
+
+impl QueryResult for EnumResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

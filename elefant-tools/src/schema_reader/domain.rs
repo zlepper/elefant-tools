@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct DomainResult {
@@ -63,6 +63,12 @@ where typ.oid > 16384
   and has_type_privilege(typ.oid, 'USAGE')
 order by nsp.nspname, typ.typname, con.conname;
 "#;
+
+impl QueryResult for DomainResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

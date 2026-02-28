@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
+use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
 use crate::schema_reader::SchemaReader;
 use crate::ReferenceAction;
 
@@ -53,6 +53,12 @@ where con.contype = 'f'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by constraint_schema_name, source_table_name, constraint_name;
 "#;
+
+impl QueryResult for ForeignKeyResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

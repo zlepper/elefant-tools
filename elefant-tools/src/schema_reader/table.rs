@@ -1,5 +1,5 @@
 use super::SchemaReader;
-use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
+use crate::postgres_client_wrapper::{FromPgChar, FromRow, QueryResult, RowEnumExt};
 use crate::{ElefantToolsError, TablePartitionStrategy};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -93,6 +93,12 @@ where cl.relkind in ('r', 'p')
     and has_table_privilege(cl.oid, 'SELECT, INSERT, UPDATE')
 order by ns.nspname, cl.relname;
 "#;
+
+impl QueryResult for TablesResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

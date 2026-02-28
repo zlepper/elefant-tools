@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
@@ -38,6 +38,12 @@ select h.hypertable_schema,
 from timescaledb_information.dimensions h
 order by h.hypertable_schema, h.hypertable_name, h.dimension_number;
 "#;
+
+impl QueryResult for TimescaleHypertableDimensionResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

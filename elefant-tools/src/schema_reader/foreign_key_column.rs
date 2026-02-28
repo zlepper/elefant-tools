@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use tracing::instrument;
 
@@ -71,6 +71,16 @@ from pg_constraint con
 where con.contype = 'f'
 order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
 "#;
+
+impl QueryResult for ForeignKeyColumnResult {
+    fn query(version: i32) -> &'static str {
+        if version >= 150 {
+            QUERY_V15
+        } else {
+            QUERY_LEGACY
+        }
+    }
+}
 
 impl SchemaReader<'_> {
     #[instrument(skip_all)]

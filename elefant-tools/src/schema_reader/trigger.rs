@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use crate::{PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming};
 
@@ -95,6 +95,12 @@ WHERE
     and has_table_privilege(c.oid, 'SELECT, INSERT, UPDATE')
 order by trigger_schema, trigger_name;
 "#;
+
+impl QueryResult for TriggerResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

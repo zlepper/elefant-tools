@@ -1,7 +1,7 @@
 use crate::models::PostgresSequence;
 use crate::models::*;
 use crate::object_id::ObjectIdGenerator;
-use crate::postgres_client_wrapper::{collect_next_result_set, PostgresClientWrapper};
+use crate::postgres_client_wrapper::{BatchQueryBuilder, PostgresClientWrapper};
 use crate::schema_reader::check_constraint::CheckConstraintResult;
 use crate::schema_reader::domain::DomainResult;
 use crate::schema_reader::enumeration::EnumResult;
@@ -69,69 +69,43 @@ impl SchemaReader<'_> {
         let mut object_id_generator = ObjectIdGenerator::new();
         let mut object_id_mapping = PgOidToObjectIdMapping::default();
 
-        let functions_query = if self.connection.version() >= 140 {
-            function::QUERY_V14
-        } else {
-            function::QUERY_LEGACY
-        };
-        let indices_query = if self.connection.version() >= 150 {
-            index::QUERY_V15
-        } else {
-            index::QUERY_LEGACY
-        };
-        let fk_columns_query = if self.connection.version() >= 150 {
-            foreign_key_column::QUERY_V15
-        } else {
-            foreign_key_column::QUERY_LEGACY
-        };
-
-        let batch_query = format!(
-            "{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}{}",
-            extension::QUERY,
-            schema::QUERY,
-            table::QUERY,
-            table_column::QUERY,
-            check_constraint::QUERY,
-            unique_constraint::QUERY,
-            indices_query,
-            index_column::QUERY,
-            sequence::QUERY,
-            foreign_key::QUERY,
-            fk_columns_query,
-            view::QUERY,
-            view_column::QUERY,
-            functions_query,
-            trigger::QUERY,
-            enumeration::QUERY,
-            domain::QUERY,
-        );
-
-        let mut client = self.connection.pool().get_client().await?;
-        let mut result = client.query_simple(&batch_query).await?;
-
-        let mut extensions = collect_next_result_set::<ExtensionResult, _>(&mut result).await?;
-        let schemas = collect_next_result_set::<SchemaResult, _>(&mut result).await?;
-        let tables = collect_next_result_set::<TablesResult, _>(&mut result).await?;
-        let columns = collect_next_result_set::<TableColumnsResult, _>(&mut result).await?;
-        let check_constraints =
-            collect_next_result_set::<CheckConstraintResult, _>(&mut result).await?;
-        let unique_constraints =
-            collect_next_result_set::<UniqueConstraintResult, _>(&mut result).await?;
-        let indices = collect_next_result_set::<IndexResult, _>(&mut result).await?;
-        let index_columns = collect_next_result_set::<IndexColumnResult, _>(&mut result).await?;
-        let sequences = collect_next_result_set::<SequenceResult, _>(&mut result).await?;
-        let foreign_keys = collect_next_result_set::<ForeignKeyResult, _>(&mut result).await?;
-        let foreign_key_columns =
-            collect_next_result_set::<ForeignKeyColumnResult, _>(&mut result).await?;
-        let views = collect_next_result_set::<ViewResult, _>(&mut result).await?;
-        let view_columns = collect_next_result_set::<ViewColumnResult, _>(&mut result).await?;
-        let functions = collect_next_result_set::<FunctionResult, _>(&mut result).await?;
-        let triggers = collect_next_result_set::<TriggerResult, _>(&mut result).await?;
-        let enums = collect_next_result_set::<EnumResult, _>(&mut result).await?;
-        let domains = collect_next_result_set::<DomainResult, _>(&mut result).await?;
-
-        drop(result);
-        drop(client);
+        let ((((((((((((((((((),
+            mut extensions),
+            schemas),
+            tables),
+            columns),
+            check_constraints),
+            unique_constraints),
+            indices),
+            index_columns),
+            sequences),
+            foreign_keys),
+            foreign_key_columns),
+            views),
+            view_columns),
+            functions),
+            triggers),
+            enums),
+            domains)
+            = BatchQueryBuilder::new()
+                .add::<ExtensionResult>()
+                .add::<SchemaResult>()
+                .add::<TablesResult>()
+                .add::<TableColumnsResult>()
+                .add::<CheckConstraintResult>()
+                .add::<UniqueConstraintResult>()
+                .add::<IndexResult>()
+                .add::<IndexColumnResult>()
+                .add::<SequenceResult>()
+                .add::<ForeignKeyResult>()
+                .add::<ForeignKeyColumnResult>()
+                .add::<ViewResult>()
+                .add::<ViewColumnResult>()
+                .add::<FunctionResult>()
+                .add::<TriggerResult>()
+                .add::<EnumResult>()
+                .add::<DomainResult>()
+                .execute(self.connection).await?;
 
         let mut db = PostgresDatabase::default();
 
@@ -150,29 +124,17 @@ impl SchemaReader<'_> {
 
         let (hypertables, hypertable_dimensions, continuous_aggregates, timescale_jobs) =
             if db.timescale_support.is_enabled {
-                let timescale_batch = format!(
-                    "{}{}{}{}",
-                    timescale_hypertable::QUERY,
-                    timescale_hypertable_dimension::QUERY,
-                    timescale_continuous_aggregate::QUERY,
-                    timescale_job::QUERY,
-                );
-
-                let mut client = self.connection.pool().get_client().await?;
-                let mut result = client.query_simple(&timescale_batch).await?;
-
-                let hypertables =
-                    collect_next_result_set::<HypertableResult, _>(&mut result).await?;
-                let hypertable_dimensions =
-                    collect_next_result_set::<TimescaleHypertableDimensionResult, _>(&mut result)
-                        .await?;
-                let continuous_aggregates =
-                    collect_next_result_set::<ContinuousAggregateResult, _>(&mut result).await?;
-                let timescale_jobs =
-                    collect_next_result_set::<TimescaleJobResult, _>(&mut result).await?;
-
-                drop(result);
-                drop(client);
+                let (((((),
+                    hypertables),
+                    hypertable_dimensions),
+                    continuous_aggregates),
+                    timescale_jobs)
+                    = BatchQueryBuilder::new()
+                        .add::<HypertableResult>()
+                        .add::<TimescaleHypertableDimensionResult>()
+                        .add::<ContinuousAggregateResult>()
+                        .add::<TimescaleJobResult>()
+                        .execute(self.connection).await?;
 
                 (
                     hypertables,

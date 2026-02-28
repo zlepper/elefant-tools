@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use tracing::instrument;
 
@@ -87,6 +87,16 @@ and table_class.relkind = 'r'
 and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name;
 "#;
+
+impl QueryResult for IndexResult {
+    fn query(version: i32) -> &'static str {
+        if version >= 150 {
+            QUERY_V15
+        } else {
+            QUERY_LEGACY
+        }
+    }
+}
 
 impl SchemaReader<'_> {
     #[instrument(skip_all)]

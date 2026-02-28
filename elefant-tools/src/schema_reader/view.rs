@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct ViewResult {
@@ -51,6 +51,12 @@ where tab.oid > 16384
   and has_table_privilege(tab.oid, 'SELECT')
 order by schema_name, view_name;
 "#;
+
+impl QueryResult for ViewResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

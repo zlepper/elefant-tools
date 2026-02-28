@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
@@ -41,6 +41,12 @@ select job.proc_name,
 from _timescaledb_config.bgw_job job
 where job.proc_schema <> '_timescaledb_functions';
 "#;
+
+impl QueryResult for TimescaleJobResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

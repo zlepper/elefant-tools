@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct SchemaResult {
@@ -27,6 +27,12 @@ WHERE (n.oid > 16384 or n.nspname = 'public')
     and has_schema_privilege(n.oid, 'CREATE')
 ORDER BY n.nspname;
 "#;
+
+impl QueryResult for SchemaResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

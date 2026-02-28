@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -39,6 +39,12 @@ where ct.oid > 16384
   and (dep.objid is null or dep.deptype <> 'e' )
 order by ns.nspname, cl.relname, ct.conname;
 "#;
+
+impl QueryResult for CheckConstraintResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct SequenceResult {
@@ -73,6 +73,12 @@ WHERE NOT pg_is_other_temp_schema(n.oid)
   and has_sequence_privilege(s.seqrelid, 'SELECT,USAGE,UPDATE')
 order by schemaname, sequencename;
 "#;
+
+impl QueryResult for SequenceResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

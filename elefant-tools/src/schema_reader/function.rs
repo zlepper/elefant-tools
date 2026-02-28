@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, RowEnumExt};
+use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
 use crate::schema_reader::SchemaReader;
 use crate::{FinalModify, FunctionKind, Parallel, Volatility};
 use tracing::instrument;
@@ -204,6 +204,16 @@ where ns.nspname = 'public' and ext.extname is null
       and has_function_privilege(proc.oid, 'EXECUTE')
 order by ns.nspname, proc.proname;
 "#;
+
+impl QueryResult for FunctionResult {
+    fn query(version: i32) -> &'static str {
+        if version >= 140 {
+            QUERY_V14
+        } else {
+            QUERY_LEGACY
+        }
+    }
+}
 
 impl SchemaReader<'_> {
     #[instrument(skip_all)]

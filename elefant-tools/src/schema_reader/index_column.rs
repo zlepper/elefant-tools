@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct IndexColumnResult {
@@ -51,6 +51,12 @@ and table_class.relkind = 'r'
   and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name, ordinal_position;
 "#;
+
+impl QueryResult for IndexColumnResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

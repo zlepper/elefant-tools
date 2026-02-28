@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
@@ -65,6 +65,12 @@ left join _timescaledb_catalog.compression_settings cs on cs.relid = (ht.schema_
 left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions'
 ORDER BY ht.schema_name, ht.table_name;
 "#;
+
+impl QueryResult for HypertableResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

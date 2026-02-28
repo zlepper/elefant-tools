@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 
 pub struct ExtensionResult {
@@ -29,6 +29,12 @@ from pg_catalog.pg_extension ext
          join pg_namespace ns on ext.extnamespace = ns.oid
         where ext.oid > 16384;
 "#;
+
+impl QueryResult for ExtensionResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

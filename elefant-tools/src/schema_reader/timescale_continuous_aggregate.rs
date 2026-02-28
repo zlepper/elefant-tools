@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::FromRow;
+use crate::postgres_client_wrapper::{FromRow, QueryResult};
 use crate::schema_reader::SchemaReader;
 use elefant_client::Interval;
 
@@ -92,6 +92,12 @@ FROM _timescaledb_catalog.continuous_agg cagg
                    on cs.relid = (mat_ht.schema_name || '.' || mat_ht.table_name)::regclass
 left join _timescaledb_config.bgw_job retention_job on retention_job.hypertable_id = mat_ht.id and retention_job.proc_name = 'policy_retention' and retention_job.proc_schema = '_timescaledb_functions';
 "#;
+
+impl QueryResult for ContinuousAggregateResult {
+    fn query(_version: i32) -> &'static str {
+        QUERY
+    }
+}
 
 impl SchemaReader<'_> {
     #[tracing::instrument(skip_all)]

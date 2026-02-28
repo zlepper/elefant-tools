@@ -1,12 +1,14 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct SchemaResult {
     pub name: String,
     pub comment: Option<String>,
 }
 
-impl FromRow for SchemaResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for SchemaResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             name: row.get(0)?,
             comment: row.get(1)?,

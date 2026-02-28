@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct SequenceResult {
     pub schema_name: String,
@@ -17,8 +17,10 @@ pub struct SequenceResult {
     pub author_table_column_position: Option<i32>,
 }
 
-impl FromRow for SequenceResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for SequenceResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             schema_name: row.get(0)?,
             sequence_name: row.get(1)?,

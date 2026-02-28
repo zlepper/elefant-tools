@@ -290,23 +290,11 @@ impl<'postgres_client, F: ConnectionFactory> QueryResult<'postgres_client, F> {
     {
         let mut results = Vec::new();
         loop {
-            let result_set = self.next_result_set().await?;
-            match result_set {
-                QueryResultSet::QueryProcessingComplete => {
-                    return Ok(results);
+            match self.next_result_set().await? {
+                QueryResultSet::QueryProcessingComplete => return Ok(results),
+                QueryResultSet::RowDescriptionReceived(reader) => {
+                    results.extend(reader.collect_to_vec::<T>().await?);
                 }
-                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
-                    let row = row_result_reader.next_row().await?;
-                    match row {
-                        Some(row) => {
-                            let value = T::from_sql_row(&row)?;
-                            results.push(value);
-                        }
-                        None => {
-                            break;
-                        }
-                    }
-                },
             }
         }
     }
@@ -317,23 +305,13 @@ impl<'postgres_client, F: ConnectionFactory> QueryResult<'postgres_client, F> {
     {
         let mut results = Vec::new();
         loop {
-            let result_set = self.next_result_set().await?;
-            match result_set {
-                QueryResultSet::QueryProcessingComplete => {
-                    return Ok(results);
-                }
-                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
-                    let row = row_result_reader.next_row().await?;
-                    match row {
-                        Some(row) => {
-                            let value: T = row.get_binary(0)?;
-                            results.push(value);
-                        }
-                        None => {
-                            break;
-                        }
+            match self.next_result_set().await? {
+                QueryResultSet::QueryProcessingComplete => return Ok(results),
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
+                    while let Some(row) = row_result_reader.next_row().await? {
+                        results.push(row.get_binary(0)?);
                     }
-                },
+                }
             }
         }
     }
@@ -362,23 +340,11 @@ impl<'postgres_client, F: ConnectionFactory> SimpleQueryResult<'postgres_client,
     {
         let mut results = Vec::new();
         loop {
-            let result_set = self.next_result_set().await?;
-            match result_set {
-                QueryResultSet::QueryProcessingComplete => {
-                    return Ok(results);
+            match self.next_result_set().await? {
+                QueryResultSet::QueryProcessingComplete => return Ok(results),
+                QueryResultSet::RowDescriptionReceived(reader) => {
+                    results.extend(reader.collect_to_vec::<T>().await?);
                 }
-                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
-                    let row = row_result_reader.next_row().await?;
-                    match row {
-                        Some(row) => {
-                            let value = T::from_sql_row(&row)?;
-                            results.push(value);
-                        }
-                        None => {
-                            break;
-                        }
-                    }
-                },
             }
         }
     }
@@ -389,23 +355,13 @@ impl<'postgres_client, F: ConnectionFactory> SimpleQueryResult<'postgres_client,
     {
         let mut results = Vec::new();
         loop {
-            let result_set = self.next_result_set().await?;
-            match result_set {
-                QueryResultSet::QueryProcessingComplete => {
-                    return Ok(results);
-                }
-                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => loop {
-                    let row = row_result_reader.next_row().await?;
-                    match row {
-                        Some(row) => {
-                            let value: T = row.get_text(0)?;
-                            results.push(value);
-                        }
-                        None => {
-                            break;
-                        }
+            match self.next_result_set().await? {
+                QueryResultSet::QueryProcessingComplete => return Ok(results),
+                QueryResultSet::RowDescriptionReceived(mut row_result_reader) => {
+                    while let Some(row) = row_result_reader.next_row().await? {
+                        results.push(row.get_text(0)?);
                     }
-                },
+                }
             }
         }
     }
@@ -456,6 +412,17 @@ impl<'postgres_client, 'query_result_set, F: ConnectionFactory>
                 "{msg:?}"
             ))),
         }
+    }
+
+    pub async fn collect_to_vec<T>(mut self) -> Result<Vec<T>, ElefantClientError>
+    where
+        T: FromSqlRowOwned,
+    {
+        let mut results = Vec::new();
+        while let Some(row) = self.next_row().await? {
+            results.push(T::from_sql_row(&row)?);
+        }
+        Ok(results)
     }
 }
 

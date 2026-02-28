@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct UniqueConstraintResult {
@@ -9,8 +9,10 @@ pub struct UniqueConstraintResult {
     pub comment: Option<String>,
 }
 
-impl FromRow for UniqueConstraintResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for UniqueConstraintResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(UniqueConstraintResult {
             table_schema: row.get(0)?,
             table_name: row.get(1)?,

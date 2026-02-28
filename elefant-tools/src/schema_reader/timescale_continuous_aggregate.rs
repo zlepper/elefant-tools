@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 use elefant_client::Interval;
 
 pub struct ContinuousAggregateResult {
@@ -23,8 +23,10 @@ pub struct ContinuousAggregateResult {
     pub retention_drop_after: Option<Interval>,
 }
 
-impl FromRow for ContinuousAggregateResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for ContinuousAggregateResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(ContinuousAggregateResult {
             // hypertable_schema: row.get(0)?,
             // hypertable_name: row.get(1)?,

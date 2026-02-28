@@ -1,6 +1,6 @@
-use crate::postgres_client_wrapper::{FromRow, PostgresClientWrapper};
+use crate::postgres_client_wrapper::PostgresClientWrapper;
 use crate::ElefantToolsError;
-use elefant_client::{FromSqlOwned, PostgresConnectionSettings};
+use elefant_client::{FromSqlOwned, FromSqlRowOwned, PostgresConnectionSettings};
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use uuid::Uuid;
 
@@ -96,7 +96,7 @@ impl TestHelper {
     }
 
     /// Executes a query that returns results.
-    pub async fn get_results<T: FromRow>(&self, sql: &str) -> Vec<T> {
+    pub async fn get_results<T: FromSqlRowOwned>(&self, sql: &str) -> Vec<T> {
         self.get_conn()
             .get_results(sql)
             .await
@@ -113,7 +113,7 @@ impl TestHelper {
     }
 
     /// Executes a query that returns a single row result.
-    pub async fn get_result<T: FromRow>(&self, sql: &str) -> T {
+    pub async fn get_result<T: FromSqlRowOwned>(&self, sql: &str) -> T {
         let results = self.get_results(sql).await;
         assert_eq!(
             results.len(),

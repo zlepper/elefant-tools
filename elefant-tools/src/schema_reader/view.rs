@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct ViewResult {
     pub oid: i64,
@@ -11,8 +11,10 @@ pub struct ViewResult {
     pub type_oid: i64,
 }
 
-impl FromRow for ViewResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for ViewResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             oid: row.get(0)?,
             view_name: row.get(1)?,

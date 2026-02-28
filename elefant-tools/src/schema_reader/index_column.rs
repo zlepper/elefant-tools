@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct IndexColumnResult {
     pub table_schema: String,
@@ -11,8 +11,10 @@ pub struct IndexColumnResult {
     pub ordinal_position: i32,
 }
 
-impl FromRow for IndexColumnResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for IndexColumnResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(IndexColumnResult {
             table_schema: row.get(0)?,
             table_name: row.get(1)?,

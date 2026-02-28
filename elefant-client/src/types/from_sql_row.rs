@@ -88,6 +88,28 @@ where
     }
 }
 
+impl<'a, T1, T2, T3, T4, T5, T6> FromSqlRow<'a> for (T1, T2, T3, T4, T5, T6)
+where
+    T1: FromSql<'a>,
+    T2: FromSql<'a>,
+    T3: FromSql<'a>,
+    T4: FromSql<'a>,
+    T5: FromSql<'a>,
+    T6: FromSql<'a>,
+{
+    fn from_sql_row(row: &'a PostgresDataRow) -> Result<Self, ElefantClientError> {
+        row.require_columns(6)?;
+
+        let t1 = row.get(0)?;
+        let t2 = row.get(1)?;
+        let t3 = row.get(2)?;
+        let t4 = row.get(3)?;
+        let t5 = row.get(4)?;
+        let t6 = row.get(5)?;
+        Ok((t1, t2, t3, t4, t5, t6))
+    }
+}
+
 #[cfg(all(test, feature = "tokio"))]
 mod tests {
     use crate::test_helpers::get_tokio_test_client;

@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct EnumResult {
     pub schema_name: String,
@@ -7,8 +7,10 @@ pub struct EnumResult {
     pub values: Vec<String>,
 }
 
-impl FromRow for EnumResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for EnumResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             schema_name: row.get(0)?,
             name: row.get(1)?,

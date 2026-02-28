@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 use elefant_client::Interval;
 
 pub struct HypertableResult {
@@ -16,8 +16,10 @@ pub struct HypertableResult {
     pub retention_drop_after: Option<Interval>,
 }
 
-impl FromRow for HypertableResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for HypertableResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(HypertableResult {
             table_schema: row.get(0)?,
             table_name: row.get(1)?,

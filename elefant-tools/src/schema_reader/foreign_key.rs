@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
+use crate::postgres_client_wrapper::{QueryResult, RowEnumExt};
 use crate::ReferenceAction;
 
 pub struct ForeignKeyResult {
@@ -13,8 +13,10 @@ pub struct ForeignKeyResult {
     pub comment: Option<String>,
 }
 
-impl FromRow for ForeignKeyResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for ForeignKeyResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             constraint_name: row.get(0)?,
             // constraint_schema_name: row.get(1)?,

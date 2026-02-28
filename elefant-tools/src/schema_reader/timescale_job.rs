@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 use elefant_client::Interval;
 
 pub struct TimescaleJobResult {
@@ -12,8 +12,10 @@ pub struct TimescaleJobResult {
     pub fixed_schedule: bool,
 }
 
-impl FromRow for TimescaleJobResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for TimescaleJobResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(TimescaleJobResult {
             function_name: row.get(0)?,
             function_schema: row.get(1)?,

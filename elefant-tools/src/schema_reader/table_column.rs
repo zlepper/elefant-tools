@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
+use crate::postgres_client_wrapper::{QueryResult, RowEnumExt};
 use crate::{ColumnIdentity, PostgresColumn};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -17,8 +17,10 @@ pub struct TableColumnsResult {
     pub identity: Option<ColumnIdentity>,
 }
 
-impl FromRow for TableColumnsResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for TableColumnsResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(TableColumnsResult {
             schema_name: row.get(0)?,
             table_name: row.get(1)?,

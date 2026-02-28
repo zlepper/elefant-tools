@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct ExtensionResult {
     pub extension_name: String,
@@ -7,8 +7,10 @@ pub struct ExtensionResult {
     pub extension_relocatable: bool,
 }
 
-impl FromRow for ExtensionResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for ExtensionResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             extension_name: row.get(0)?,
             extension_schema_name: row.get(1)?,

@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 use crate::{PostgresTriggerEvent, PostgresTriggerLevel, PostgresTriggerTiming};
 
 pub struct TriggerResult {
@@ -16,8 +16,10 @@ pub struct TriggerResult {
     pub arguments: Option<String>,
 }
 
-impl FromRow for TriggerResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for TriggerResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         let trigger_type: i32 = row.get(3)?;
 
         let trigger_level = match trigger_type & 1 {

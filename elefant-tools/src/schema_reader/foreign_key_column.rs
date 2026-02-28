@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct ForeignKeyColumnResult {
     pub constraint_name: String,
@@ -10,8 +10,10 @@ pub struct ForeignKeyColumnResult {
     pub affected_by_delete_action: bool,
 }
 
-impl FromRow for ForeignKeyColumnResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for ForeignKeyColumnResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             constraint_name: row.get(0)?,
             // constraint_schema_name: row.get(1)?,

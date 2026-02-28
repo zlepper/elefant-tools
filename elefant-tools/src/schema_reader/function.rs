@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult, RowEnumExt};
+use crate::postgres_client_wrapper::{QueryResult, RowEnumExt};
 use crate::{FinalModify, FunctionKind, Parallel, Volatility};
 
 pub struct FunctionResult {
@@ -43,8 +43,10 @@ pub struct FunctionResult {
     pub depends_on: Option<Vec<i64>>,
 }
 
-impl FromRow for FunctionResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for FunctionResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Self {
             schema_name: row.get(0)?,
             function_name: row.get(1)?,

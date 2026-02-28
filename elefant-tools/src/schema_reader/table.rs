@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromPgChar, FromRow, QueryResult, RowEnumExt};
+use crate::postgres_client_wrapper::{FromPgChar, QueryResult, RowEnumExt};
 use crate::{ElefantToolsError, TablePartitionStrategy};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -37,8 +37,10 @@ impl FromPgChar for TableType {
     }
 }
 
-impl FromRow for TablesResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for TablesResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(TablesResult {
             schema_name: row.get(0)?,
             table_name: row.get(1)?,

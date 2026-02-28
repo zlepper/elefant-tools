@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromPgChar, FromRow, RowEnumExt};
+use crate::postgres_client_wrapper::{FromPgChar, RowEnumExt};
 use crate::quoting::AllowedKeywordUsage;
 use crate::schema_reader::SchemaReader;
 use crate::storage::postgres::parallel_copy_destination::ParallelSafePostgresInstanceCopyDestinationStorage;
@@ -66,8 +66,10 @@ struct Keyword {
     category: KeywordType,
 }
 
-impl FromRow for Keyword {
-    fn from_row(row: &PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for Keyword {
+    fn from_sql_row(
+        row: &'a PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(Keyword {
             word: row.get(0)?,
             category: row.try_get_enum_value(1)?,

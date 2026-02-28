@@ -1,4 +1,4 @@
-use crate::postgres_client_wrapper::{FromRow, QueryResult};
+use crate::postgres_client_wrapper::QueryResult;
 
 pub struct DomainResult {
     pub schema_name: String,
@@ -14,8 +14,10 @@ pub struct DomainResult {
     pub data_type_length: Option<i32>,
 }
 
-impl FromRow for DomainResult {
-    fn from_row(row: &elefant_client::PostgresDataRow<'_, '_>) -> crate::Result<Self> {
+impl<'a> elefant_client::FromSqlRow<'a> for DomainResult {
+    fn from_sql_row(
+        row: &'a elefant_client::PostgresDataRow<'_, '_>,
+    ) -> Result<Self, elefant_client::ElefantClientError> {
         Ok(DomainResult {
             schema_name: row.get(0)?,
             domain_name: row.get(1)?,

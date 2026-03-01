@@ -42,8 +42,10 @@ async fn test_introspection(
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn reads_simple_schema(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -179,8 +181,10 @@ async fn reads_simple_schema(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn identity_column_always_generated(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -256,8 +260,10 @@ async fn identity_column_always_generated(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn identity_column_by_default(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -333,8 +339,10 @@ async fn identity_column_by_default(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn identity_column_custom_sequence(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -410,8 +418,10 @@ async fn identity_column_custom_sequence(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn table_without_columns(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -439,8 +449,10 @@ async fn table_without_columns(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn table_without_primary_key(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -487,8 +499,10 @@ async fn table_without_primary_key(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn composite_primary_keys(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -574,8 +588,10 @@ async fn composite_primary_keys(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn generated_column(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -624,8 +640,10 @@ async fn generated_column(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn test_quoted_identifier_names(helper: &TestHelper) {
     test_introspection(
         helper,

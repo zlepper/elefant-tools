@@ -417,6 +417,7 @@ impl SchemaReader<'_> {
                 } else {
                     None
                 },
+                not_null_constraint_name: domain.not_null_constraint_name.clone(),
                 description: domain.description.clone(),
                 object_id: object_id_generator.next(),
                 depends_on: vec![],

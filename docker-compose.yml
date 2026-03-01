@@ -53,10 +53,24 @@ services:
     environment: *env
     command: *cmd
 
+  pg_17:
+    image: docker.io/library/postgres:17
+    ports:
+      - "5417:5432"
+    environment: *env
+    command: *cmd
+
   timescale_pg_16:
     image: docker.io/timescale/timescaledb-ha:pg16
     ports:
       - "5516:5432"
+    environment: *env
+    command: *cmd
+
+  timescale_pg_17:
+    image: docker.io/timescale/timescaledb-ha:pg17
+    ports:
+      - "5517:5432"
     environment: *env
     command: *cmd
 

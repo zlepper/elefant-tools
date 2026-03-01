@@ -10,6 +10,7 @@ pub struct PostgresDomain {
     pub default_value: Option<String>,
     pub constraint: Option<PostgresDomainConstraint>,
     pub not_null: bool,
+    pub not_null_constraint_name: Option<String>,
     pub description: Option<String>,
     pub depends_on: Vec<ObjectId>,
     pub data_type_length: Option<i32>,
@@ -44,7 +45,15 @@ impl PostgresDomain {
             sql.push_str(&format!(" default {default_value}"));
         }
         if self.not_null {
-            sql.push_str(" not null");
+            if let Some(constraint_name) = &self.not_null_constraint_name {
+                sql.push_str(&format!(
+                    " constraint {} not null",
+                    constraint_name
+                        .quote(identifier_quoter, AttemptedKeywordUsage::TypeOrFunctionName)
+                ));
+            } else {
+                sql.push_str(" not null");
+            }
         }
         if let Some(constraint) = &self.constraint {
             sql.push_str(&format!(

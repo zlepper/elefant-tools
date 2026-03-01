@@ -25,8 +25,10 @@ impl TestArgsArg {
             TestArgsArg::Postgres(14) => Ok(5414),
             TestArgsArg::Postgres(15) => Ok(5415),
             TestArgsArg::Postgres(16) => Ok(5416),
+            TestArgsArg::Postgres(17) => Ok(5417),
             TestArgsArg::TimescaleDb(15) => Ok(5515),
             TestArgsArg::TimescaleDb(16) => Ok(5516),
+            TestArgsArg::TimescaleDb(17) => Ok(5517),
             _ => Err(darling::Error::custom(
                 "Unknown postgres implementation / version",
             )),

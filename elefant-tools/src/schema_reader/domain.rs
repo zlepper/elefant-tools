@@ -12,6 +12,7 @@ pub struct DomainResult {
     pub domain_oid: i64,
     pub depends_on: Option<Vec<i64>>,
     pub data_type_length: Option<i32>,
+    pub not_null_constraint_name: Option<String>,
 }
 
 impl<'a> elefant_client::FromSqlRow<'a> for DomainResult {
@@ -30,6 +31,7 @@ impl<'a> elefant_client::FromSqlRow<'a> for DomainResult {
             domain_oid: row.get(8)?,
             depends_on: row.get(9)?,
             data_type_length: row.get(10)?,
+            not_null_constraint_name: row.get(11)?,
         })
     }
 }
@@ -51,9 +53,13 @@ select nsp.nspname                                     as schema_name,
           and dep.deptype <> 'e'
           and dep.refobjid > 16384
           and dep.objid <> dep.refobjid)               as depends_on,
-       information_schema._pg_char_max_length(typ.typbasetype, typ.typtypmod) as data_type_length
+       information_schema._pg_char_max_length(typ.typbasetype, typ.typtypmod) as data_type_length,
+       (select nn.conname
+        from pg_constraint nn
+        where nn.contypid = typ.oid
+          and nn.contype = 'n')                        as not_null_constraint_name
 from pg_type typ
-         left join pg_constraint con on con.contypid = typ.oid
+         left join pg_constraint con on con.contypid = typ.oid and con.contype = 'c'
          join pg_type base_type on base_type.oid = typ.typbasetype
          join pg_namespace nsp on nsp.oid = typ.typnamespace
          left join pg_depend dep on dep.objid = nsp.oid

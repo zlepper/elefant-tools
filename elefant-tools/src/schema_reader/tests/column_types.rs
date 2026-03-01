@@ -11,8 +11,10 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn array_columns(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -52,8 +54,10 @@ async fn array_columns(helper: &TestHelper) {
 #[pg_test(arg(postgres = 14))]
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
+#[pg_test(arg(postgres = 17))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
 async fn column_types_of_limited_size(helper: &TestHelper) {
     tests::test_introspection(
         helper,

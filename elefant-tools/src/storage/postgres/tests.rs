@@ -112,6 +112,7 @@ macro_rules! test_round_trip {
             #[pg_test(arg(postgres = 15), arg(postgres = 15))]
             #[pg_test(arg(postgres = 16), arg(postgres = 16))]
             #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+            #[pg_test(arg(postgres = 18), arg(postgres = 18))]
             async fn non_differential(source: &TestHelper, destination: &TestHelper) {
                 test_round_trip(SQL, source, destination).await;
             }
@@ -122,6 +123,7 @@ macro_rules! test_round_trip {
             #[pg_test(arg(postgres = 15))]
             #[pg_test(arg(postgres = 16))]
             #[pg_test(arg(postgres = 17))]
+            #[pg_test(arg(postgres = 18))]
             async fn differential(source: &TestHelper) {
                 test_differential_copy_generic(source, SQL).await;
             }
@@ -155,6 +157,7 @@ test_round_trip!(
 #[pg_test(arg(postgres = 15), arg(postgres = 15))]
 #[pg_test(arg(postgres = 16), arg(postgres = 16))]
 #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
 async fn filtered_foreign_key_set_null(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(
         r#"
@@ -594,6 +597,7 @@ $$ language plpgsql;
 #[pg_test(arg(postgres = 15), arg(postgres = 15))]
 #[pg_test(arg(postgres = 16), arg(postgres = 16))]
 #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
 async fn storage_parameters(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(
         r#"
@@ -624,6 +628,7 @@ async fn storage_parameters_pg_12(source: &TestHelper, destination: &TestHelper)
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_hypertable_time_single_dimension(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(r#"
 
@@ -654,6 +659,7 @@ insert into stocks_real_time(time, symbol, price, day_volume) values ('2023-01-0
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_hypertable_time_multiple_dimensions(
     source: &TestHelper,
     destination: &TestHelper,
@@ -685,6 +691,7 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_hypertable_compression(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(
         r#"
@@ -717,6 +724,7 @@ select add_compression_policy('stocks_real_time', interval '7 days');
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_continuous_aggregate(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(r#"
 CREATE TABLE stocks_real_time (
@@ -776,6 +784,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_retention_policy(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(
         r#"
@@ -795,6 +804,7 @@ SELECT add_retention_policy('conditions', INTERVAL '24 hours');
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_user_defined_jobs(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(
         r#"
@@ -1021,6 +1031,7 @@ create table my_table(
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_foreign_keys_on_compressed_tables(
     source: &TestHelper,
     destination: &TestHelper,
@@ -1393,6 +1404,7 @@ test_round_trip!(
 #[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_constraints_on_indices(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(r#"
     create table my_table(time timestamptz not null, event_id uuid not null, member_id int not null, web_site_url text not null);

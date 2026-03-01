@@ -163,7 +163,7 @@ mod tests {
 
     #[test]
     pub async fn connect_to_all_the_postgres() {
-        let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5417, 5515, 5516, 5517];
+        let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5417, 5418, 5515, 5516, 5517, 5518];
 
         for port in pg_ports {
             let _client = new_client(

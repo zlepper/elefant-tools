@@ -62,8 +62,10 @@ async fn test_views(helper: &TestHelper) {
 
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn test_views_pg_16(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -118,9 +120,11 @@ async fn test_views_pg_16(helper: &TestHelper) {
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn materialized_view(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -202,8 +206,10 @@ async fn view_depends_15_below(helper: &TestHelper) {
 
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn view_depends_16(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -303,8 +309,10 @@ async fn view_depends_15_below_opposite(helper: &TestHelper) {
 
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn view_depends_16_opposite(helper: &TestHelper) {
     tests::test_introspection(
         helper,

@@ -13,9 +13,11 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn enums(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -186,7 +188,9 @@ create table movie
 }
 
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn domains_pg17(helper: &TestHelper) {
     tests::test_introspection(
         helper,

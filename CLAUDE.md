@@ -168,8 +168,8 @@ async fn my_test(helper: &TestHelper) {
 ```
 
 **PostgreSQL Version Support:**
-- PostgreSQL 12-16 (ports 5412-5416)
-- TimescaleDB on PostgreSQL 15-16 (ports 5515-5516)
+- PostgreSQL 12-18 (ports 5412-5418)
+- TimescaleDB on PostgreSQL 15-18 (ports 5515-5518)
 
 ### Test Patterns
 
@@ -215,7 +215,7 @@ Extensive TimescaleDB support including:
 - User-defined jobs and actions
 - Multi-dimensional partitioning
 
-TimescaleDB tests require Docker containers on ports 5515-5516.
+TimescaleDB tests require Docker containers on ports 5515-5518.
 
 ## Development Patterns
 

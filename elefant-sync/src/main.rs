@@ -138,6 +138,7 @@ mod tests {
 
     #[pg_test(arg(postgres = 16), arg(postgres = 16))]
     #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+    #[pg_test(arg(postgres = 18), arg(postgres = 18))]
     async fn test_export_import(source: &TestHelper, destination: &TestHelper) {
         source
             .execute_not_query(
@@ -190,6 +191,7 @@ mod tests {
 
     #[pg_test(arg(postgres = 16), arg(postgres = 16))]
     #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+    #[pg_test(arg(postgres = 18), arg(postgres = 18))]
     async fn test_export_import_sql_file_copy(source: &TestHelper, destination: &TestHelper) {
         source
             .execute_not_query(
@@ -242,6 +244,7 @@ mod tests {
 
     #[pg_test(arg(postgres = 16), arg(postgres = 16))]
     #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+    #[pg_test(arg(postgres = 18), arg(postgres = 18))]
     async fn test_copy(source: &TestHelper, destination: &TestHelper) {
         source
             .execute_not_query(
@@ -271,6 +274,7 @@ mod tests {
 
     #[pg_test(arg(postgres = 16), arg(postgres = 16))]
     #[pg_test(arg(postgres = 17), arg(postgres = 17))]
+    #[pg_test(arg(postgres = 18), arg(postgres = 18))]
     async fn test_copy_between_schemas(source: &TestHelper, destination: &TestHelper) {
         source
             .execute_not_query(

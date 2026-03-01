@@ -1,7 +1,7 @@
 pub const DB_HOST: &str = "localhost";
 pub const DB_USER: &str = "postgres";
 pub const DB_PASSWORD: &str = "passw0rd";
-pub const DB_PORT: u16 = 5417; // PostgreSQL 17
+pub const DB_PORT: u16 = 5418; // PostgreSQL 18
 
 pub const BENCHMARK_DB: &str = "copy_benchmark_db";
 

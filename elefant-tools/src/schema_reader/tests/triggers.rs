@@ -35,9 +35,11 @@ alter function pg_catalog.tsvector_update_trigger() owner to postgres;
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn triggers(helper: &TestHelper) {
     tests::test_introspection(helper, r#"
         create table my_table(

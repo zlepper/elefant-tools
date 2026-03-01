@@ -325,4 +325,5 @@ mod tests {
     test_injected_version!(test_injected_version_15, 15);
     test_injected_version!(test_injected_version_16, 16);
     test_injected_version!(test_injected_version_17, 17);
+    test_injected_version!(test_injected_version_18, 18);
 }

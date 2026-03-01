@@ -3,7 +3,7 @@ use elefant_client::PostgresConnectionSettings;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5417, 5515, 5516, 5517];
+    let pg_ports = vec![5412, 5413, 5414, 5415, 5416, 5417, 5418, 5515, 5516, 5517, 5518];
 
     for port in pg_ports {
         let mut client = elefant_client::tokio_connection::new_client(

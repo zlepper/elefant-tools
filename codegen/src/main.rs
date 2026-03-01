@@ -7,7 +7,7 @@ use std::fs;
 async fn main() -> Result<()> {
     let mut client = elefant_client::tokio_connection::new_client(
         PostgresConnectionSettings::new("localhost")
-            .port(5417)
+            .port(5418)
             .password("passw0rd"),
     )
     .await?;
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
     let mut client = elefant_client::tokio_connection::new_client(
         PostgresConnectionSettings::new("localhost")
-            .port(5417)
+            .port(5418)
             .password("passw0rd")
             .database("type_codegen"),
     )

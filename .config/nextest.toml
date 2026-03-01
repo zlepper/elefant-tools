@@ -18,9 +18,11 @@ postgres-14 = { max-threads = 1 }
 postgres-15 = { max-threads = 1 }
 postgres-16 = { max-threads = 1 }
 postgres-17 = { max-threads = 1 }
+postgres-18 = { max-threads = 1 }
 timescale-15 = { max-threads = 1 }
 timescale-16 = { max-threads = 1 }
 timescale-17 = { max-threads = 1 }
+timescale-18 = { max-threads = 1 }
 postgres-15-ssl = { max-threads = 1 }
 
 # --- Default Profile ---
@@ -71,6 +73,14 @@ test-group = 'postgres-17'
 [[profile.default.overrides]]
 filter = 'test(/timescale_17_/)'
 test-group = 'timescale-17'
+
+[[profile.default.overrides]]
+filter = 'test(/postgres_18_/)'
+test-group = 'postgres-18'
+
+[[profile.default.overrides]]
+filter = 'test(/timescale_18_/)'
+test-group = 'timescale-18'
 
 [[profile.default.overrides]]
 filter = 'test(/tls_/)'

@@ -6,7 +6,7 @@ use tokio_postgres::NoTls;
 const DB_HOST: &str = "localhost";
 const DB_USER: &str = "postgres";
 const DB_PASSWORD: &str = "passw0rd";
-const DB_PORT: u16 = 5417; // PostgreSQL 17 (latest available)
+const DB_PORT: u16 = 5418; // PostgreSQL 18 (latest available)
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

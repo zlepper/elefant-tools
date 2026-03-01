@@ -17,6 +17,7 @@ use ordered_float::NotNan;
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn inspect_hypertable(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -141,6 +142,7 @@ CREATE INDEX ix_symbol_time ON stocks_real_time (symbol, time DESC);
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn inspect_compressed(helper: &TestHelper) {
     test_introspection(
         helper,
@@ -431,6 +433,7 @@ SELECT add_retention_policy('stock_candlestick_daily', INTERVAL '2 years');
 
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn inspect_continuous_aggregates_16(helper: &TestHelper) {
     test_introspection(
         helper,

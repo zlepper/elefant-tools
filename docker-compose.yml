@@ -74,6 +74,20 @@ services:
     environment: *env
     command: *cmd
 
+  pg_18:
+    image: docker.io/library/postgres:18
+    ports:
+      - "5418:5432"
+    environment: *env
+    command: *cmd
+
+  timescale_pg_18:
+    image: docker.io/timescale/timescaledb-ha:pg18
+    ports:
+      - "5518:5432"
+    environment: *env
+    command: *cmd
+
   pg_15_cleartext_auth:
     image: docker.io/library/postgres:15
     ports:

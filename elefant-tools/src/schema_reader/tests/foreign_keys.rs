@@ -16,9 +16,11 @@ use elefant_test_macros::pg_test;
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn foreign_keys(helper: &TestHelper) {
     tests::test_introspection(
         helper,
@@ -156,9 +158,11 @@ async fn foreign_keys(helper: &TestHelper) {
 #[pg_test(arg(postgres = 15))]
 #[pg_test(arg(postgres = 16))]
 #[pg_test(arg(postgres = 17))]
+#[pg_test(arg(postgres = 18))]
 #[pg_test(arg(timescale_db = 15))]
 #[pg_test(arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
 async fn foreign_key_constraints(helper: &TestHelper) {
     tests::test_introspection(
         helper,

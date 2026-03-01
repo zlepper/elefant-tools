@@ -15,3 +15,31 @@ criterion = { workspace = true, features = ["async_tokio"] }
 [[bench]]
 name = "binary_copy"
 harness = false
+
+[[bench]]
+name = "connection_establishment"
+harness = false
+
+[[bench]]
+name = "simple_query_roundtrip"
+harness = false
+
+[[bench]]
+name = "prepared_statement_throughput"
+harness = false
+
+[[bench]]
+name = "large_result_set"
+harness = false
+
+[[bench]]
+name = "text_copy"
+harness = false
+
+[[bench]]
+name = "type_heavy_deserialization"
+harness = false
+
+[[bench]]
+name = "insert_throughput"
+harness = false

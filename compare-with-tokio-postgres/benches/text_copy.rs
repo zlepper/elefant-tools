@@ -4,16 +4,15 @@ use criterion::{criterion_group, criterion_main};
 use futures::{StreamExt, pin_mut};
 use tokio_postgres::{NoTls, binary_copy::BinaryCopyInWriter, types::Type};
 
-const SOURCE_TABLE: &str = "copy_source_table";
-const TARGET_TABLE_TOKIO: &str = "copy_target_table_tokio";
-const TARGET_TABLE_ELEFANT: &str = "copy_target_table_elefant";
+const SOURCE_TABLE: &str = "text_copy_source";
+const TARGET_TABLE_TOKIO: &str = "text_copy_target_tokio";
+const TARGET_TABLE_ELEFANT: &str = "text_copy_target_elefant";
+const NUM_ROWS: usize = 10_000_000;
 
-async fn setup_benchmark_database(num_rows: usize) {
+async fn setup_benchmark_database() {
     ensure_database(BENCHMARK_DB).await;
-
     let client = tokio_pg_connect(BENCHMARK_DB).await;
 
-    // Create and populate source table
     client
         .execute(&format!("DROP TABLE IF EXISTS {SOURCE_TABLE}"), &[])
         .await
@@ -34,28 +33,22 @@ async fn setup_benchmark_database(num_rows: usize) {
         )
         .await
         .unwrap();
-
     client
         .execute(
-            &format!(
-                "CREATE TABLE {TARGET_TABLE_TOKIO} (id BIGINT, value INTEGER, text_data TEXT)"
-            ),
+            &format!("CREATE TABLE {TARGET_TABLE_TOKIO} (id BIGINT, value INTEGER, text_data TEXT)"),
+            &[],
+        )
+        .await
+        .unwrap();
+    client
+        .execute(
+            &format!("CREATE TABLE {TARGET_TABLE_ELEFANT} (id BIGINT, value INTEGER, text_data TEXT)"),
             &[],
         )
         .await
         .unwrap();
 
-    client
-        .execute(
-            &format!(
-                "CREATE TABLE {TARGET_TABLE_ELEFANT} (id BIGINT, value INTEGER, text_data TEXT)"
-            ),
-            &[],
-        )
-        .await
-        .unwrap();
-
-    // Populate source table with test data
+    // Populate source table using binary COPY (fastest)
     let sink = client
         .copy_in(&format!(
             "COPY {SOURCE_TABLE} (id, value, text_data) FROM STDIN BINARY"
@@ -65,7 +58,7 @@ async fn setup_benchmark_database(num_rows: usize) {
     let writer = BinaryCopyInWriter::new(sink, &[Type::INT8, Type::INT4, Type::TEXT]);
     pin_mut!(writer);
 
-    for i in 0..num_rows {
+    for i in 0..NUM_ROWS {
         let text_data = format!("test_data_row_{i}");
         writer
             .as_mut()
@@ -75,24 +68,14 @@ async fn setup_benchmark_database(num_rows: usize) {
     }
     writer.as_mut().finish().await.unwrap();
 
-    // Run VACUUM ANALYZE
     client
         .execute(&format!("VACUUM ANALYZE {SOURCE_TABLE}"), &[])
-        .await
-        .unwrap();
-    client
-        .execute(&format!("VACUUM ANALYZE {TARGET_TABLE_TOKIO}"), &[])
-        .await
-        .unwrap();
-    client
-        .execute(&format!("VACUUM ANALYZE {TARGET_TABLE_ELEFANT}"), &[])
         .await
         .unwrap();
 }
 
 async fn cleanup_target_tables() {
     let client = tokio_pg_connect(BENCHMARK_DB).await;
-
     client
         .execute(&format!("TRUNCATE TABLE {TARGET_TABLE_TOKIO}"), &[])
         .await
@@ -101,7 +84,6 @@ async fn cleanup_target_tables() {
         .execute(&format!("TRUNCATE TABLE {TARGET_TABLE_ELEFANT}"), &[])
         .await
         .unwrap();
-
     client
         .execute(&format!("VACUUM {TARGET_TABLE_TOKIO}"), &[])
         .await
@@ -112,12 +94,11 @@ async fn cleanup_target_tables() {
         .unwrap();
 }
 
-async fn tokio_postgres_copy_benchmark(_num_rows: usize) {
+async fn tokio_postgres_text_copy() {
     let (source_client, source_connection) =
         tokio_postgres::connect(&tokio_pg_connstr(BENCHMARK_DB), NoTls)
             .await
             .unwrap();
-
     let (target_client, target_connection) =
         tokio_postgres::connect(&tokio_pg_connstr(BENCHMARK_DB), NoTls)
             .await
@@ -128,7 +109,6 @@ async fn tokio_postgres_copy_benchmark(_num_rows: usize) {
             eprintln!("Source connection error: {e}");
         }
     });
-
     tokio::spawn(async move {
         if let Err(e) = target_connection.await {
             eprintln!("Target connection error: {e}");
@@ -137,26 +117,24 @@ async fn tokio_postgres_copy_benchmark(_num_rows: usize) {
 
     let source_stream = source_client
         .copy_out(&format!(
-            "COPY {SOURCE_TABLE} (id, value, text_data) TO STDOUT BINARY"
+            "COPY {SOURCE_TABLE} (id, value, text_data) TO STDOUT"
         ))
         .await
         .unwrap();
     let target_sink = target_client
         .copy_in(&format!(
-            "COPY {TARGET_TABLE_TOKIO} (id, value, text_data) FROM STDIN BINARY"
+            "COPY {TARGET_TABLE_TOKIO} (id, value, text_data) FROM STDIN"
         ))
         .await
         .unwrap();
 
     pin_mut!(source_stream);
     pin_mut!(target_sink);
-
     source_stream.forward(target_sink).await.unwrap();
 }
 
-async fn elefant_client_tokio_copy_benchmark(_num_rows: usize) {
+async fn elefant_client_text_copy() {
     let settings = elefant_settings(BENCHMARK_DB);
-
     let mut source_client = elefant_client::tokio_connection::new_client(settings.clone())
         .await
         .unwrap();
@@ -166,110 +144,66 @@ async fn elefant_client_tokio_copy_benchmark(_num_rows: usize) {
 
     let copy_out = source_client
         .copy_out(
-            &format!("COPY {SOURCE_TABLE} (id, value, text_data) TO STDOUT (FORMAT BINARY)"),
+            &format!("COPY {SOURCE_TABLE} (id, value, text_data) TO STDOUT"),
             &[],
         )
         .await
         .unwrap();
-
     let mut copy_in = target_client
         .copy_in(
-            &format!(
-                "COPY {TARGET_TABLE_ELEFANT} (id, value, text_data) FROM STDIN (FORMAT BINARY)"
-            ),
+            &format!("COPY {TARGET_TABLE_ELEFANT} (id, value, text_data) FROM STDIN"),
             &[],
         )
         .await
         .unwrap();
 
     copy_out.write_to(&mut copy_in).await.unwrap();
-
     copy_in.end().await.unwrap();
 }
 
-fn time_copy_operation<F, Fut, R>(
-    iters: u64,
-    num_rows: usize,
-    operation: F,
-    run_blocking: R,
-) -> std::time::Duration
-where
-    F: Fn(usize) -> Fut,
-    Fut: Future<Output = ()>,
-    R: Fn(Fut),
-{
-    let mut total_duration = std::time::Duration::ZERO;
+fn text_copy_benchmarks(c: &mut Criterion) {
+    run_block(setup_benchmark_database());
 
-    for _i in 0..iters {
-        // Cleanup (not timed)
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            cleanup_target_tables().await;
-        });
+    let mut group = c.benchmark_group("text_copy_operations");
+    group.sample_size(10);
+    group.throughput(Throughput::Elements(NUM_ROWS as u64));
 
-        // Time only the actual COPY operation
-        let start = std::time::Instant::now();
-        run_blocking(operation(num_rows));
-        total_duration += start.elapsed();
-    }
+    group.bench_with_input(
+        BenchmarkId::new("tokio_postgres", NUM_ROWS),
+        &NUM_ROWS,
+        |b, _| {
+            b.iter_custom(|iters| {
+                let mut total = std::time::Duration::ZERO;
+                for _ in 0..iters {
+                    run_block(cleanup_target_tables());
+                    let start = std::time::Instant::now();
+                    run_block(tokio_postgres_text_copy());
+                    total += start.elapsed();
+                }
+                total
+            });
+        },
+    );
 
-    total_duration
-}
-
-fn run_block_tokio<Fut>(fut: Fut)
-where
-    Fut: Future<Output = ()>,
-{
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    rt.block_on(fut);
-}
-
-fn copy_benchmarks(c: &mut Criterion) {
-    let mut group = c.benchmark_group("copy_operations");
-
-    {
-        let num_rows = &10_000_000;
-        group.sample_size((100_000 / *num_rows).max(10));
-
-        run_block(async {
-            setup_benchmark_database(*num_rows).await;
-        });
-
-        group.throughput(Throughput::Elements(*num_rows as u64));
-
-        group.bench_with_input(
-            BenchmarkId::new("tokio_postgres", num_rows),
-            num_rows,
-            |b, &num_rows| {
-                b.iter_custom(|iters| {
-                    time_copy_operation(
-                        iters,
-                        num_rows,
-                        tokio_postgres_copy_benchmark,
-                        run_block_tokio,
-                    )
-                });
-            },
-        );
-
-        group.bench_with_input(
-            BenchmarkId::new("elefant_client_tokio", num_rows),
-            num_rows,
-            |b, &num_rows| {
-                b.iter_custom(|iters| {
-                    time_copy_operation(
-                        iters,
-                        num_rows,
-                        elefant_client_tokio_copy_benchmark,
-                        run_block_tokio,
-                    )
-                });
-            },
-        );
-    }
+    group.bench_with_input(
+        BenchmarkId::new("elefant_client", NUM_ROWS),
+        &NUM_ROWS,
+        |b, _| {
+            b.iter_custom(|iters| {
+                let mut total = std::time::Duration::ZERO;
+                for _ in 0..iters {
+                    run_block(cleanup_target_tables());
+                    let start = std::time::Instant::now();
+                    run_block(elefant_client_text_copy());
+                    total += start.elapsed();
+                }
+                total
+            });
+        },
+    );
 
     group.finish();
 }
 
-criterion_group!(benches, copy_benchmarks);
+criterion_group!(benches, text_copy_benchmarks);
 criterion_main!(benches);

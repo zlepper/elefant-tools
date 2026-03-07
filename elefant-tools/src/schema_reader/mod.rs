@@ -11,6 +11,7 @@ use crate::schema_reader::foreign_key_column::ForeignKeyColumnResult;
 use crate::schema_reader::function::FunctionResult;
 use crate::schema_reader::index::IndexResult;
 use crate::schema_reader::index_column::IndexColumnResult;
+use crate::schema_reader::not_null_constraint::NotNullConstraintResult;
 use crate::schema_reader::schema::SchemaResult;
 use crate::schema_reader::sequence::SequenceResult;
 use crate::schema_reader::table::TablesResult;
@@ -40,6 +41,7 @@ mod foreign_key_column;
 mod function;
 mod index;
 mod index_column;
+mod not_null_constraint;
 mod schema;
 mod sequence;
 mod table;
@@ -72,7 +74,7 @@ impl SchemaReader<'_> {
         let (mut extensions, schemas, tables, columns, check_constraints,
             unique_constraints, indices, index_columns, sequences, foreign_keys,
             foreign_key_columns, views, view_columns, functions, triggers,
-            enums, domains)
+            enums, domains, not_null_constraints)
             = BatchQueryBuilder::new(self.connection)
                 .add::<ExtensionResult>()
                 .add::<SchemaResult>()
@@ -91,6 +93,7 @@ impl SchemaReader<'_> {
                 .add::<TriggerResult>()
                 .add::<EnumResult>()
                 .add::<DomainResult>()
+                .add::<NotNullConstraintResult>()
                 .execute(self.connection).await?;
 
         let mut db = PostgresDatabase::default();
@@ -148,6 +151,7 @@ impl SchemaReader<'_> {
                 &foreign_key_columns,
                 &hypertables,
                 &hypertable_dimensions,
+                &not_null_constraints,
                 &mut object_id_generator,
             )?;
 
@@ -657,6 +661,7 @@ impl SchemaReader<'_> {
         foreign_key_columns: &[ForeignKeyColumnResult],
         hypertables: &[HypertableResult],
         hypertable_dimensions: &[TimescaleHypertableDimensionResult],
+        not_null_constraints: &[NotNullConstraintResult],
         object_id_generator: &mut ObjectIdGenerator,
     ) -> Result<PostgresTable> {
         let table_columns = Self::add_columns(columns, row);
@@ -666,6 +671,7 @@ impl SchemaReader<'_> {
             foreign_keys,
             foreign_key_columns,
             unique_constraints,
+            not_null_constraints,
             row,
             object_id_generator,
         );
@@ -836,6 +842,7 @@ impl SchemaReader<'_> {
         foreign_keys: &[ForeignKeyResult],
         foreign_key_columns: &[ForeignKeyColumnResult],
         unique_constraints: &[UniqueConstraintResult],
+        not_null_constraints: &[NotNullConstraintResult],
         row: &TablesResult,
         object_id_generator: &mut ObjectIdGenerator,
     ) -> Vec<PostgresConstraint> {
@@ -847,6 +854,7 @@ impl SchemaReader<'_> {
                     name: check_constraint.constraint_name.clone(),
                     check_clause: check_constraint.check_clause.clone().into(),
                     comment: check_constraint.comment.clone(),
+                    is_enforced: check_constraint.is_enforced,
                     object_id: object_id_generator.next(),
                 }
                 .into()
@@ -899,6 +907,11 @@ impl SchemaReader<'_> {
                         })
                         .collect(),
                     comment: fk.comment.clone(),
+                    is_enforced: fk.is_enforced,
+                    constraint_definition: fk.constraint_definition.as_ref().map(|d| {
+                        // Strip NOT VALID suffix since we always add it ourselves during restore.
+                        d.strip_suffix(" NOT VALID").unwrap_or(d).to_string()
+                    }),
                     object_id: object_id_generator.next(),
                 }
                 .into()
@@ -914,12 +927,30 @@ impl SchemaReader<'_> {
                 name: c.constraint_name.clone(),
                 unique_index_name: c.index_name.clone(),
                 comment: c.comment.clone(),
+                constraint_definition: c.constraint_definition.clone(),
                 object_id: object_id_generator.next(),
             })
             .map(|c| c.into())
             .collect_vec();
 
         constraints.append(&mut unique_constraints);
+
+        let mut nn_constraints: Vec<PostgresConstraint> = not_null_constraints
+            .iter()
+            .filter(|c| c.table_schema == row.schema_name && c.table_name == row.table_name)
+            .map(|c| {
+                PostgresNotNullConstraint {
+                    name: c.constraint_name.clone(),
+                    column_name: c.column_name.clone(),
+                    is_validated: c.is_validated,
+                    comment: None,
+                    object_id: object_id_generator.next(),
+                }
+                .into()
+            })
+            .collect();
+
+        constraints.append(&mut nn_constraints);
 
         constraints.sort();
 
@@ -993,6 +1024,7 @@ impl SchemaReader<'_> {
                 },
                 comment: index.comment.clone(),
                 storage_parameters: index.storage_parameters.clone().unwrap_or_else(Vec::new),
+                constraint_definition: index.constraint_definition.clone(),
                 object_id: object_id_generator.next(),
             });
         }

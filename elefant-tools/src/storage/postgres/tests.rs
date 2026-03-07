@@ -195,6 +195,64 @@ test_round_trip!(
     "#
 );
 
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn virtual_generated_columns(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE people (
+            height_cm numeric,
+            height_in numeric GENERATED ALWAYS AS (height_cm / 2.54) VIRTUAL
+        );
+
+        INSERT INTO people (height_cm) VALUES (180), (170);
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn not_enforced_check_constraint(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE products (
+            id int not null,
+            price numeric,
+            constraint positive_price check (price > 0) not enforced
+        );
+
+        INSERT INTO products (id, price) VALUES (1, -5);
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn not_enforced_foreign_key(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE categories (
+            id int primary key,
+            name text not null
+        );
+
+        CREATE TABLE products (
+            id int primary key,
+            category_id int,
+            constraint fk_category foreign key (category_id) references categories(id) not enforced
+        );
+
+        INSERT INTO products (id, category_id) VALUES (1, 999);
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
 test_round_trip!(
     functions,
     r#"
@@ -533,6 +591,70 @@ CREATE TABLE orders_3 PARTITION OF orders
     FOR VALUES WITH (MODULUS 3, REMAINDER 2);
     "#
 );
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn named_not_null_constraint(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE products (
+            id int primary key,
+            name text constraint name_not_null not null
+        );
+
+        INSERT INTO products (id, name) VALUES (1, 'Widget');
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn not_valid_not_null_constraint(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE products (
+            id int primary key,
+            name text
+        );
+
+        INSERT INTO products (id, name) VALUES (1, 'Widget'), (2, NULL);
+
+        ALTER TABLE products ADD CONSTRAINT name_not_null NOT NULL name NOT VALID;
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 17), arg(postgres = 17))]
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn identity_columns_on_partitioned_tables(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE events (
+            id int generated always as identity,
+            event_date date not null,
+            description text,
+            primary key (id, event_date)
+        ) partition by range (event_date);
+
+        CREATE TABLE events_2024 PARTITION OF events
+            FOR VALUES FROM ('2024-01-01') TO ('2025-01-01');
+
+        CREATE TABLE events_2025 PARTITION OF events
+            FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+
+        INSERT INTO events (event_date, description) VALUES
+            ('2024-06-15', 'Summer event'),
+            ('2025-03-01', 'Spring event');
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
 
 test_round_trip!(
     inheritance,
@@ -1413,4 +1535,81 @@ async fn timescale_constraints_on_indices(source: &TestHelper, destination: &Tes
 
     select create_hypertable('my_table', by_range('time', '7 day'::interval));
     "#, source, destination).await;
+}
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn temporal_primary_key(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE EXTENSION btree_gist;
+        CREATE TABLE reservations (
+            id int not null,
+            valid_period tsrange not null,
+            constraint reservations_pk primary key (id, valid_period without overlaps)
+        );
+
+        INSERT INTO reservations (id, valid_period) VALUES
+            (1, '[2024-01-01, 2024-06-01)'),
+            (1, '[2024-06-01, 2025-01-01)'),
+            (2, '[2024-01-01, 2025-01-01)');
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn temporal_unique_constraint(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE EXTENSION btree_gist;
+        CREATE TABLE room_bookings (
+            id serial primary key,
+            room_id int not null,
+            booking_period tsrange not null,
+            constraint unique_room_booking unique (room_id, booking_period without overlaps)
+        );
+
+        INSERT INTO room_bookings (room_id, booking_period) VALUES
+            (1, '[2024-01-01, 2024-06-01)'),
+            (1, '[2024-06-01, 2025-01-01)'),
+            (2, '[2024-01-01, 2025-01-01)');
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn temporal_foreign_key(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE EXTENSION btree_gist;
+        CREATE TABLE departments (
+            id int not null,
+            valid_period tsrange not null,
+            name text not null,
+            constraint departments_pk primary key (id, valid_period without overlaps)
+        );
+
+        CREATE TABLE employees (
+            id serial primary key,
+            dept_id int not null,
+            emp_period tsrange not null,
+            name text not null,
+            constraint emp_dept_fk foreign key (dept_id, period emp_period) references departments (id, period valid_period)
+        );
+
+        INSERT INTO departments (id, valid_period, name) VALUES
+            (1, '[2024-01-01, 2025-01-01)', 'Engineering');
+
+        INSERT INTO employees (dept_id, emp_period, name) VALUES
+            (1, '[2024-01-01, 2024-06-01)', 'Alice');
+        "#,
+        source,
+        destination,
+    )
+    .await;
 }

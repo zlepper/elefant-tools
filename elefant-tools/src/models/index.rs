@@ -16,6 +16,8 @@ pub struct PostgresIndex {
     pub index_constraint_type: PostgresIndexType,
     pub storage_parameters: Vec<String>,
     pub comment: Option<String>,
+    /// For temporal primary keys, stores the constraint definition from pg_get_constraintdef().
+    pub constraint_definition: Option<String>,
     pub object_id: ObjectId,
 }
 
@@ -50,6 +52,16 @@ impl PostgresIndex {
         identifier_quoter: &IdentifierQuoter,
     ) -> String {
         if PostgresIndexType::PrimaryKey == self.index_constraint_type {
+            if let Some(ref constraint_def) = self.constraint_definition {
+                return format!(
+                    "alter table {}.{} add constraint {} {};",
+                    schema.name.quote(identifier_quoter, ColumnName),
+                    table.name.quote(identifier_quoter, ColumnName),
+                    self.name.quote(identifier_quoter, ColumnName),
+                    constraint_def
+                );
+            }
+
             return format!(
                 "alter table {}.{} add constraint {} primary key ({});",
                 schema.name.quote(identifier_quoter, ColumnName),

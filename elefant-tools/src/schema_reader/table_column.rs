@@ -1,5 +1,5 @@
 use crate::postgres_client_wrapper::{QueryResult, RowEnumExt};
-use crate::{ColumnIdentity, PostgresColumn};
+use crate::{ColumnIdentity, GeneratedColumn, GeneratedColumnType, PostgresColumn};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TableColumnsResult {
@@ -10,7 +10,8 @@ pub struct TableColumnsResult {
     pub is_nullable: bool,
     pub data_type: String,
     pub column_default: Option<String>,
-    pub generated: Option<String>,
+    pub generation_expression: Option<String>,
+    pub generated_type: String,
     pub comment: Option<String>,
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
@@ -29,24 +30,36 @@ impl<'a> elefant_client::FromSqlRow<'a> for TableColumnsResult {
             is_nullable: row.get(4)?,
             data_type: row.get(5)?,
             column_default: row.get(6)?,
-            generated: row.get(7)?,
-            comment: row.get(8)?,
-            array_dimensions: row.get(9)?,
-            data_type_length: row.get(10)?,
-            identity: row.try_get_opt_enum_value(11)?,
+            generation_expression: row.get(7)?,
+            generated_type: row.get(8)?,
+            comment: row.get(9)?,
+            array_dimensions: row.get(10)?,
+            data_type_length: row.get(11)?,
+            identity: row.try_get_opt_enum_value(12)?,
         })
     }
 }
 
 impl TableColumnsResult {
     pub fn to_postgres_column(&self) -> PostgresColumn {
+        let generated = self.generation_expression.as_ref().map(|expression| {
+            let generation_type = match self.generated_type.as_str() {
+                "v" => GeneratedColumnType::Virtual,
+                _ => GeneratedColumnType::Stored,
+            };
+            GeneratedColumn {
+                expression: expression.clone(),
+                generation_type,
+            }
+        });
+
         PostgresColumn {
             name: self.column_name.clone(),
             is_nullable: self.is_nullable,
             ordinal_position: self.ordinal_position as i32,
             data_type: self.data_type.clone(),
             default_value: self.column_default.clone(),
-            generated: self.generated.clone(),
+            generated,
             comment: self.comment.clone(),
             array_dimensions: self.array_dimensions,
             data_type_length: self.data_type_length,
@@ -71,6 +84,7 @@ select ns.nspname,
            WHEN attr.attgenerated <> ''::"char" THEN pg_get_expr(ad.adbin, ad.adrelid)
            ELSE NULL::text
            END::text                                                                               AS generation_expression,
+       attr.attgenerated::text                                                                     AS generated_type,
        des.description,
        attr.attndims                                                                               as array_dimensions,
        information_schema._pg_char_max_length(coalesce(non_array_type.oid, t.oid), attr.atttypmod) as data_type_length,

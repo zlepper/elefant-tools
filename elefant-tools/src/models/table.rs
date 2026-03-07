@@ -83,14 +83,22 @@ impl PostgresTable {
                     sql.push_str("[]");
                 }
 
-                if !column.is_nullable {
+                let has_named_not_null = !column.is_nullable
+                    && self.constraints.iter().any(|c| {
+                        matches!(c, PostgresConstraint::NotNull(nn) if nn.column_name == column.name)
+                    });
+
+                if !column.is_nullable && !has_named_not_null {
                     sql.push_str(" not null");
                 }
 
                 if let Some(generated) = &column.generated {
                     sql.push_str(" generated always as (");
-                    sql.push_str(generated);
-                    sql.push_str(") stored");
+                    sql.push_str(&generated.expression);
+                    match generated.generation_type {
+                        crate::GeneratedColumnType::Stored => sql.push_str(") stored"),
+                        crate::GeneratedColumnType::Virtual => sql.push_str(") virtual"),
+                    }
                 }
 
                 if let Some(identity) = &column.identity {
@@ -122,11 +130,16 @@ impl PostgresTable {
 
                     sql.push_str("\n    constraint ");
                     sql.push_str(&index.name.quote(identifier_quoter, ColumnName));
-                    sql.push_str(" primary key (");
 
-                    // We don't need to escape the column names here as they are already escaped in the index definition.
-                    sql.push_join(", ", index.key_columns.iter().map(|c| &c.name));
-                    sql.push(')');
+                    if let Some(ref constraint_def) = index.constraint_definition {
+                        sql.push(' ');
+                        sql.push_str(constraint_def);
+                    } else {
+                        sql.push_str(" primary key (");
+                        // We don't need to escape the column names here as they are already escaped in the index definition.
+                        sql.push_join(", ", index.key_columns.iter().map(|c| &c.name));
+                        sql.push(')');
+                    }
                     text_row_count += 1;
                 }
             }
@@ -140,6 +153,9 @@ impl PostgresTable {
                     sql.push_str(&check.name.quote(identifier_quoter, ColumnName));
                     sql.push_str(" check ");
                     sql.push_str(&check.check_clause);
+                    if !check.is_enforced {
+                        sql.push_str(" not enforced");
+                    }
                     text_row_count += 1;
                 }
             }

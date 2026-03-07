@@ -11,11 +11,23 @@ pub struct PostgresColumn {
     pub is_nullable: bool,
     pub data_type: String,
     pub default_value: Option<String>,
-    pub generated: Option<String>,
+    pub generated: Option<GeneratedColumn>,
     pub comment: Option<String>,
     pub array_dimensions: i32,
     pub data_type_length: Option<i32>,
     pub identity: Option<ColumnIdentity>,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
+pub struct GeneratedColumn {
+    pub expression: String,
+    pub generation_type: GeneratedColumnType,
+}
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Serialize, Deserialize)]
+pub enum GeneratedColumnType {
+    Stored,
+    Virtual,
 }
 
 impl PostgresColumn {

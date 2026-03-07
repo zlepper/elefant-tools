@@ -292,6 +292,7 @@ async fn hypertable_permissions(helper: &TestHelper) {
                             index_constraint_type: PostgresIndexType::Index,
                             storage_parameters: vec![],
                             comment: None,
+                            constraint_definition: None,
                             object_id: ObjectId::new(3),
                         }],
                         comment: None,

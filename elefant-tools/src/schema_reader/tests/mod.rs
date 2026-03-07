@@ -636,10 +636,111 @@ async fn generated_column(helper: &TestHelper) {
                             ordinal_position: 2,
                             is_nullable: false,
                             data_type: "tsvector".to_string(),
-                            generated: Some("to_tsvector('english'::regconfig, name)".to_string()),
+                            generated: Some(GeneratedColumn {
+                                expression: "to_tsvector('english'::regconfig, name)".to_string(),
+                                generation_type: GeneratedColumnType::Stored,
+                            }),
                             ..default()
                         },
                     ],
+                    ..default()
+                }],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18))]
+#[pg_test(arg(timescale_db = 18))]
+async fn virtual_generated_column(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+    CREATE TABLE products (
+        name text not null,
+        name_upper text not null GENERATED ALWAYS AS (upper(name)) VIRTUAL
+    );
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                sequences: vec![],
+                tables: vec![PostgresTable {
+                    name: "products".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "name".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "name_upper".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            generated: Some(GeneratedColumn {
+                                expression: "upper(name)".to_string(),
+                                generation_type: GeneratedColumnType::Virtual,
+                            }),
+                            ..default()
+                        },
+                    ],
+                    ..default()
+                }],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+    .await;
+}
+
+#[pg_test(arg(postgres = 18))]
+#[pg_test(arg(timescale_db = 18))]
+async fn not_enforced_check_constraint(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+    CREATE TABLE products (
+        id int not null,
+        price numeric,
+        constraint positive_price check (price > 0) not enforced
+    );
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![PostgresTable {
+                    name: "products".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "price".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: true,
+                            data_type: "numeric".to_string(),
+                            ..default()
+                        },
+                    ],
+                    constraints: vec![PostgresConstraint::Check(PostgresCheckConstraint {
+                        name: "positive_price".to_string(),
+                        check_clause: "((price > (0)::numeric))".into(),
+                        is_enforced: false,
+                        ..default()
+                    })],
                     ..default()
                 }],
                 ..default()
@@ -702,6 +803,81 @@ async fn test_quoted_identifier_names(helper: &TestHelper) {
                     data_type: "int4".to_string(),
                     ..default()
                 }],
+                ..default()
+            }],
+            timescale_support: TimescaleSupport::from_test_helper(helper),
+            ..default()
+        },
+    )
+    .await
+}
+
+#[pg_test(arg(postgres = 18))]
+#[pg_test(arg(timescale_db = 18))]
+async fn temporal_primary_key(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+    CREATE EXTENSION btree_gist;
+    CREATE TABLE reservations (
+        id int not null,
+        valid_period tsrange not null,
+        constraint reservations_pk primary key (id, valid_period without overlaps)
+    );
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                name: "public".to_string(),
+                tables: vec![PostgresTable {
+                    name: "reservations".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "id".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "int4".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "valid_period".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "tsrange".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![PostgresIndex {
+                        name: "reservations_pk".to_string(),
+                        key_columns: vec![
+                            PostgresIndexKeyColumn {
+                                name: "id".to_string(),
+                                ordinal_position: 1,
+                                direction: None,
+                                nulls_order: None,
+                            },
+                            PostgresIndexKeyColumn {
+                                name: "valid_period".to_string(),
+                                ordinal_position: 2,
+                                direction: None,
+                                nulls_order: None,
+                            },
+                        ],
+                        index_type: "gist".to_string(),
+                        index_constraint_type: PostgresIndexType::PrimaryKey,
+                        constraint_definition: Some(
+                            "PRIMARY KEY (id, valid_period WITHOUT OVERLAPS)".to_string(),
+                        ),
+                        ..default()
+                    }],
+                    ..default()
+                }],
+                ..default()
+            }],
+            enabled_extensions: vec![PostgresExtension {
+                name: "btree_gist".to_string(),
+                schema_name: "public".to_string(),
+                version: "1.8".to_string(),
+                relocatable: true,
                 ..default()
             }],
             timescale_support: TimescaleSupport::from_test_helper(helper),

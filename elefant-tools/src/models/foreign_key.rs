@@ -18,6 +18,9 @@ pub struct PostgresForeignKey {
     pub update_action: ReferenceAction,
     pub delete_action: ReferenceAction,
     pub comment: Option<String>,
+    pub is_enforced: bool,
+    /// For temporal foreign keys, stores the constraint definition from pg_get_constraintdef().
+    pub constraint_definition: Option<String>,
     pub object_id: ObjectId,
 }
 
@@ -32,6 +35,8 @@ impl Default for PostgresForeignKey {
             update_action: ReferenceAction::NoAction,
             delete_action: ReferenceAction::NoAction,
             comment: None,
+            is_enforced: true,
+            constraint_definition: None,
             object_id: ObjectId::default(),
         }
     }
@@ -44,6 +49,30 @@ impl PostgresForeignKey {
         schema: &PostgresSchema,
         identifier_quoter: &IdentifierQuoter,
     ) -> String {
+        if let Some(ref constraint_def) = self.constraint_definition {
+            let mut sql = format!(
+                "alter table {}.{} add constraint {} {} not valid;",
+                schema.name.quote(identifier_quoter, ColumnName),
+                table.name.quote(identifier_quoter, ColumnName),
+                self.name.quote(identifier_quoter, ColumnName),
+                constraint_def
+            );
+
+            if let Some(comment) = &self.comment {
+                sql.push_str("\ncomment on constraint ");
+                sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
+                sql.push_str(" on ");
+                sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+                sql.push('.');
+                sql.push_str(&table.name.quote(identifier_quoter, ColumnName));
+                sql.push_str(" is ");
+                sql.push_str(&quote_value_string(comment));
+                sql.push(';');
+            }
+
+            return sql;
+        }
+
         let mut sql = format!(
             "alter table {}.{} add constraint {} foreign key (",
             schema.name.quote(identifier_quoter, ColumnName),
@@ -112,6 +141,10 @@ impl PostgresForeignKey {
             sql.push('(');
             sql.push_str(&affected_columns);
             sql.push(')');
+        }
+
+        if !self.is_enforced {
+            sql.push_str(" not enforced");
         }
 
         sql.push_str(" not valid");

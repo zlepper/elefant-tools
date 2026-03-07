@@ -1,5 +1,6 @@
 use crate::models::check_constraint::PostgresCheckConstraint;
 use crate::models::foreign_key::PostgresForeignKey;
+use crate::models::not_null_constraint::PostgresNotNullConstraint;
 use crate::models::unique_constraint::PostgresUniqueConstraint;
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +9,7 @@ use serde::{Deserialize, Serialize};
 pub enum PostgresConstraint {
     Check(PostgresCheckConstraint),
     ForeignKey(PostgresForeignKey),
+    NotNull(PostgresNotNullConstraint),
     Unique(PostgresUniqueConstraint),
 }
 
@@ -23,6 +25,12 @@ impl From<PostgresForeignKey> for PostgresConstraint {
     }
 }
 
+impl From<PostgresNotNullConstraint> for PostgresConstraint {
+    fn from(value: PostgresNotNullConstraint) -> Self {
+        PostgresConstraint::NotNull(value)
+    }
+}
+
 impl From<PostgresUniqueConstraint> for PostgresConstraint {
     fn from(value: PostgresUniqueConstraint) -> Self {
         PostgresConstraint::Unique(value)
@@ -34,6 +42,7 @@ impl PostgresConstraint {
         match self {
             PostgresConstraint::Check(constraint) => &constraint.name,
             PostgresConstraint::ForeignKey(constraint) => &constraint.name,
+            PostgresConstraint::NotNull(constraint) => &constraint.name,
             PostgresConstraint::Unique(constraint) => &constraint.name,
         }
     }

@@ -454,6 +454,16 @@ fn get_post_apply_statement_groups(
                     continue;
                 }
 
+                // Skip indexes that back temporal unique constraints — the backing
+                // index is created implicitly when the temporal constraint is added.
+                let is_temporal_unique_backing = table.constraints.iter().any(|c| {
+                    matches!(c, PostgresConstraint::Unique(uk)
+                        if uk.unique_index_name == index.name && uk.constraint_definition.is_some())
+                });
+                if is_temporal_unique_backing {
+                    continue;
+                }
+
                 if !table.is_timescale_table() {
                     let sql = index.get_create_index_command(schema, table, identifier_quoter);
                     group_1.push(sql);
@@ -513,21 +523,22 @@ fn get_post_apply_statement_groups(
         for table in &schema.tables {
             let existing_table = existing_schema.and_then(|s| s.try_get_table(&table.name));
             for constraint in &table.constraints {
+                if existing_table.is_some_and(|t| {
+                    t.constraints.iter().any(|c| c.name() == constraint.name())
+                }) {
+                    continue;
+                }
+
                 if let PostgresConstraint::Unique(uk) = constraint {
-                    if existing_table.is_some_and(|t| {
-                        t.constraints.iter().any(|c| c.name() == constraint.name())
-                    }) {
-                        debug!(
-                            "Unique constraint {} on table {} already exists in destination",
-                            constraint.name(),
-                            table.name
-                        );
-                        continue;
-                    }
                     if !table.is_timescale_table() {
                         let sql = uk.get_create_statement(table, schema, identifier_quoter);
                         group_3.push(sql);
                     }
+                }
+
+                if let PostgresConstraint::NotNull(nn) = constraint {
+                    let sql = nn.get_create_statement(table, schema, identifier_quoter);
+                    group_3.push(sql);
                 }
             }
         }

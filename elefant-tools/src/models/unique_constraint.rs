@@ -10,6 +10,8 @@ pub struct PostgresUniqueConstraint {
     pub name: String,
     pub unique_index_name: String,
     pub comment: Option<String>,
+    /// For temporal unique constraints, stores the constraint definition from pg_get_constraintdef().
+    pub constraint_definition: Option<String>,
     pub object_id: ObjectId,
 }
 
@@ -32,13 +34,23 @@ impl PostgresUniqueConstraint {
         schema: &PostgresSchema,
         quoter: &IdentifierQuoter,
     ) -> String {
-        let mut sql = format!(
-            "alter table {}.{} add constraint {} unique using index {};",
-            schema.name.quote(quoter, ColumnName),
-            table.name.quote(quoter, ColumnName),
-            self.name.quote(quoter, ColumnName),
-            self.unique_index_name.quote(quoter, ColumnName)
-        );
+        let mut sql = if let Some(ref constraint_def) = self.constraint_definition {
+            format!(
+                "alter table {}.{} add constraint {} {};",
+                schema.name.quote(quoter, ColumnName),
+                table.name.quote(quoter, ColumnName),
+                self.name.quote(quoter, ColumnName),
+                constraint_def
+            )
+        } else {
+            format!(
+                "alter table {}.{} add constraint {} unique using index {};",
+                schema.name.quote(quoter, ColumnName),
+                table.name.quote(quoter, ColumnName),
+                self.name.quote(quoter, ColumnName),
+                self.unique_index_name.quote(quoter, ColumnName)
+            )
+        };
 
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on constraint ");

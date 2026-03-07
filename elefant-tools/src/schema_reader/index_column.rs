@@ -48,7 +48,7 @@ from pg_index i
 where a.attnum > 0
  and not a.attisdropped
  and table_class.oid > 16384
-and table_class.relkind = 'r'
+and table_class.relkind in ('r', 'p')
   and (dep.objid is null or dep.deptype <> 'e' )
 order by table_schema, table_name, index_name, ordinal_position;
 "#;

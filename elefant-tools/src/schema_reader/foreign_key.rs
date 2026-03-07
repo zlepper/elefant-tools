@@ -11,6 +11,8 @@ pub struct ForeignKeyResult {
     pub update_action: ReferenceAction,
     pub delete_action: ReferenceAction,
     pub comment: Option<String>,
+    pub is_enforced: bool,
+    pub constraint_definition: Option<String>,
 }
 
 impl<'a> elefant_client::FromSqlRow<'a> for ForeignKeyResult {
@@ -27,12 +29,14 @@ impl<'a> elefant_client::FromSqlRow<'a> for ForeignKeyResult {
             update_action: row.try_get_enum_value(6)?,
             delete_action: row.try_get_enum_value(7)?,
             comment: row.get(8)?,
+            is_enforced: row.get(9)?,
+            constraint_definition: row.get(10)?,
         })
     }
 }
 
 //language=postgresql
-pub(in crate::schema_reader) const QUERY: &str = r#"
+pub(in crate::schema_reader) const QUERY_V18: &str = r#"
 select con.conname              as constraint_name,
        con_ns.nspname           as constraint_schema_name,
        tab.relname              as source_table_name,
@@ -41,7 +45,35 @@ select con.conname              as constraint_name,
        target_ns.nspname        as target_schema_name,
        con.confupdtype    as update_action,
        con.confdeltype    as delete_action,
-       d.description       as comment
+       d.description       as comment,
+       con.conenforced     as is_enforced,
+       case when con.conperiod then pg_get_constraintdef(con.oid) else null end as constraint_definition
+from pg_catalog.pg_constraint con
+         left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
+         join pg_catalog.pg_class tab on con.conrelid = tab.oid
+         left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
+         join pg_catalog.pg_class target on con.confrelid = target.oid
+         left join pg_namespace target_ns on target_ns.oid = target.relnamespace
+         left join pg_description d on d.objoid = con.oid
+         left join pg_depend dep on dep.objid = con_ns.oid
+where con.contype = 'f'
+  and (dep.objid is null or dep.deptype <> 'e' )
+order by constraint_schema_name, source_table_name, constraint_name;
+"#;
+
+//language=postgresql
+pub(in crate::schema_reader) const QUERY_LEGACY: &str = r#"
+select con.conname              as constraint_name,
+       con_ns.nspname           as constraint_schema_name,
+       tab.relname              as source_table_name,
+       tab_ns.nspname           as source_schema_name,
+       target.relname           as target_table_name,
+       target_ns.nspname        as target_schema_name,
+       con.confupdtype    as update_action,
+       con.confdeltype    as delete_action,
+       d.description       as comment,
+       true                as is_enforced,
+       null::text          as constraint_definition
 from pg_catalog.pg_constraint con
          left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
          join pg_catalog.pg_class tab on con.conrelid = tab.oid
@@ -56,8 +88,12 @@ order by constraint_schema_name, source_table_name, constraint_name;
 "#;
 
 impl QueryResult for ForeignKeyResult {
-    fn query(_version: i32) -> &'static str {
-        QUERY
+    fn query(version: i32) -> &'static str {
+        if version >= 180 {
+            QUERY_V18
+        } else {
+            QUERY_LEGACY
+        }
     }
 }
 

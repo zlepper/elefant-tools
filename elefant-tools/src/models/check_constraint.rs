@@ -3,12 +3,25 @@ use crate::whitespace_ignorant_string::WhitespaceIgnorantString;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
-#[derive(Debug, Eq, PartialEq, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Clone, Serialize, Deserialize)]
 pub struct PostgresCheckConstraint {
     pub name: String,
     pub check_clause: WhitespaceIgnorantString,
     pub comment: Option<String>,
+    pub is_enforced: bool,
     pub object_id: ObjectId,
+}
+
+impl Default for PostgresCheckConstraint {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            check_clause: WhitespaceIgnorantString::default(),
+            comment: None,
+            is_enforced: true,
+            object_id: ObjectId::default(),
+        }
+    }
 }
 
 impl PartialOrd for PostgresCheckConstraint {

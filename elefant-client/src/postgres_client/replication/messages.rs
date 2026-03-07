@@ -1,7 +1,12 @@
 use crate::protocol::frame_reader::ByteSliceError;
+use crate::protocol::FieldDescription;
+use crate::types::{FromSqlBase, FromSqlText};
 use crate::ElefantClientError;
+use crate::PostgresType;
 use std::borrow::Cow;
+use std::error::Error;
 use std::fmt;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub enum ReplicationError {
@@ -33,20 +38,33 @@ impl fmt::Display for Lsn {
     }
 }
 
-impl Lsn {
-    pub fn from_pg_string(s: &str) -> Result<Self, ElefantClientError> {
-        let parts: Vec<&str> = s.split('/').collect();
-        if parts.len() != 2 {
-            return Err(ElefantClientError::PostgresError(format!(
-                "Invalid LSN format: {s}"
-            )));
-        }
-        let high = u64::from_str_radix(parts[0], 16).map_err(|e| {
-            ElefantClientError::PostgresError(format!("Invalid LSN high part: {e}"))
-        })?;
-        let low = u64::from_str_radix(parts[1], 16)
-            .map_err(|e| ElefantClientError::PostgresError(format!("Invalid LSN low part: {e}")))?;
+impl FromStr for Lsn {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (high_str, low_str) = s
+            .split_once('/')
+            .ok_or_else(|| format!("Invalid LSN format: {s}"))?;
+        let high =
+            u64::from_str_radix(high_str, 16).map_err(|e| format!("Invalid LSN high part: {e}"))?;
+        let low =
+            u64::from_str_radix(low_str, 16).map_err(|e| format!("Invalid LSN low part: {e}"))?;
         Ok(Lsn((high << 32) | low))
+    }
+}
+
+impl<'a> FromSqlBase<'a> for Lsn {
+    fn accepts_postgres_type(oid: i32) -> bool {
+        oid == PostgresType::PG_LSN.oid
+    }
+}
+
+impl<'a> FromSqlText<'a> for Lsn {
+    fn from_sql_text(
+        raw: &'a str,
+        _field: &FieldDescription,
+    ) -> Result<Self, Box<dyn Error + Sync + Send>> {
+        Ok(raw.parse()?)
     }
 }
 

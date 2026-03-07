@@ -381,7 +381,7 @@ mod tests {
     fn lsn_display_and_parse_roundtrip() {
         let lsn = Lsn(0x0000_0001_0000_00A0);
         let s = lsn.to_string();
-        let parsed = Lsn::from_pg_string(&s).unwrap();
+        let parsed: Lsn = s.parse().unwrap();
         assert_eq!(lsn, parsed);
     }
 }

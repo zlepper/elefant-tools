@@ -25,13 +25,12 @@ async fn create_slot_on_regular<F: ConnectionFactory>(
     client: &mut PostgresClient<F>,
     slot_name: &str,
 ) -> Lsn {
-    let lsn_str: String = client
+    client
         .try_read_single_value_simple(&format!(
-            "SELECT lsn::text FROM pg_create_logical_replication_slot('{slot_name}', 'pgoutput')"
+            "SELECT lsn FROM pg_create_logical_replication_slot('{slot_name}', 'pgoutput')"
         ))
         .await
-        .unwrap();
-    Lsn::from_pg_string(&lsn_str).unwrap()
+        .unwrap()
 }
 
 async fn drop_slot_on_regular<F: ConnectionFactory>(

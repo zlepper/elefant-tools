@@ -156,7 +156,7 @@ macro_rules! impl_from_sql_for_domain_type {
 }
 
 pub struct PostgresType {
-    oid: i32,
+    pub(crate) oid: i32,
     name: &'static str,
     /// The underlying type
     element: Option<&'static PostgresType>,

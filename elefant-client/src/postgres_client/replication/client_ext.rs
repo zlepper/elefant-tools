@@ -33,8 +33,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 crate::postgres_client::QueryResultSet::RowDescriptionReceived(mut reader) => {
                     if let Some(row) = reader.next_row().await? {
                         slot = row.get_text::<String>(0)?;
-                        let lsn_str: String = row.get_text(1)?;
-                        lsn = Lsn::from_pg_string(&lsn_str)?;
+                        lsn = row.get_text(1)?;
                     }
                 }
             }

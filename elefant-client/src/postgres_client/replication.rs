@@ -170,6 +170,7 @@ pub enum TupleColumn<'a> {
     Null,
     Unchanged,
     Text(Cow<'a, str>),
+    Binary(&'a [u8]),
 }
 
 // ---------------------------------------------------------------------------
@@ -223,10 +224,9 @@ fn parse_tuple_data<'a>(reader: &mut ByteSliceReader<'a>) -> Result<TupleData<'a
                 columns.push(TupleColumn::Text(text));
             }
             b'b' => {
-                // Binary format - read but store as text representation for now
                 let len = reader.read_i32()? as usize;
-                let _bytes = reader.read_bytes(len)?;
-                columns.push(TupleColumn::Text(Cow::Borrowed("<binary>")));
+                let bytes = reader.read_bytes(len)?;
+                columns.push(TupleColumn::Binary(bytes));
             }
             _ => return Err(ReplicationError::UnknownTupleColumnType(col_type)),
         }
@@ -897,6 +897,234 @@ mod tests {
             .execute_non_query_simple(
                 "DROP PUBLICATION IF EXISTS test_pub_dropcol; \
                  DROP TABLE IF EXISTS repl_test_dropcol;",
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn basic_logical_replication_binary() {
+        let mut regular = new_client(regular_settings()).await.unwrap();
+        regular
+            .execute_non_query_simple(
+                "DROP PUBLICATION IF EXISTS test_pub_bin; \
+                 DROP TABLE IF EXISTS repl_test_bin; \
+                 CREATE TABLE repl_test_bin(id int PRIMARY KEY, value text, flag bool); \
+                 CREATE PUBLICATION test_pub_bin FOR TABLE repl_test_bin;",
+            )
+            .await
+            .unwrap();
+
+        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_bin").await;
+
+        regular
+            .execute_non_query_simple(
+                "INSERT INTO repl_test_bin VALUES (1, 'hello', true), (2, 'world', false);",
+            )
+            .await
+            .unwrap();
+
+        let mut repl = new_client(replication_settings()).await.unwrap();
+        let mut stream = repl
+            .start_replication(
+                "test_slot_bin",
+                consistent_lsn,
+                "proto_version '2', binary 'true', publication_names 'test_pub_bin'",
+            )
+            .await
+            .unwrap();
+
+        let mut saw_begin = false;
+        let mut saw_commit = false;
+        let mut relation_name = String::new();
+        let mut insert_values: Vec<(i32, String, bool)> = Vec::new();
+        let mut last_lsn = consistent_lsn;
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let msg = stream.next_message().await.unwrap();
+                match msg {
+                    ReplicationMessage::XLogData(xlog) => {
+                        last_lsn = xlog.end_lsn;
+                        let pgmsg = parse_pgoutput_message(xlog.data).unwrap();
+                        match pgmsg {
+                            PgOutputMessage::Begin(_) => saw_begin = true,
+                            PgOutputMessage::Relation(rel) => {
+                                relation_name = rel.name.into_owned();
+                            }
+                            PgOutputMessage::Insert(ins) => {
+                                let id = match &ins.tuple.columns[0] {
+                                    TupleColumn::Binary(b) => {
+                                        i32::from_be_bytes((*b).try_into().unwrap())
+                                    }
+                                    other => panic!("Expected Binary column for id, got {other:?}"),
+                                };
+                                let value = match &ins.tuple.columns[1] {
+                                    TupleColumn::Binary(b) => {
+                                        std::str::from_utf8(b).unwrap().to_string()
+                                    }
+                                    other => panic!("Expected Binary column for value, got {other:?}"),
+                                };
+                                let flag = match &ins.tuple.columns[2] {
+                                    TupleColumn::Binary(b) => b[0] != 0,
+                                    other => panic!("Expected Binary column for flag, got {other:?}"),
+                                };
+                                insert_values.push((id, value, flag));
+                            }
+                            PgOutputMessage::Commit(_) => {
+                                saw_commit = true;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    ReplicationMessage::PrimaryKeepalive(ka) => {
+                        if ka.reply_requested {
+                            last_lsn = ka.end_lsn;
+                        }
+                    }
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok(), "Timed out waiting for replication messages");
+
+        stream
+            .send_status_update(last_lsn, last_lsn, last_lsn)
+            .await
+            .unwrap();
+
+        assert!(saw_begin);
+        assert!(saw_commit);
+        assert_eq!(relation_name, "repl_test_bin");
+        assert_eq!(
+            insert_values,
+            vec![
+                (1, "hello".to_string(), true),
+                (2, "world".to_string(), false),
+            ]
+        );
+
+        drop(stream);
+        drop(repl);
+        drop_slot_on_regular(&mut regular, "test_slot_bin").await;
+        regular
+            .execute_non_query_simple(
+                "DROP PUBLICATION IF EXISTS test_pub_bin; \
+                 DROP TABLE IF EXISTS repl_test_bin;",
+            )
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn replication_binary_handles_column_addition() {
+        let mut regular = new_client(regular_settings()).await.unwrap();
+        regular
+            .execute_non_query_simple(
+                "DROP PUBLICATION IF EXISTS test_pub_binadd; \
+                 DROP TABLE IF EXISTS repl_test_binadd; \
+                 CREATE TABLE repl_test_binadd(id int PRIMARY KEY, value text); \
+                 CREATE PUBLICATION test_pub_binadd FOR TABLE repl_test_binadd;",
+            )
+            .await
+            .unwrap();
+
+        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_binadd").await;
+
+        regular
+            .execute_non_query_simple("INSERT INTO repl_test_binadd VALUES (1, 'before');")
+            .await
+            .unwrap();
+
+        regular
+            .execute_non_query_simple(
+                "ALTER TABLE repl_test_binadd ADD COLUMN extra int DEFAULT 42;",
+            )
+            .await
+            .unwrap();
+
+        regular
+            .execute_non_query_simple("INSERT INTO repl_test_binadd VALUES (2, 'after', 99);")
+            .await
+            .unwrap();
+
+        let mut repl = new_client(replication_settings()).await.unwrap();
+        let mut stream = repl
+            .start_replication(
+                "test_slot_binadd",
+                consistent_lsn,
+                "proto_version '2', binary 'true', publication_names 'test_pub_binadd'",
+            )
+            .await
+            .unwrap();
+
+        let mut relation_col_counts: Vec<usize> = Vec::new();
+        let mut insert_col_counts: Vec<usize> = Vec::new();
+        let mut commits_seen = 0u32;
+        let mut last_lsn = consistent_lsn;
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let msg = stream.next_message().await.unwrap();
+                match msg {
+                    ReplicationMessage::XLogData(xlog) => {
+                        last_lsn = xlog.end_lsn;
+                        let pgmsg = parse_pgoutput_message(xlog.data).unwrap();
+                        match pgmsg {
+                            PgOutputMessage::Relation(rel) => {
+                                relation_col_counts.push(rel.columns.len());
+                            }
+                            PgOutputMessage::Insert(ins) => {
+                                // Verify all columns are Binary variant
+                                for col in &ins.tuple.columns {
+                                    assert!(
+                                        matches!(col, TupleColumn::Binary(_)),
+                                        "Expected Binary column in binary mode, got {col:?}"
+                                    );
+                                }
+                                insert_col_counts.push(ins.tuple.columns.len());
+                            }
+                            PgOutputMessage::Commit(_) => {
+                                commits_seen += 1;
+                                if commits_seen >= 2 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    ReplicationMessage::PrimaryKeepalive(ka) => {
+                        if ka.reply_requested {
+                            last_lsn = ka.end_lsn;
+                        }
+                    }
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok(), "Timed out waiting for replication messages");
+
+        stream
+            .send_status_update(last_lsn, last_lsn, last_lsn)
+            .await
+            .unwrap();
+
+        assert!(relation_col_counts.len() >= 2);
+        assert_eq!(relation_col_counts[0], 2);
+        assert_eq!(relation_col_counts.last().copied().unwrap(), 3);
+
+        assert_eq!(insert_col_counts.len(), 2);
+        assert_eq!(insert_col_counts[0], 2);
+        assert_eq!(insert_col_counts[1], 3);
+
+        drop(stream);
+        drop(repl);
+        drop_slot_on_regular(&mut regular, "test_slot_binadd").await;
+        regular
+            .execute_non_query_simple(
+                "DROP PUBLICATION IF EXISTS test_pub_binadd; \
+                 DROP TABLE IF EXISTS repl_test_binadd;",
             )
             .await
             .unwrap();

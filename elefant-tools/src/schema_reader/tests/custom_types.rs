@@ -246,9 +246,7 @@ create table movie
                         base_type_name: "year".to_string(),
                         object_id: 3.into(),
                         not_null: true,
-                        not_null_constraint_name: Some(
-                            "non_null_year_not_null".to_string(),
-                        ),
+                        not_null_constraint_name: Some("non_null_year_not_null".to_string()),
                         depends_on: vec![7.into()],
                         ..default()
                     },

@@ -523,9 +523,9 @@ fn get_post_apply_statement_groups(
         for table in &schema.tables {
             let existing_table = existing_schema.and_then(|s| s.try_get_table(&table.name));
             for constraint in &table.constraints {
-                if existing_table.is_some_and(|t| {
-                    t.constraints.iter().any(|c| c.name() == constraint.name())
-                }) {
+                if existing_table
+                    .is_some_and(|t| t.constraints.iter().any(|c| c.name() == constraint.name()))
+                {
                     continue;
                 }
 

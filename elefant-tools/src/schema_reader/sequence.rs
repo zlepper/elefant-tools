@@ -80,4 +80,3 @@ impl QueryResult for SequenceResult {
         QUERY
     }
 }
-

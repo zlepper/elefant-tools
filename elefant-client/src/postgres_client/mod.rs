@@ -183,7 +183,8 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 }
                 BackendMessage::ParameterStatus(ps) => {
                     debug!("Received parameter status from postgres: {:?}", ps);
-                    self.parameter_statuses.insert(ps.name.into_owned(), ps.value.into_owned());
+                    self.parameter_statuses
+                        .insert(ps.name.into_owned(), ps.value.into_owned());
                 }
                 _ => {
                     return Ok(msg);

@@ -353,10 +353,14 @@ impl<'postgres_client, F: ConnectionFactory> SimpleQueryResult<'postgres_client,
     ///
     /// Returns `BatchQueryUnexpectedEnd` if the query has already completed
     /// (no more result sets available).
-    pub async fn collect_next_to_vec<T: FromSqlRowOwned>(&mut self) -> Result<Vec<T>, ElefantClientError> {
+    pub async fn collect_next_to_vec<T: FromSqlRowOwned>(
+        &mut self,
+    ) -> Result<Vec<T>, ElefantClientError> {
         match self.next_result_set().await? {
             QueryResultSet::RowDescriptionReceived(reader) => Ok(reader.collect_to_vec().await?),
-            QueryResultSet::QueryProcessingComplete => Err(ElefantClientError::BatchQueryUnexpectedEnd),
+            QueryResultSet::QueryProcessingComplete => {
+                Err(ElefantClientError::BatchQueryUnexpectedEnd)
+            }
         }
     }
 

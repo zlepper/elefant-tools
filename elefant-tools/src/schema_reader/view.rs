@@ -58,4 +58,3 @@ impl QueryResult for ViewResult {
         QUERY
     }
 }
-

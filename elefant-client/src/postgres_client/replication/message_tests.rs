@@ -39,9 +39,7 @@ async fn drop_slot_on_regular<F: ConnectionFactory>(
     slot_name: &str,
 ) {
     let _ = client
-        .execute_non_query_simple(&format!(
-            "SELECT pg_drop_replication_slot('{slot_name}')"
-        ))
+        .execute_non_query_simple(&format!("SELECT pg_drop_replication_slot('{slot_name}')"))
         .await;
 }
 
@@ -181,9 +179,7 @@ async fn replication_handles_column_addition() {
     let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
     regular
-        .execute_non_query_simple(&format!(
-            "INSERT INTO {table} VALUES (1, 'before');"
-        ))
+        .execute_non_query_simple(&format!("INSERT INTO {table} VALUES (1, 'before');"))
         .await
         .unwrap();
 
@@ -229,8 +225,7 @@ async fn replication_handles_column_addition() {
                     let pgmsg = parse_pgoutput_message(xlog.data).unwrap();
                     match pgmsg {
                         PgOutputMessage::Relation(rel) => {
-                            relation_versions
-                                .push((rel.name.into_owned(), rel.columns.len()));
+                            relation_versions.push((rel.name.into_owned(), rel.columns.len()));
                         }
                         PgOutputMessage::Insert(ins) => {
                             insert_col_counts.push(ins.tuple.columns.len());
@@ -260,7 +255,10 @@ async fn replication_handles_column_addition() {
         relation_versions.len() >= 2,
         "Expected at least 2 Relation messages, got {relation_versions:?}"
     );
-    assert_eq!(relation_versions[0].1, 2, "First relation should have 2 columns");
+    assert_eq!(
+        relation_versions[0].1, 2,
+        "First relation should have 2 columns"
+    );
     assert_eq!(
         relation_versions.last().unwrap().1,
         3,
@@ -311,16 +309,12 @@ async fn replication_handles_column_removal() {
         .unwrap();
 
     regular
-        .execute_non_query_simple(&format!(
-            "ALTER TABLE {table} DROP COLUMN old_col;"
-        ))
+        .execute_non_query_simple(&format!("ALTER TABLE {table} DROP COLUMN old_col;"))
         .await
         .unwrap();
 
     regular
-        .execute_non_query_simple(&format!(
-            "INSERT INTO {table} VALUES (2, 'value2');"
-        ))
+        .execute_non_query_simple(&format!("INSERT INTO {table} VALUES (2, 'value2');"))
         .await
         .unwrap();
 
@@ -354,12 +348,8 @@ async fn replication_handles_column_removal() {
                     match pgmsg {
                         PgOutputMessage::Relation(rel) => {
                             relation_col_counts.push(rel.columns.len());
-                            relation_col_names.push(
-                                rel.columns
-                                    .iter()
-                                    .map(|c| c.name.to_string())
-                                    .collect(),
-                            );
+                            relation_col_names
+                                .push(rel.columns.iter().map(|c| c.name.to_string()).collect());
                         }
                         PgOutputMessage::Insert(ins) => {
                             insert_col_counts.push(ins.tuple.columns.len());
@@ -389,7 +379,10 @@ async fn replication_handles_column_removal() {
         relation_col_counts.len() >= 2,
         "Expected at least 2 Relation messages, got {relation_col_counts:?}"
     );
-    assert_eq!(relation_col_counts[0], 3, "First relation should have 3 columns");
+    assert_eq!(
+        relation_col_counts[0], 3,
+        "First relation should have 3 columns"
+    );
     assert_eq!(
         relation_col_counts.last().copied().unwrap(),
         2,
@@ -570,9 +563,7 @@ async fn replication_binary_handles_column_addition() {
     let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
     regular
-        .execute_non_query_simple(&format!(
-            "INSERT INTO {table} VALUES (1, 'before');"
-        ))
+        .execute_non_query_simple(&format!("INSERT INTO {table} VALUES (1, 'before');"))
         .await
         .unwrap();
 
@@ -584,9 +575,7 @@ async fn replication_binary_handles_column_addition() {
         .unwrap();
 
     regular
-        .execute_non_query_simple(&format!(
-            "INSERT INTO {table} VALUES (2, 'after', 99);"
-        ))
+        .execute_non_query_simple(&format!("INSERT INTO {table} VALUES (2, 'after', 99);"))
         .await
         .unwrap();
 
@@ -897,9 +886,7 @@ async fn replication_captures_truncate() {
     let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
     regular
-        .execute_non_query_simple(&format!(
-            "INSERT INTO {table} VALUES (1, 'a'), (2, 'b');"
-        ))
+        .execute_non_query_simple(&format!("INSERT INTO {table} VALUES (1, 'a'), (2, 'b');"))
         .await
         .unwrap();
 

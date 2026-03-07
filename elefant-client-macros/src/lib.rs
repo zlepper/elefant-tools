@@ -215,8 +215,7 @@ fn to_snake_case(s: &str) -> String {
                 // Insert underscore before uppercase if:
                 // - previous original char was lowercase/digit, or
                 // - next char is lowercase (handles "XMLParser" -> "xml_parser")
-                let prev_was_lower =
-                    chars[i - 1].is_lowercase() || chars[i - 1].is_ascii_digit();
+                let prev_was_lower = chars[i - 1].is_lowercase() || chars[i - 1].is_ascii_digit();
                 let next_is_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
 
                 if prev_was_lower || next_is_lower {

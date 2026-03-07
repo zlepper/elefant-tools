@@ -44,9 +44,8 @@ impl Lsn {
         let high = u64::from_str_radix(parts[0], 16).map_err(|e| {
             ElefantClientError::PostgresError(format!("Invalid LSN high part: {e}"))
         })?;
-        let low = u64::from_str_radix(parts[1], 16).map_err(|e| {
-            ElefantClientError::PostgresError(format!("Invalid LSN low part: {e}"))
-        })?;
+        let low = u64::from_str_radix(parts[1], 16)
+            .map_err(|e| ElefantClientError::PostgresError(format!("Invalid LSN low part: {e}")))?;
         Ok(Lsn((high << 32) | low))
     }
 }
@@ -90,7 +89,10 @@ pub enum PgOutputMessage<'a> {
     StreamAbort(StreamAbortMessage),
     /// A pgoutput message type that is part of the protocol but not yet
     /// fully supported (e.g., two-phase commit messages from proto_version 3+).
-    Unsupported { msg_type: u8, data: &'a [u8] },
+    Unsupported {
+        msg_type: u8,
+        data: &'a [u8],
+    },
 }
 
 #[derive(Debug)]

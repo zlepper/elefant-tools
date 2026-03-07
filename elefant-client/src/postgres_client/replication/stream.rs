@@ -2,7 +2,7 @@ use super::message_reader::parse_replication_message;
 use super::messages::*;
 use crate::pool::ConnectionFactory;
 use crate::postgres_client::PostgresClient;
-use crate::protocol::frame_reader::{ByteSliceWriter};
+use crate::protocol::frame_reader::ByteSliceWriter;
 use crate::protocol::{BackendMessage, CopyData, FrontendMessage};
 use crate::{reborrow_until_polonius, ElefantClientError};
 
@@ -40,8 +40,7 @@ impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
     ) -> Result<Option<ReplicationMessage<'_>>, ElefantClientError> {
         loop {
             let result = {
-                let client: &mut PostgresClient<F> =
-                    reborrow_until_polonius!(&mut *self.client);
+                let client: &mut PostgresClient<F> = reborrow_until_polonius!(&mut *self.client);
                 let msg = client.read_next_backend_message().await?;
                 match msg {
                     BackendMessage::CopyData(cd) => {
@@ -106,7 +105,9 @@ impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
 
         self.client
             .connection
-            .write_frontend_message(&FrontendMessage::CopyData(CopyData { data: &self.status_buf }))
+            .write_frontend_message(&FrontendMessage::CopyData(CopyData {
+                data: &self.status_buf,
+            }))
             .await?;
         self.client.connection.flush().await?;
         Ok(())

@@ -102,4 +102,3 @@ impl QueryResult for TriggerResult {
         QUERY
     }
 }
-

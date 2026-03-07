@@ -99,4 +99,3 @@ impl QueryResult for ContinuousAggregateResult {
         QUERY
     }
 }
-

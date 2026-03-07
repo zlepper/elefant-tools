@@ -71,30 +71,46 @@ impl SchemaReader<'_> {
         let mut object_id_generator = ObjectIdGenerator::new();
         let mut object_id_mapping = PgOidToObjectIdMapping::default();
 
-        let (mut extensions, schemas, tables, columns, check_constraints,
-            unique_constraints, indices, index_columns, sequences, foreign_keys,
-            foreign_key_columns, views, view_columns, functions, triggers,
-            enums, domains, not_null_constraints)
-            = BatchQueryBuilder::new(self.connection)
-                .add::<ExtensionResult>()
-                .add::<SchemaResult>()
-                .add::<TablesResult>()
-                .add::<TableColumnsResult>()
-                .add::<CheckConstraintResult>()
-                .add::<UniqueConstraintResult>()
-                .add::<IndexResult>()
-                .add::<IndexColumnResult>()
-                .add::<SequenceResult>()
-                .add::<ForeignKeyResult>()
-                .add::<ForeignKeyColumnResult>()
-                .add::<ViewResult>()
-                .add::<ViewColumnResult>()
-                .add::<FunctionResult>()
-                .add::<TriggerResult>()
-                .add::<EnumResult>()
-                .add::<DomainResult>()
-                .add::<NotNullConstraintResult>()
-                .execute(self.connection).await?;
+        let (
+            mut extensions,
+            schemas,
+            tables,
+            columns,
+            check_constraints,
+            unique_constraints,
+            indices,
+            index_columns,
+            sequences,
+            foreign_keys,
+            foreign_key_columns,
+            views,
+            view_columns,
+            functions,
+            triggers,
+            enums,
+            domains,
+            not_null_constraints,
+        ) = BatchQueryBuilder::new(self.connection)
+            .add::<ExtensionResult>()
+            .add::<SchemaResult>()
+            .add::<TablesResult>()
+            .add::<TableColumnsResult>()
+            .add::<CheckConstraintResult>()
+            .add::<UniqueConstraintResult>()
+            .add::<IndexResult>()
+            .add::<IndexColumnResult>()
+            .add::<SequenceResult>()
+            .add::<ForeignKeyResult>()
+            .add::<ForeignKeyColumnResult>()
+            .add::<ViewResult>()
+            .add::<ViewColumnResult>()
+            .add::<FunctionResult>()
+            .add::<TriggerResult>()
+            .add::<EnumResult>()
+            .add::<DomainResult>()
+            .add::<NotNullConstraintResult>()
+            .execute(self.connection)
+            .await?;
 
         let mut db = PostgresDatabase::default();
 
@@ -118,7 +134,8 @@ impl SchemaReader<'_> {
                     .add::<TimescaleHypertableDimensionResult>()
                     .add::<ContinuousAggregateResult>()
                     .add::<TimescaleJobResult>()
-                    .execute(self.connection).await?
+                    .execute(self.connection)
+                    .await?
             } else {
                 (vec![], vec![], vec![], vec![])
             };

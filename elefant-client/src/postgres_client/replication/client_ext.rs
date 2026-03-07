@@ -59,9 +59,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         options: &str,
     ) -> Result<ReplicationStream<'_, F>, ElefantClientError> {
         let slot_quoted = quote_identifier(slot_name);
-        let query = format!(
-            "START_REPLICATION SLOT {slot_quoted} LOGICAL {lsn} ({options})"
-        );
+        let query = format!("START_REPLICATION SLOT {slot_quoted} LOGICAL {lsn} ({options})");
 
         self.start_new_query().await?;
         self.connection
@@ -73,7 +71,9 @@ impl<F: ConnectionFactory> PostgresClient<F> {
 
         let msg = self.read_next_backend_message().await?;
         match msg {
-            crate::protocol::BackendMessage::CopyBothResponse(_) => Ok(ReplicationStream::new(self)),
+            crate::protocol::BackendMessage::CopyBothResponse(_) => {
+                Ok(ReplicationStream::new(self))
+            }
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
                 "Expected CopyBothResponse, got {msg:?}"
             ))),

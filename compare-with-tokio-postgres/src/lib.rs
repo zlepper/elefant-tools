@@ -38,7 +38,5 @@ pub fn run_block<F: std::future::Future>(fut: F) -> F::Output {
 /// Ensure a database exists, creating it if needed.
 pub async fn ensure_database(db: &str) {
     let client = tokio_pg_connect("postgres").await;
-    let _ = client
-        .execute(&format!("CREATE DATABASE {db}"), &[])
-        .await;
+    let _ = client.execute(&format!("CREATE DATABASE {db}"), &[]).await;
 }

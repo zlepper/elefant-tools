@@ -100,4 +100,3 @@ impl QueryResult for TablesResult {
         QUERY
     }
 }
-

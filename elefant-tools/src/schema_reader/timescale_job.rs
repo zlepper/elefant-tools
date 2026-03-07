@@ -48,4 +48,3 @@ impl QueryResult for TimescaleJobResult {
         QUERY
     }
 }
-

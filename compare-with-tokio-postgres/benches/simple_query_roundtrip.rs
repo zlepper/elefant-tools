@@ -1,8 +1,8 @@
 use compare_with_tokio_postgres::*;
 use criterion::{Criterion, Throughput};
-use std::hint::black_box;
 use criterion::{criterion_group, criterion_main};
 use elefant_client::QueryResultSet;
+use std::hint::black_box;
 
 fn simple_query_benchmarks(c: &mut Criterion) {
     let mut group = c.benchmark_group("simple_query_roundtrip");

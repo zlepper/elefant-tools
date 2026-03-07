@@ -96,4 +96,3 @@ impl QueryResult for ForeignKeyResult {
         }
     }
 }
-

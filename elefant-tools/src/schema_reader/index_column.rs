@@ -58,4 +58,3 @@ impl QueryResult for IndexColumnResult {
         QUERY
     }
 }
-

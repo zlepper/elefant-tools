@@ -34,4 +34,3 @@ impl QueryResult for SchemaResult {
         QUERY
     }
 }
-

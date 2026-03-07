@@ -5,10 +5,9 @@ use std::hint::black_box;
 use tokio_postgres::NoTls;
 
 async fn tokio_postgres_connect() {
-    let (client, connection) =
-        tokio_postgres::connect(&tokio_pg_connstr("postgres"), NoTls)
-            .await
-            .unwrap();
+    let (client, connection) = tokio_postgres::connect(&tokio_pg_connstr("postgres"), NoTls)
+        .await
+        .unwrap();
     tokio::spawn(async move {
         if let Err(e) = connection.await {
             eprintln!("connection error: {e}");

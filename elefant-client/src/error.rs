@@ -94,7 +94,10 @@ impl Display for ElefantClientError {
                 write!(f, "TLS error: {msg}")
             }
             ElefantClientError::BatchQueryUnexpectedEnd => {
-                write!(f, "Batch query ended unexpectedly: expected more result sets")
+                write!(
+                    f,
+                    "Batch query ended unexpectedly: expected more result sets"
+                )
             }
         }
     }

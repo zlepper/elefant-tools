@@ -46,4 +46,3 @@ impl QueryResult for ViewColumnResult {
         QUERY
     }
 }
-

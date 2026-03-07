@@ -36,4 +36,3 @@ impl QueryResult for ExtensionResult {
         QUERY
     }
 }
-

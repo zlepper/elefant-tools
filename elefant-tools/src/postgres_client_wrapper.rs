@@ -83,13 +83,12 @@ impl PostgresClientWrapper {
             }
         })?;
 
-        let rows = query_result
-            .collect_to_vec::<T>()
-            .await
-            .map_err(|e| crate::ElefantToolsError::PostgresErrorWithQuery {
+        let rows = query_result.collect_to_vec::<T>().await.map_err(|e| {
+            crate::ElefantToolsError::PostgresErrorWithQuery {
                 source: e,
                 query: sql.to_string(),
-            })?;
+            }
+        })?;
 
         Ok(rows)
     }
@@ -164,10 +163,11 @@ impl RowEnumExt for PostgresDataRow<'_, '_> {
         let c: Option<char> = self.get(idx)?;
         match c {
             Some('\0') => Ok(None),
-            Some(c) => Ok(Some(
-                T::from_pg_char(c)
-                    .map_err(|e| ElefantClientError::PostgresError(e.to_string()))?,
-            )),
+            Some(c) => {
+                Ok(Some(T::from_pg_char(c).map_err(|e| {
+                    ElefantClientError::PostgresError(e.to_string())
+                })?))
+            }
             None => Ok(None),
         }
     }
@@ -210,10 +210,7 @@ impl<Batch> BatchQueryBuilder<Batch> {
 }
 
 impl<Batch: CollectBatch + FlattenTuple> BatchQueryBuilder<Batch> {
-    pub(crate) async fn execute(
-        self,
-        connection: &PostgresClientWrapper,
-    ) -> Result<Batch::Output> {
+    pub(crate) async fn execute(self, connection: &PostgresClientWrapper) -> Result<Batch::Output> {
         let mut client = connection.pool().get_client().await?;
         let mut result = client.query_simple(&self.query).await?;
         Ok(Batch::collect(&mut result).await?.flatten())

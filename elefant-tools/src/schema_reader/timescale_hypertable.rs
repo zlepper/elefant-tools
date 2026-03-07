@@ -73,7 +73,6 @@ impl QueryResult for HypertableResult {
     }
 }
 
-
 /*
 SELECT j.id           AS job_id,
        j.application_name,

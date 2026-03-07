@@ -132,4 +132,3 @@ impl QueryResult for IndexResult {
         }
     }
 }
-

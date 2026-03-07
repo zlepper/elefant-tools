@@ -32,7 +32,9 @@ pub fn parse_replication_message(data: &[u8]) -> Result<ReplicationMessage<'_>, 
     }
 }
 
-fn parse_tuple_data<'a>(reader: &mut ByteSliceReader<'a>) -> Result<TupleData<'a>, ReplicationError> {
+fn parse_tuple_data<'a>(
+    reader: &mut ByteSliceReader<'a>,
+) -> Result<TupleData<'a>, ReplicationError> {
     let col_count = reader.read_i16()? as usize;
     let mut columns = Vec::with_capacity(col_count);
 

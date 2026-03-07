@@ -35,14 +35,18 @@ async fn setup_benchmark_database() {
         .unwrap();
     client
         .execute(
-            &format!("CREATE TABLE {TARGET_TABLE_TOKIO} (id BIGINT, value INTEGER, text_data TEXT)"),
+            &format!(
+                "CREATE TABLE {TARGET_TABLE_TOKIO} (id BIGINT, value INTEGER, text_data TEXT)"
+            ),
             &[],
         )
         .await
         .unwrap();
     client
         .execute(
-            &format!("CREATE TABLE {TARGET_TABLE_ELEFANT} (id BIGINT, value INTEGER, text_data TEXT)"),
+            &format!(
+                "CREATE TABLE {TARGET_TABLE_ELEFANT} (id BIGINT, value INTEGER, text_data TEXT)"
+            ),
             &[],
         )
         .await

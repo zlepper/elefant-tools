@@ -76,4 +76,3 @@ impl QueryResult for DomainResult {
         QUERY
     }
 }
-

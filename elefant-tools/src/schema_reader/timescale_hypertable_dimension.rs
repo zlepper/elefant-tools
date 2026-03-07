@@ -45,4 +45,3 @@ impl QueryResult for TimescaleHypertableDimensionResult {
         QUERY
     }
 }
-

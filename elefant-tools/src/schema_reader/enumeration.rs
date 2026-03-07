@@ -41,4 +41,3 @@ impl QueryResult for EnumResult {
         QUERY
     }
 }
-

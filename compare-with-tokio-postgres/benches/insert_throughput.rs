@@ -45,7 +45,10 @@ fn insert_benchmarks(c: &mut Criterion) {
                 let mut total = std::time::Duration::ZERO;
                 for _ in 0..iters {
                     rt.block_on(async {
-                        client.execute("TRUNCATE TABLE insert_bench", &[]).await.unwrap();
+                        client
+                            .execute("TRUNCATE TABLE insert_bench", &[])
+                            .await
+                            .unwrap();
                     });
                     let start = std::time::Instant::now();
                     rt.block_on(async {
@@ -86,17 +89,17 @@ fn insert_benchmarks(c: &mut Criterion) {
                 let mut total = std::time::Duration::ZERO;
                 for _ in 0..iters {
                     rt.block_on(async {
-                        client.execute_non_query_simple("TRUNCATE TABLE insert_bench").await.unwrap();
+                        client
+                            .execute_non_query_simple("TRUNCATE TABLE insert_bench")
+                            .await
+                            .unwrap();
                     });
                     let start = std::time::Instant::now();
                     rt.block_on(async {
                         for i in 0..num_rows {
                             let text = format!("row_{i}");
                             client
-                                .execute_non_query(
-                                    &stmt,
-                                    &[&(i as i64), &(i as i32), &text],
-                                )
+                                .execute_non_query(&stmt, &[&(i as i64), &(i as i32), &text])
                                 .await
                                 .unwrap();
                         }

@@ -109,4 +109,3 @@ impl QueryResult for TableColumnsResult {
         QUERY
     }
 }
-

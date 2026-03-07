@@ -72,4 +72,3 @@ impl QueryResult for CheckConstraintResult {
         }
     }
 }
-

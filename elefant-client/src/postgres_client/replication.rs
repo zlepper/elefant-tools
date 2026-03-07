@@ -585,33 +585,15 @@ impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
 }
 
 // ---------------------------------------------------------------------------
-// Input validation
+// Identifier quoting
 // ---------------------------------------------------------------------------
 
-/// Validates that a replication identifier (slot name or output plugin name)
-/// contains only characters permitted by PostgreSQL: lowercase ASCII letters,
-/// digits, and underscores, with a maximum length of 63 characters.
-fn validate_replication_identifier(name: &str, kind: &str) -> Result<(), ElefantClientError> {
-    if name.is_empty() {
-        return Err(ElefantClientError::PostgresError(format!(
-            "{kind} must not be empty"
-        )));
-    }
-    if name.len() > 63 {
-        return Err(ElefantClientError::PostgresError(format!(
-            "{kind} exceeds maximum length of 63 characters: {name:?}"
-        )));
-    }
-    if !name
-        .bytes()
-        .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_'))
-    {
-        return Err(ElefantClientError::PostgresError(format!(
-            "{kind} contains invalid characters: {name:?}. \
-             Only lowercase letters, digits, and underscores are allowed."
-        )));
-    }
-    Ok(())
+/// Quotes an identifier for use in replication protocol commands using
+/// PostgreSQL's standard double-quoting rules: wrap in double quotes and
+/// escape any internal double quotes by doubling them.
+fn quote_identifier(name: &str) -> String {
+    let escaped = name.replace('"', "\"\"");
+    format!("\"{escaped}\"")
 }
 
 // ---------------------------------------------------------------------------
@@ -624,9 +606,9 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         slot_name: &str,
         output_plugin: &str,
     ) -> Result<(String, Lsn), ElefantClientError> {
-        validate_replication_identifier(slot_name, "slot name")?;
-        validate_replication_identifier(output_plugin, "output plugin")?;
-        let query = format!("CREATE_REPLICATION_SLOT {slot_name} LOGICAL {output_plugin}");
+        let slot_quoted = quote_identifier(slot_name);
+        let plugin_quoted = quote_identifier(output_plugin);
+        let query = format!("CREATE_REPLICATION_SLOT {slot_quoted} LOGICAL {plugin_quoted}");
         let mut result = self.query_simple(&query).await?;
         let mut slot = String::new();
         let mut lsn = Lsn(0);
@@ -651,8 +633,8 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         &mut self,
         slot_name: &str,
     ) -> Result<(), ElefantClientError> {
-        validate_replication_identifier(slot_name, "slot name")?;
-        let query = format!("DROP_REPLICATION_SLOT {slot_name}");
+        let slot_quoted = quote_identifier(slot_name);
+        let query = format!("DROP_REPLICATION_SLOT {slot_quoted}");
         self.execute_non_query_simple(&query).await
     }
 
@@ -662,9 +644,9 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         lsn: Lsn,
         options: &str,
     ) -> Result<ReplicationStream<'_, F>, ElefantClientError> {
-        validate_replication_identifier(slot_name, "slot name")?;
+        let slot_quoted = quote_identifier(slot_name);
         let query = format!(
-            "START_REPLICATION SLOT {slot_name} LOGICAL {lsn} ({options})"
+            "START_REPLICATION SLOT {slot_quoted} LOGICAL {lsn} ({options})"
         );
 
         self.start_new_query().await?;
@@ -694,27 +676,27 @@ mod unit_tests {
     use super::*;
 
     #[test]
-    fn validate_replication_identifier_accepts_valid_names() {
-        assert!(validate_replication_identifier("good_slot_name", "slot name").is_ok());
-        assert!(validate_replication_identifier("slot123", "slot name").is_ok());
-        assert!(validate_replication_identifier("a", "slot name").is_ok());
-        let max = "a".repeat(63);
-        assert!(validate_replication_identifier(&max, "slot name").is_ok());
+    fn quote_identifier_simple_name() {
+        assert_eq!(quote_identifier("my_slot"), "\"my_slot\"");
     }
 
     #[test]
-    fn validate_replication_identifier_rejects_invalid_names() {
-        // Uppercase
-        assert!(validate_replication_identifier("BadSlot", "slot name").is_err());
-        // Injection attempt
-        assert!(validate_replication_identifier("slot'; DROP TABLE x; --", "slot name").is_err());
-        // Spaces
-        assert!(validate_replication_identifier("slot name", "slot name").is_err());
-        // Empty
-        assert!(validate_replication_identifier("", "slot name").is_err());
-        // Too long
-        let long = "a".repeat(64);
-        assert!(validate_replication_identifier(&long, "slot name").is_err());
+    fn quote_identifier_escapes_double_quotes() {
+        assert_eq!(quote_identifier(r#"my"slot"#), r#""my""slot""#);
+    }
+
+    #[test]
+    fn quote_identifier_handles_spaces_and_special_chars() {
+        assert_eq!(
+            quote_identifier("my replication slot"),
+            "\"my replication slot\""
+        );
+        assert_eq!(quote_identifier("UPPER_CASE"), "\"UPPER_CASE\"");
+    }
+
+    #[test]
+    fn quote_identifier_handles_empty_string() {
+        assert_eq!(quote_identifier(""), "\"\"");
     }
 
     #[test]

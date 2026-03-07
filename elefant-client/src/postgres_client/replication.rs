@@ -14,7 +14,6 @@ use std::fmt;
 pub enum ReplicationError {
     TruncatedMessage,
     UnknownReplicationMessageType(u8),
-    UnknownPgOutputMessageType(u8),
     UnknownTupleColumnType(u8),
     UnknownUpdateMarker(u8),
 }
@@ -101,6 +100,16 @@ pub enum PgOutputMessage<'a> {
     Update(UpdateMessage<'a>),
     Delete(DeleteMessage<'a>),
     Truncate(TruncateMessage),
+    Origin(OriginMessage<'a>),
+    Type(TypeMessage<'a>),
+    LogicalDecodingMessage(LogicalDecodingMessage<'a>),
+    StreamStart(StreamStartMessage),
+    StreamStop,
+    StreamCommit(StreamCommitMessage),
+    StreamAbort(StreamAbortMessage),
+    /// A pgoutput message type that is part of the protocol but not yet
+    /// fully supported (e.g., two-phase commit messages from proto_version 3+).
+    Unsupported { msg_type: u8, data: &'a [u8] },
 }
 
 #[derive(Debug)]
@@ -158,6 +167,48 @@ pub struct DeleteMessage<'a> {
 pub struct TruncateMessage {
     pub option_bits: u8,
     pub relation_ids: Vec<u32>,
+}
+
+#[derive(Debug)]
+pub struct OriginMessage<'a> {
+    pub origin_lsn: Lsn,
+    pub origin_name: Cow<'a, str>,
+}
+
+#[derive(Debug)]
+pub struct TypeMessage<'a> {
+    pub type_oid: u32,
+    pub namespace: Cow<'a, str>,
+    pub name: Cow<'a, str>,
+}
+
+#[derive(Debug)]
+pub struct LogicalDecodingMessage<'a> {
+    pub transactional: bool,
+    pub lsn: Lsn,
+    pub prefix: Cow<'a, str>,
+    pub content: &'a [u8],
+}
+
+#[derive(Debug)]
+pub struct StreamStartMessage {
+    pub xid: u32,
+    pub first_segment: bool,
+}
+
+#[derive(Debug)]
+pub struct StreamCommitMessage {
+    pub xid: u32,
+    pub flags: u8,
+    pub commit_lsn: Lsn,
+    pub end_lsn: Lsn,
+    pub commit_timestamp: i64,
+}
+
+#[derive(Debug)]
+pub struct StreamAbortMessage {
+    pub xid: u32,
+    pub sub_xid: u32,
 }
 
 #[derive(Debug)]
@@ -346,7 +397,79 @@ pub fn parse_pgoutput_message(data: &[u8]) -> Result<PgOutputMessage<'_>, Replic
                 relation_ids,
             }))
         }
-        _ => Err(ReplicationError::UnknownPgOutputMessageType(msg_type)),
+        b'O' => {
+            let origin_lsn = Lsn(reader.read_u64()?);
+            let origin_name = reader.read_null_terminated_string()?;
+            Ok(PgOutputMessage::Origin(OriginMessage {
+                origin_lsn,
+                origin_name,
+            }))
+        }
+        b'Y' => {
+            let type_oid = reader.read_i32()? as u32;
+            let namespace = reader.read_null_terminated_string()?;
+            let name = reader.read_null_terminated_string()?;
+            Ok(PgOutputMessage::Type(TypeMessage {
+                type_oid,
+                namespace,
+                name,
+            }))
+        }
+        b'M' => {
+            let flags = reader.read_u8()?;
+            let transactional = (flags & 1) != 0;
+            let lsn = Lsn(reader.read_u64()?);
+            let prefix = reader.read_null_terminated_string()?;
+            let content_length = reader.read_i32()? as usize;
+            let content = reader.read_bytes(content_length)?;
+            Ok(PgOutputMessage::LogicalDecodingMessage(
+                LogicalDecodingMessage {
+                    transactional,
+                    lsn,
+                    prefix,
+                    content,
+                },
+            ))
+        }
+        b'S' => {
+            let xid = reader.read_i32()? as u32;
+            let first_segment = reader.read_u8()? != 0;
+            Ok(PgOutputMessage::StreamStart(StreamStartMessage {
+                xid,
+                first_segment,
+            }))
+        }
+        b'E' => Ok(PgOutputMessage::StreamStop),
+        b'c' => {
+            let xid = reader.read_i32()? as u32;
+            let flags = reader.read_u8()?;
+            let commit_lsn = Lsn(reader.read_u64()?);
+            let end_lsn = Lsn(reader.read_u64()?);
+            let commit_timestamp = reader.read_i64()?;
+            Ok(PgOutputMessage::StreamCommit(StreamCommitMessage {
+                xid,
+                flags,
+                commit_lsn,
+                end_lsn,
+                commit_timestamp,
+            }))
+        }
+        b'A' => {
+            let xid = reader.read_i32()? as u32;
+            let sub_xid = reader.read_i32()? as u32;
+            Ok(PgOutputMessage::StreamAbort(StreamAbortMessage {
+                xid,
+                sub_xid,
+            }))
+        }
+        _ => {
+            let remaining = data.len() - reader.get_read_bytes();
+            let payload = reader.read_bytes(remaining)?;
+            Ok(PgOutputMessage::Unsupported {
+                msg_type,
+                data: payload,
+            })
+        }
     }
 }
 
@@ -357,6 +480,16 @@ pub fn parse_pgoutput_message(data: &[u8]) -> Result<PgOutputMessage<'_>, Replic
 pub struct ReplicationStream<'a, F: ConnectionFactory> {
     client: &'a mut PostgresClient<F>,
     status_buf: Vec<u8>,
+    last_received_lsn: Lsn,
+}
+
+/// Result of reading a single raw replication message, used internally
+/// to separate parsing (which borrows the frame buffer) from actions
+/// like sending keepalive replies (which need mutable access).
+enum RawReadResult<'a> {
+    Message(ReplicationMessage<'a>),
+    KeepaliveReply(Lsn),
+    EndOfStream,
 }
 
 impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
@@ -364,17 +497,59 @@ impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
         Self {
             client,
             status_buf: Vec::with_capacity(34),
+            last_received_lsn: Lsn(0),
         }
     }
 
-    pub async fn next_message(&mut self) -> Result<ReplicationMessage<'_>, ElefantClientError> {
-        let client: &mut PostgresClient<F> = reborrow_until_polonius!(&mut *self.client);
-        let msg = client.read_next_backend_message().await?;
-        match msg {
-            BackendMessage::CopyData(cd) => Ok(parse_replication_message(cd.data)?),
-            _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
-                "Expected CopyData during replication, got {msg:?}"
-            ))),
+    /// Reads the next replication message from the stream.
+    ///
+    /// Returns `Ok(None)` when the server ends the replication stream
+    /// (sends `CopyDone`). Automatically replies to keepalive messages
+    /// that have `reply_requested` set, so callers never see those.
+    pub async fn next_message(
+        &mut self,
+    ) -> Result<Option<ReplicationMessage<'_>>, ElefantClientError> {
+        loop {
+            let result = {
+                let client: &mut PostgresClient<F> =
+                    reborrow_until_polonius!(&mut *self.client);
+                let msg = client.read_next_backend_message().await?;
+                match msg {
+                    BackendMessage::CopyData(cd) => {
+                        let repl_msg = parse_replication_message(cd.data)?;
+                        match &repl_msg {
+                            ReplicationMessage::XLogData(xlog) => {
+                                self.last_received_lsn = xlog.end_lsn;
+                                RawReadResult::Message(repl_msg)
+                            }
+                            ReplicationMessage::PrimaryKeepalive(ka) => {
+                                if ka.end_lsn > self.last_received_lsn {
+                                    self.last_received_lsn = ka.end_lsn;
+                                }
+                                if ka.reply_requested {
+                                    RawReadResult::KeepaliveReply(self.last_received_lsn)
+                                } else {
+                                    RawReadResult::Message(repl_msg)
+                                }
+                            }
+                        }
+                    }
+                    BackendMessage::CopyDone => RawReadResult::EndOfStream,
+                    _ => {
+                        return Err(ElefantClientError::UnexpectedBackendMessage(format!(
+                            "Expected CopyData or CopyDone during replication, got {msg:?}"
+                        )));
+                    }
+                }
+            };
+
+            match result {
+                RawReadResult::Message(msg) => return Ok(Some(msg)),
+                RawReadResult::EndOfStream => return Ok(None),
+                RawReadResult::KeepaliveReply(lsn) => {
+                    self.send_status_update(lsn, lsn, Lsn(0)).await?;
+                }
+            }
         }
     }
 
@@ -387,7 +562,7 @@ impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
         // Timestamp: microseconds since PostgreSQL epoch (2000-01-01)
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap();
+            .unwrap_or(std::time::Duration::ZERO);
         let pg_epoch_offset_us = 946_684_800i64 * 1_000_000;
         let pg_timestamp = (now.as_micros() as i64) - pg_epoch_offset_us;
 
@@ -410,6 +585,36 @@ impl<'a, F: ConnectionFactory> ReplicationStream<'a, F> {
 }
 
 // ---------------------------------------------------------------------------
+// Input validation
+// ---------------------------------------------------------------------------
+
+/// Validates that a replication identifier (slot name or output plugin name)
+/// contains only characters permitted by PostgreSQL: lowercase ASCII letters,
+/// digits, and underscores, with a maximum length of 63 characters.
+fn validate_replication_identifier(name: &str, kind: &str) -> Result<(), ElefantClientError> {
+    if name.is_empty() {
+        return Err(ElefantClientError::PostgresError(format!(
+            "{kind} must not be empty"
+        )));
+    }
+    if name.len() > 63 {
+        return Err(ElefantClientError::PostgresError(format!(
+            "{kind} exceeds maximum length of 63 characters: {name:?}"
+        )));
+    }
+    if !name
+        .bytes()
+        .all(|b| matches!(b, b'a'..=b'z' | b'0'..=b'9' | b'_'))
+    {
+        return Err(ElefantClientError::PostgresError(format!(
+            "{kind} contains invalid characters: {name:?}. \
+             Only lowercase letters, digits, and underscores are allowed."
+        )));
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
 // Client methods for replication slot management
 // ---------------------------------------------------------------------------
 
@@ -419,6 +624,8 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         slot_name: &str,
         output_plugin: &str,
     ) -> Result<(String, Lsn), ElefantClientError> {
+        validate_replication_identifier(slot_name, "slot name")?;
+        validate_replication_identifier(output_plugin, "output plugin")?;
         let query = format!("CREATE_REPLICATION_SLOT {slot_name} LOGICAL {output_plugin}");
         let mut result = self.query_simple(&query).await?;
         let mut slot = String::new();
@@ -444,6 +651,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         &mut self,
         slot_name: &str,
     ) -> Result<(), ElefantClientError> {
+        validate_replication_identifier(slot_name, "slot name")?;
         let query = format!("DROP_REPLICATION_SLOT {slot_name}");
         self.execute_non_query_simple(&query).await
     }
@@ -454,6 +662,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
         lsn: Lsn,
         options: &str,
     ) -> Result<ReplicationStream<'_, F>, ElefantClientError> {
+        validate_replication_identifier(slot_name, "slot name")?;
         let query = format!(
             "START_REPLICATION SLOT {slot_name} LOGICAL {lsn} ({options})"
         );
@@ -480,11 +689,177 @@ impl<F: ConnectionFactory> PostgresClient<F> {
 // Tests
 // ---------------------------------------------------------------------------
 
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn validate_replication_identifier_accepts_valid_names() {
+        assert!(validate_replication_identifier("good_slot_name", "slot name").is_ok());
+        assert!(validate_replication_identifier("slot123", "slot name").is_ok());
+        assert!(validate_replication_identifier("a", "slot name").is_ok());
+        let max = "a".repeat(63);
+        assert!(validate_replication_identifier(&max, "slot name").is_ok());
+    }
+
+    #[test]
+    fn validate_replication_identifier_rejects_invalid_names() {
+        // Uppercase
+        assert!(validate_replication_identifier("BadSlot", "slot name").is_err());
+        // Injection attempt
+        assert!(validate_replication_identifier("slot'; DROP TABLE x; --", "slot name").is_err());
+        // Spaces
+        assert!(validate_replication_identifier("slot name", "slot name").is_err());
+        // Empty
+        assert!(validate_replication_identifier("", "slot name").is_err());
+        // Too long
+        let long = "a".repeat(64);
+        assert!(validate_replication_identifier(&long, "slot name").is_err());
+    }
+
+    #[test]
+    fn parse_origin_message() {
+        let mut buf = vec![b'O'];
+        buf.extend_from_slice(&42u64.to_be_bytes());
+        buf.extend_from_slice(b"origin_name\0");
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        match msg {
+            PgOutputMessage::Origin(o) => {
+                assert_eq!(o.origin_lsn, Lsn(42));
+                assert_eq!(o.origin_name.as_ref(), "origin_name");
+            }
+            _ => panic!("Expected Origin, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_type_message() {
+        let mut buf = vec![b'Y'];
+        buf.extend_from_slice(&100i32.to_be_bytes());
+        buf.extend_from_slice(b"public\0");
+        buf.extend_from_slice(b"my_type\0");
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        match msg {
+            PgOutputMessage::Type(t) => {
+                assert_eq!(t.type_oid, 100);
+                assert_eq!(t.namespace.as_ref(), "public");
+                assert_eq!(t.name.as_ref(), "my_type");
+            }
+            _ => panic!("Expected Type, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_logical_decoding_message() {
+        let mut buf = vec![b'M'];
+        buf.push(1); // transactional
+        buf.extend_from_slice(&99u64.to_be_bytes());
+        buf.extend_from_slice(b"my_prefix\0");
+        let content = b"hello world";
+        buf.extend_from_slice(&(content.len() as i32).to_be_bytes());
+        buf.extend_from_slice(content);
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        match msg {
+            PgOutputMessage::LogicalDecodingMessage(m) => {
+                assert!(m.transactional);
+                assert_eq!(m.lsn, Lsn(99));
+                assert_eq!(m.prefix.as_ref(), "my_prefix");
+                assert_eq!(m.content, b"hello world");
+            }
+            _ => panic!("Expected LogicalDecodingMessage, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_stream_start_message() {
+        let mut buf = vec![b'S'];
+        buf.extend_from_slice(&42i32.to_be_bytes());
+        buf.push(1); // first segment
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        match msg {
+            PgOutputMessage::StreamStart(s) => {
+                assert_eq!(s.xid, 42);
+                assert!(s.first_segment);
+            }
+            _ => panic!("Expected StreamStart, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_stream_stop_message() {
+        let buf = vec![b'E'];
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        assert!(matches!(msg, PgOutputMessage::StreamStop));
+    }
+
+    #[test]
+    fn parse_stream_commit_message() {
+        let mut buf = vec![b'c'];
+        buf.extend_from_slice(&10i32.to_be_bytes()); // xid
+        buf.push(0); // flags
+        buf.extend_from_slice(&100u64.to_be_bytes()); // commit_lsn
+        buf.extend_from_slice(&200u64.to_be_bytes()); // end_lsn
+        buf.extend_from_slice(&999i64.to_be_bytes()); // timestamp
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        match msg {
+            PgOutputMessage::StreamCommit(c) => {
+                assert_eq!(c.xid, 10);
+                assert_eq!(c.flags, 0);
+                assert_eq!(c.commit_lsn, Lsn(100));
+                assert_eq!(c.end_lsn, Lsn(200));
+                assert_eq!(c.commit_timestamp, 999);
+            }
+            _ => panic!("Expected StreamCommit, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_stream_abort_message() {
+        let mut buf = vec![b'A'];
+        buf.extend_from_slice(&5i32.to_be_bytes()); // xid
+        buf.extend_from_slice(&6i32.to_be_bytes()); // sub_xid
+        let msg = parse_pgoutput_message(&buf).unwrap();
+        match msg {
+            PgOutputMessage::StreamAbort(a) => {
+                assert_eq!(a.xid, 5);
+                assert_eq!(a.sub_xid, 6);
+            }
+            _ => panic!("Expected StreamAbort, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn parse_unsupported_message_type_does_not_error() {
+        // Simulate a two-phase commit 'b' (BeginPrepare) message
+        let data = [b'b', 0, 0, 0, 1, 0, 0, 0, 2];
+        let msg = parse_pgoutput_message(&data).unwrap();
+        match msg {
+            PgOutputMessage::Unsupported { msg_type, data } => {
+                assert_eq!(msg_type, b'b');
+                assert_eq!(data, &[0, 0, 0, 1, 0, 0, 0, 2]);
+            }
+            _ => panic!("Expected Unsupported, got {msg:?}"),
+        }
+    }
+
+    #[test]
+    fn lsn_display_and_parse_roundtrip() {
+        let lsn = Lsn(0x0000_0001_0000_00A0);
+        let s = lsn.to_string();
+        let parsed = Lsn::from_pg_string(&s).unwrap();
+        assert_eq!(lsn, parsed);
+    }
+}
+
 #[cfg(all(test, feature = "tokio"))]
 mod tests {
     use super::*;
     use crate::tokio_connection::new_client;
     use crate::PostgresConnectionSettings;
+
+    fn unique_suffix() -> String {
+        uuid::Uuid::new_v4().simple().to_string()[..12].to_string()
+    }
 
     fn regular_settings() -> PostgresConnectionSettings {
         PostgresConnectionSettings::new("localhost")
@@ -499,8 +874,6 @@ mod tests {
             .replication("database")
     }
 
-    /// Create a logical replication slot on a regular (non-replication) connection
-    /// using the SQL function. This avoids the slot being held by a walsender.
     async fn create_slot_on_regular<F: ConnectionFactory>(
         client: &mut PostgresClient<F>,
         slot_name: &str,
@@ -514,7 +887,6 @@ mod tests {
         Lsn::from_pg_string(&lsn_str).unwrap()
     }
 
-    /// Drop a replication slot on a regular connection (best-effort).
     async fn drop_slot_on_regular<F: ConnectionFactory>(
         client: &mut PostgresClient<F>,
         slot_name: &str,
@@ -528,41 +900,41 @@ mod tests {
 
     #[tokio::test]
     async fn basic_logical_replication() {
-        // -- Setup: regular connection for DDL/DML --
+        let sfx = unique_suffix();
+        let table = format!("repl_test_basic_{sfx}");
+        let slot = format!("test_slot_basic_{sfx}");
+        let pub_name = format!("test_pub_basic_{sfx}");
+
         let mut regular = new_client(regular_settings()).await.unwrap();
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_basic; \
-                 DROP TABLE IF EXISTS repl_test_basic; \
-                 CREATE TABLE repl_test_basic(id int PRIMARY KEY, value text); \
-                 CREATE PUBLICATION test_pub_basic FOR TABLE repl_test_basic;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text); \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
             .await
             .unwrap();
 
-        // Create slot on the regular connection so it's not held by a walsender
-        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_basic").await;
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
-        // Insert data
         regular
-            .execute_non_query_simple(
-                "INSERT INTO repl_test_basic VALUES (1, 'hello'), (2, 'world');",
-            )
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'hello'), (2, 'world');"
+            ))
             .await
             .unwrap();
 
-        // -- Replication connection: start streaming --
         let mut repl = new_client(replication_settings()).await.unwrap();
         let mut stream = repl
             .start_replication(
-                "test_slot_basic",
+                &slot,
                 consistent_lsn,
-                "proto_version '1', publication_names 'test_pub_basic'",
+                &format!("proto_version '1', publication_names '{pub_name}'"),
             )
             .await
             .unwrap();
 
-        // Collect messages with a timeout
         let mut saw_begin = false;
         let mut saw_commit = false;
         let mut relation_name = String::new();
@@ -572,7 +944,11 @@ mod tests {
 
         let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                let msg = stream.next_message().await.unwrap();
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
                 match msg {
                     ReplicationMessage::XLogData(xlog) => {
                         last_lsn = xlog.end_lsn;
@@ -601,27 +977,21 @@ mod tests {
                             _ => {}
                         }
                     }
-                    ReplicationMessage::PrimaryKeepalive(ka) => {
-                        if ka.reply_requested {
-                            last_lsn = ka.end_lsn;
-                        }
-                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
                 }
             }
         })
         .await;
         assert!(result.is_ok(), "Timed out waiting for replication messages");
 
-        // Send status update
         stream
             .send_status_update(last_lsn, last_lsn, last_lsn)
             .await
             .unwrap();
 
-        // Validate
         assert!(saw_begin, "Should have seen BEGIN");
         assert!(saw_commit, "Should have seen COMMIT");
-        assert_eq!(relation_name, "repl_test_basic");
+        assert_eq!(relation_name, table);
         assert_eq!(relation_col_count, 2);
         assert_eq!(
             insert_values,
@@ -631,72 +1001,81 @@ mod tests {
             ]
         );
 
-        // Cleanup
         drop(stream);
         drop(repl);
-        drop_slot_on_regular(&mut regular, "test_slot_basic").await;
+        drop_slot_on_regular(&mut regular, &slot).await;
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_basic; \
-                 DROP TABLE IF EXISTS repl_test_basic;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
             .await
             .unwrap();
     }
 
     #[tokio::test]
     async fn replication_handles_column_addition() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_addcol_{sfx}");
+        let slot = format!("test_slot_addcol_{sfx}");
+        let pub_name = format!("test_pub_addcol_{sfx}");
+
         let mut regular = new_client(regular_settings()).await.unwrap();
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_addcol; \
-                 DROP TABLE IF EXISTS repl_test_addcol; \
-                 CREATE TABLE repl_test_addcol(id int PRIMARY KEY, value text); \
-                 CREATE PUBLICATION test_pub_addcol FOR TABLE repl_test_addcol;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text); \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
             .await
             .unwrap();
 
-        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_addcol").await;
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
-        // Insert before schema change
         regular
-            .execute_non_query_simple("INSERT INTO repl_test_addcol VALUES (1, 'before');")
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'before');"
+            ))
             .await
             .unwrap();
 
-        // Schema change: add column
         regular
-            .execute_non_query_simple(
-                "ALTER TABLE repl_test_addcol ADD COLUMN extra text DEFAULT 'def';",
-            )
+            .execute_non_query_simple(&format!(
+                "ALTER TABLE {table} ADD COLUMN extra text DEFAULT 'def';"
+            ))
             .await
             .unwrap();
 
-        // Insert after schema change
         regular
-            .execute_non_query_simple("INSERT INTO repl_test_addcol VALUES (2, 'after', 'extra_val');")
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (2, 'after', 'extra_val');"
+            ))
             .await
             .unwrap();
 
         let mut repl = new_client(replication_settings()).await.unwrap();
         let mut stream = repl
             .start_replication(
-                "test_slot_addcol",
+                &slot,
                 consistent_lsn,
-                "proto_version '1', publication_names 'test_pub_addcol'",
+                &format!("proto_version '1', publication_names '{pub_name}'"),
             )
             .await
             .unwrap();
 
-        let mut relation_versions: Vec<(String, usize)> = Vec::new(); // (name, col_count)
+        let mut relation_versions: Vec<(String, usize)> = Vec::new();
         let mut insert_col_counts: Vec<usize> = Vec::new();
         let mut commits_seen = 0u32;
         let mut last_lsn = consistent_lsn;
 
         let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                let msg = stream.next_message().await.unwrap();
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
                 match msg {
                     ReplicationMessage::XLogData(xlog) => {
                         last_lsn = xlog.end_lsn;
@@ -718,11 +1097,7 @@ mod tests {
                             _ => {}
                         }
                     }
-                    ReplicationMessage::PrimaryKeepalive(ka) => {
-                        if ka.reply_requested {
-                            last_lsn = ka.end_lsn;
-                        }
-                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
                 }
             }
         })
@@ -734,7 +1109,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Validate: should see two Relation messages - first with 2 columns, then 3
         assert!(
             relation_versions.len() >= 2,
             "Expected at least 2 Relation messages, got {relation_versions:?}"
@@ -746,65 +1120,69 @@ mod tests {
             "Last relation should have 3 columns after ALTER TABLE ADD COLUMN"
         );
 
-        // First insert has 2 columns, second has 3
         assert_eq!(insert_col_counts.len(), 2);
         assert_eq!(insert_col_counts[0], 2);
         assert_eq!(insert_col_counts[1], 3);
 
-        // Cleanup
         drop(stream);
         drop(repl);
-        drop_slot_on_regular(&mut regular, "test_slot_addcol").await;
+        drop_slot_on_regular(&mut regular, &slot).await;
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_addcol; \
-                 DROP TABLE IF EXISTS repl_test_addcol;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
             .await
             .unwrap();
     }
 
     #[tokio::test]
     async fn replication_handles_column_removal() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_dropcol_{sfx}");
+        let slot = format!("test_slot_dropcol_{sfx}");
+        let pub_name = format!("test_pub_dropcol_{sfx}");
+
         let mut regular = new_client(regular_settings()).await.unwrap();
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_dropcol; \
-                 DROP TABLE IF EXISTS repl_test_dropcol; \
-                 CREATE TABLE repl_test_dropcol(id int PRIMARY KEY, old_col text, value text); \
-                 CREATE PUBLICATION test_pub_dropcol FOR TABLE repl_test_dropcol;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, old_col text, value text); \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
             .await
             .unwrap();
 
-        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_dropcol").await;
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
-        // Insert before schema change
         regular
-            .execute_non_query_simple(
-                "INSERT INTO repl_test_dropcol VALUES (1, 'old_data', 'value1');",
-            )
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'old_data', 'value1');"
+            ))
             .await
             .unwrap();
 
-        // Schema change: drop column
         regular
-            .execute_non_query_simple("ALTER TABLE repl_test_dropcol DROP COLUMN old_col;")
+            .execute_non_query_simple(&format!(
+                "ALTER TABLE {table} DROP COLUMN old_col;"
+            ))
             .await
             .unwrap();
 
-        // Insert after schema change
         regular
-            .execute_non_query_simple("INSERT INTO repl_test_dropcol VALUES (2, 'value2');")
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (2, 'value2');"
+            ))
             .await
             .unwrap();
 
         let mut repl = new_client(replication_settings()).await.unwrap();
         let mut stream = repl
             .start_replication(
-                "test_slot_dropcol",
+                &slot,
                 consistent_lsn,
-                "proto_version '1', publication_names 'test_pub_dropcol'",
+                &format!("proto_version '1', publication_names '{pub_name}'"),
             )
             .await
             .unwrap();
@@ -817,7 +1195,11 @@ mod tests {
 
         let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                let msg = stream.next_message().await.unwrap();
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
                 match msg {
                     ReplicationMessage::XLogData(xlog) => {
                         last_lsn = xlog.end_lsn;
@@ -844,11 +1226,7 @@ mod tests {
                             _ => {}
                         }
                     }
-                    ReplicationMessage::PrimaryKeepalive(ka) => {
-                        if ka.reply_requested {
-                            last_lsn = ka.end_lsn;
-                        }
-                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
                 }
             }
         })
@@ -860,7 +1238,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Validate: first relation has 3 columns (id, old_col, value), second has 2 (id, value)
         assert!(
             relation_col_counts.len() >= 2,
             "Expected at least 2 Relation messages, got {relation_col_counts:?}"
@@ -872,7 +1249,6 @@ mod tests {
             "Last relation should have 2 columns after DROP COLUMN"
         );
 
-        // Verify column names changed
         assert_eq!(
             relation_col_names[0],
             vec!["id", "old_col", "value"],
@@ -884,52 +1260,55 @@ mod tests {
             "Last relation should have only id, value"
         );
 
-        // First insert has 3 columns, second has 2
         assert_eq!(insert_col_counts.len(), 2);
         assert_eq!(insert_col_counts[0], 3);
         assert_eq!(insert_col_counts[1], 2);
 
-        // Cleanup
         drop(stream);
         drop(repl);
-        drop_slot_on_regular(&mut regular, "test_slot_dropcol").await;
+        drop_slot_on_regular(&mut regular, &slot).await;
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_dropcol; \
-                 DROP TABLE IF EXISTS repl_test_dropcol;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
             .await
             .unwrap();
     }
 
     #[tokio::test]
     async fn basic_logical_replication_binary() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_bin_{sfx}");
+        let slot = format!("test_slot_bin_{sfx}");
+        let pub_name = format!("test_pub_bin_{sfx}");
+
         let mut regular = new_client(regular_settings()).await.unwrap();
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_bin; \
-                 DROP TABLE IF EXISTS repl_test_bin; \
-                 CREATE TABLE repl_test_bin(id int PRIMARY KEY, value text, flag bool); \
-                 CREATE PUBLICATION test_pub_bin FOR TABLE repl_test_bin;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text, flag bool); \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
             .await
             .unwrap();
 
-        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_bin").await;
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
         regular
-            .execute_non_query_simple(
-                "INSERT INTO repl_test_bin VALUES (1, 'hello', true), (2, 'world', false);",
-            )
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'hello', true), (2, 'world', false);"
+            ))
             .await
             .unwrap();
 
         let mut repl = new_client(replication_settings()).await.unwrap();
         let mut stream = repl
             .start_replication(
-                "test_slot_bin",
+                &slot,
                 consistent_lsn,
-                "proto_version '2', binary 'true', publication_names 'test_pub_bin'",
+                &format!("proto_version '2', binary 'true', publication_names '{pub_name}'"),
             )
             .await
             .unwrap();
@@ -942,7 +1321,11 @@ mod tests {
 
         let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                let msg = stream.next_message().await.unwrap();
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
                 match msg {
                     ReplicationMessage::XLogData(xlog) => {
                         last_lsn = xlog.end_lsn;
@@ -957,17 +1340,23 @@ mod tests {
                                     TupleColumn::Binary(b) => {
                                         i32::from_be_bytes((*b).try_into().unwrap())
                                     }
-                                    other => panic!("Expected Binary column for id, got {other:?}"),
+                                    other => {
+                                        panic!("Expected Binary column for id, got {other:?}")
+                                    }
                                 };
                                 let value = match &ins.tuple.columns[1] {
                                     TupleColumn::Binary(b) => {
                                         std::str::from_utf8(b).unwrap().to_string()
                                     }
-                                    other => panic!("Expected Binary column for value, got {other:?}"),
+                                    other => {
+                                        panic!("Expected Binary column for value, got {other:?}")
+                                    }
                                 };
                                 let flag = match &ins.tuple.columns[2] {
                                     TupleColumn::Binary(b) => b[0] != 0,
-                                    other => panic!("Expected Binary column for flag, got {other:?}"),
+                                    other => {
+                                        panic!("Expected Binary column for flag, got {other:?}")
+                                    }
                                 };
                                 insert_values.push((id, value, flag));
                             }
@@ -978,11 +1367,7 @@ mod tests {
                             _ => {}
                         }
                     }
-                    ReplicationMessage::PrimaryKeepalive(ka) => {
-                        if ka.reply_requested {
-                            last_lsn = ka.end_lsn;
-                        }
-                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
                 }
             }
         })
@@ -996,7 +1381,7 @@ mod tests {
 
         assert!(saw_begin);
         assert!(saw_commit);
-        assert_eq!(relation_name, "repl_test_bin");
+        assert_eq!(relation_name, table);
         assert_eq!(
             insert_values,
             vec![
@@ -1007,54 +1392,63 @@ mod tests {
 
         drop(stream);
         drop(repl);
-        drop_slot_on_regular(&mut regular, "test_slot_bin").await;
+        drop_slot_on_regular(&mut regular, &slot).await;
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_bin; \
-                 DROP TABLE IF EXISTS repl_test_bin;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
             .await
             .unwrap();
     }
 
     #[tokio::test]
     async fn replication_binary_handles_column_addition() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_binadd_{sfx}");
+        let slot = format!("test_slot_binadd_{sfx}");
+        let pub_name = format!("test_pub_binadd_{sfx}");
+
         let mut regular = new_client(regular_settings()).await.unwrap();
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_binadd; \
-                 DROP TABLE IF EXISTS repl_test_binadd; \
-                 CREATE TABLE repl_test_binadd(id int PRIMARY KEY, value text); \
-                 CREATE PUBLICATION test_pub_binadd FOR TABLE repl_test_binadd;",
-            )
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text); \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
             .await
             .unwrap();
 
-        let consistent_lsn = create_slot_on_regular(&mut regular, "test_slot_binadd").await;
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
 
         regular
-            .execute_non_query_simple("INSERT INTO repl_test_binadd VALUES (1, 'before');")
-            .await
-            .unwrap();
-
-        regular
-            .execute_non_query_simple(
-                "ALTER TABLE repl_test_binadd ADD COLUMN extra int DEFAULT 42;",
-            )
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'before');"
+            ))
             .await
             .unwrap();
 
         regular
-            .execute_non_query_simple("INSERT INTO repl_test_binadd VALUES (2, 'after', 99);")
+            .execute_non_query_simple(&format!(
+                "ALTER TABLE {table} ADD COLUMN extra int DEFAULT 42;"
+            ))
+            .await
+            .unwrap();
+
+        regular
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (2, 'after', 99);"
+            ))
             .await
             .unwrap();
 
         let mut repl = new_client(replication_settings()).await.unwrap();
         let mut stream = repl
             .start_replication(
-                "test_slot_binadd",
+                &slot,
                 consistent_lsn,
-                "proto_version '2', binary 'true', publication_names 'test_pub_binadd'",
+                &format!("proto_version '2', binary 'true', publication_names '{pub_name}'"),
             )
             .await
             .unwrap();
@@ -1066,7 +1460,11 @@ mod tests {
 
         let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
             loop {
-                let msg = stream.next_message().await.unwrap();
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
                 match msg {
                     ReplicationMessage::XLogData(xlog) => {
                         last_lsn = xlog.end_lsn;
@@ -1076,7 +1474,6 @@ mod tests {
                                 relation_col_counts.push(rel.columns.len());
                             }
                             PgOutputMessage::Insert(ins) => {
-                                // Verify all columns are Binary variant
                                 for col in &ins.tuple.columns {
                                     assert!(
                                         matches!(col, TupleColumn::Binary(_)),
@@ -1094,11 +1491,7 @@ mod tests {
                             _ => {}
                         }
                     }
-                    ReplicationMessage::PrimaryKeepalive(ka) => {
-                        if ka.reply_requested {
-                            last_lsn = ka.end_lsn;
-                        }
-                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
                 }
             }
         })
@@ -1120,12 +1513,320 @@ mod tests {
 
         drop(stream);
         drop(repl);
-        drop_slot_on_regular(&mut regular, "test_slot_binadd").await;
+        drop_slot_on_regular(&mut regular, &slot).await;
         regular
-            .execute_non_query_simple(
-                "DROP PUBLICATION IF EXISTS test_pub_binadd; \
-                 DROP TABLE IF EXISTS repl_test_binadd;",
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn replication_captures_updates() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_upd_{sfx}");
+        let slot = format!("test_slot_upd_{sfx}");
+        let pub_name = format!("test_pub_upd_{sfx}");
+
+        let mut regular = new_client(regular_settings()).await.unwrap();
+        regular
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text); \
+                 ALTER TABLE {table} REPLICA IDENTITY FULL; \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
+            .await
+            .unwrap();
+
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
+
+        regular
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'original'); \
+                 UPDATE {table} SET value = 'modified' WHERE id = 1;"
+            ))
+            .await
+            .unwrap();
+
+        let mut repl = new_client(replication_settings()).await.unwrap();
+        let mut stream = repl
+            .start_replication(
+                &slot,
+                consistent_lsn,
+                &format!("proto_version '1', publication_names '{pub_name}'"),
             )
+            .await
+            .unwrap();
+
+        let mut saw_update = false;
+        let mut update_old_value: Option<String> = None;
+        let mut update_new_value: Option<String> = None;
+        let mut saw_commit = false;
+        let mut last_lsn = consistent_lsn;
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
+                match msg {
+                    ReplicationMessage::XLogData(xlog) => {
+                        last_lsn = xlog.end_lsn;
+                        let pgmsg = parse_pgoutput_message(xlog.data).unwrap();
+                        match pgmsg {
+                            PgOutputMessage::Update(upd) => {
+                                saw_update = true;
+                                if let Some(ref old) = upd.old_tuple {
+                                    if let TupleColumn::Text(t) = &old.columns[1] {
+                                        update_old_value = Some(t.to_string());
+                                    }
+                                }
+                                if let TupleColumn::Text(t) = &upd.new_tuple.columns[1] {
+                                    update_new_value = Some(t.to_string());
+                                }
+                            }
+                            PgOutputMessage::Commit(_) => {
+                                saw_commit = true;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok(), "Timed out waiting for replication messages");
+
+        stream
+            .send_status_update(last_lsn, last_lsn, last_lsn)
+            .await
+            .unwrap();
+
+        assert!(saw_update, "Should have seen UPDATE");
+        assert!(saw_commit, "Should have seen COMMIT");
+        assert_eq!(update_old_value.as_deref(), Some("original"));
+        assert_eq!(update_new_value.as_deref(), Some("modified"));
+
+        drop(stream);
+        drop(repl);
+        drop_slot_on_regular(&mut regular, &slot).await;
+        regular
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn replication_captures_deletes() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_del_{sfx}");
+        let slot = format!("test_slot_del_{sfx}");
+        let pub_name = format!("test_pub_del_{sfx}");
+
+        let mut regular = new_client(regular_settings()).await.unwrap();
+        regular
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text); \
+                 ALTER TABLE {table} REPLICA IDENTITY FULL; \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
+            .await
+            .unwrap();
+
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
+
+        regular
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'to_delete'); \
+                 DELETE FROM {table} WHERE id = 1;"
+            ))
+            .await
+            .unwrap();
+
+        let mut repl = new_client(replication_settings()).await.unwrap();
+        let mut stream = repl
+            .start_replication(
+                &slot,
+                consistent_lsn,
+                &format!("proto_version '1', publication_names '{pub_name}'"),
+            )
+            .await
+            .unwrap();
+
+        let mut saw_delete = false;
+        let mut deleted_id: Option<String> = None;
+        let mut deleted_value: Option<String> = None;
+        let mut saw_commit = false;
+        let mut last_lsn = consistent_lsn;
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
+                match msg {
+                    ReplicationMessage::XLogData(xlog) => {
+                        last_lsn = xlog.end_lsn;
+                        let pgmsg = parse_pgoutput_message(xlog.data).unwrap();
+                        match pgmsg {
+                            PgOutputMessage::Delete(del) => {
+                                saw_delete = true;
+                                if let TupleColumn::Text(t) = &del.old_tuple.columns[0] {
+                                    deleted_id = Some(t.to_string());
+                                }
+                                if let TupleColumn::Text(t) = &del.old_tuple.columns[1] {
+                                    deleted_value = Some(t.to_string());
+                                }
+                            }
+                            PgOutputMessage::Commit(_) => {
+                                saw_commit = true;
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok(), "Timed out waiting for replication messages");
+
+        stream
+            .send_status_update(last_lsn, last_lsn, last_lsn)
+            .await
+            .unwrap();
+
+        assert!(saw_delete, "Should have seen DELETE");
+        assert!(saw_commit, "Should have seen COMMIT");
+        assert_eq!(deleted_id.as_deref(), Some("1"));
+        assert_eq!(deleted_value.as_deref(), Some("to_delete"));
+
+        drop(stream);
+        drop(repl);
+        drop_slot_on_regular(&mut regular, &slot).await;
+        regular
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn replication_captures_truncate() {
+        let sfx = unique_suffix();
+        let table = format!("repl_test_trunc_{sfx}");
+        let slot = format!("test_slot_trunc_{sfx}");
+        let pub_name = format!("test_pub_trunc_{sfx}");
+
+        let mut regular = new_client(regular_settings()).await.unwrap();
+        regular
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table}; \
+                 CREATE TABLE {table}(id int PRIMARY KEY, value text); \
+                 CREATE PUBLICATION {pub_name} FOR TABLE {table};"
+            ))
+            .await
+            .unwrap();
+
+        let consistent_lsn = create_slot_on_regular(&mut regular, &slot).await;
+
+        regular
+            .execute_non_query_simple(&format!(
+                "INSERT INTO {table} VALUES (1, 'a'), (2, 'b');"
+            ))
+            .await
+            .unwrap();
+
+        regular
+            .execute_non_query_simple(&format!("TRUNCATE {table};"))
+            .await
+            .unwrap();
+
+        let mut repl = new_client(replication_settings()).await.unwrap();
+        let mut stream = repl
+            .start_replication(
+                &slot,
+                consistent_lsn,
+                &format!("proto_version '1', publication_names '{pub_name}'"),
+            )
+            .await
+            .unwrap();
+
+        let mut saw_truncate = false;
+        let mut truncate_relation_count = 0usize;
+        let mut commits_seen = 0u32;
+        let mut last_lsn = consistent_lsn;
+
+        let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                let msg = stream
+                    .next_message()
+                    .await
+                    .unwrap()
+                    .expect("unexpected end of stream");
+                match msg {
+                    ReplicationMessage::XLogData(xlog) => {
+                        last_lsn = xlog.end_lsn;
+                        let pgmsg = parse_pgoutput_message(xlog.data).unwrap();
+                        match pgmsg {
+                            PgOutputMessage::Truncate(trunc) => {
+                                saw_truncate = true;
+                                truncate_relation_count = trunc.relation_ids.len();
+                            }
+                            PgOutputMessage::Commit(_) => {
+                                commits_seen += 1;
+                                if commits_seen >= 2 {
+                                    break;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    ReplicationMessage::PrimaryKeepalive(_) => {}
+                }
+            }
+        })
+        .await;
+        assert!(result.is_ok(), "Timed out waiting for replication messages");
+
+        stream
+            .send_status_update(last_lsn, last_lsn, last_lsn)
+            .await
+            .unwrap();
+
+        assert!(saw_truncate, "Should have seen TRUNCATE");
+        assert_eq!(
+            truncate_relation_count, 1,
+            "TRUNCATE should reference 1 relation"
+        );
+
+        drop(stream);
+        drop(repl);
+        drop_slot_on_regular(&mut regular, &slot).await;
+        regular
+            .execute_non_query_simple(&format!(
+                "DROP PUBLICATION IF EXISTS {pub_name}; \
+                 DROP TABLE IF EXISTS {table};"
+            ))
             .await
             .unwrap();
     }

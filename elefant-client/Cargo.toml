@@ -28,6 +28,7 @@ der = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["full"] }
 time = { workspace = true, features = ["macros"] }
 rustls = { workspace = true, features = ["aws_lc_rs"] }
+uuid = { workspace = true, features = ["v4"] }
 
 [features]
 tokio = ["dep:tokio", "futures"]

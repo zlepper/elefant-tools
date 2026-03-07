@@ -36,6 +36,7 @@ pub struct PostgresConnectionSettings {
     pub password: String,
     pub database: String,
     pub options: Option<String>,
+    pub replication: Option<String>,
     enum_type_names: Vec<&'static str>,
     #[cfg(feature = "rustls")]
     pub tls: TlsSettings,
@@ -74,6 +75,11 @@ impl PostgresConnectionSettings {
         self
     }
 
+    pub fn replication(mut self, replication: impl Into<String>) -> Self {
+        self.replication = Some(replication.into());
+        self
+    }
+
     /// Register a PostgreSQL enum type for OID resolution at pool creation time.
     pub fn register_enum<T: PostgresEnum>(mut self) -> Self {
         if !self.enum_type_names.contains(&T::PG_TYPE_NAME) {
@@ -104,6 +110,7 @@ impl Default for PostgresConnectionSettings {
             password: String::new(),
             database: "postgres".to_string(),
             options: None,
+            replication: None,
             enum_type_names: Vec::new(),
             #[cfg(feature = "rustls")]
             tls: TlsSettings::disable(),

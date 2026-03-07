@@ -29,6 +29,12 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                         .as_deref()
                         .map(|opts| StartupMessageParameter::new("options", opts)),
                 )
+                .chain(
+                    settings
+                        .replication
+                        .as_deref()
+                        .map(|r| StartupMessageParameter::new("replication", r)),
+                )
                 .collect(),
             }))
             .await?;

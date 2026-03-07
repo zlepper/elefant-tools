@@ -117,6 +117,28 @@ impl<'a> ByteSliceReader<'a> {
         Ok(result)
     }
 
+    pub fn read_i64(&mut self) -> Result<i64, ByteSliceError> {
+        if self.bytes.len() < 8 {
+            return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(8)));
+        }
+
+        let result = i64::from_be_bytes(self.bytes[..8].try_into().unwrap());
+        self.bytes = &self.bytes[8..];
+        self.read_bytes += 8;
+        Ok(result)
+    }
+
+    pub fn read_u64(&mut self) -> Result<u64, ByteSliceError> {
+        if self.bytes.len() < 8 {
+            return Err(ByteSliceError::NeedsMoreData(NonZeroUsize::new(8)));
+        }
+
+        let result = u64::from_be_bytes(self.bytes[..8].try_into().unwrap());
+        self.bytes = &self.bytes[8..];
+        self.read_bytes += 8;
+        Ok(result)
+    }
+
     pub fn read_bytes(&mut self, n: usize) -> Result<&'a [u8], ByteSliceError> {
         if n == 0 {
             return Ok(&[]);

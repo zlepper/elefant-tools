@@ -9,14 +9,12 @@ services:
       POSTGRES_PASSWORD: passw0rd
     command: &cmd
       - postgres
-#      - -c
-#      - log_statement=all
-#      - -c
-#      - log_destination=stderr
-#      - -c
-#      - log_min_messages=DEBUG5
-#      - -c
-#      - log_min_error_statement=debug1
+      - -c
+      - wal_level=logical
+      - -c
+      - max_replication_slots=4
+      - -c
+      - max_wal_senders=4
 
   timescale_pg_15:
     image: docker.io/timescale/timescaledb-ha:pg15

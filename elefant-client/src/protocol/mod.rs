@@ -1,6 +1,6 @@
 pub(crate) mod async_io;
 mod error;
-mod frame_reader;
+pub(crate) mod frame_reader;
 mod frontend_p_message;
 mod message_reader;
 #[cfg(all(test, feature = "futures"))]

@@ -47,6 +47,50 @@ async fn main() -> Result<()> {
             }
         }
 
+        // Drop any stale test replication slots
+        let test_slots = client
+            .query(
+                "select slot_name from pg_replication_slots where slot_name like 'test_slot_%'",
+                &[],
+            )
+            .await?
+            .collect_single_column_to_vec::<String>()
+            .await?;
+
+        for slot_name in test_slots {
+            println!("Dropping replication slot {slot_name}");
+            // Terminate any backend using the slot before dropping it
+            client
+                .execute_non_query_simple(&format!(
+                    "SELECT pg_terminate_backend(active_pid) \
+                     FROM pg_replication_slots \
+                     WHERE slot_name = '{slot_name}' AND active;"
+                ))
+                .await?;
+            client
+                .execute_non_query_simple(&format!(
+                    "SELECT pg_drop_replication_slot('{slot_name}');"
+                ))
+                .await?;
+        }
+
+        // Drop any stale test publications
+        let test_pubs = client
+            .query(
+                "select pubname from pg_publication where pubname like 'test_pub_%'",
+                &[],
+            )
+            .await?
+            .collect_single_column_to_vec::<String>()
+            .await?;
+
+        for pub_name in test_pubs {
+            println!("Dropping publication {pub_name}");
+            client
+                .execute_non_query_simple(&format!("DROP PUBLICATION {pub_name};"))
+                .await?;
+        }
+
         println!("Finished port {port}");
     }
 

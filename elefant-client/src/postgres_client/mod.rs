@@ -2,6 +2,7 @@ mod copy;
 mod easy_client;
 mod establish;
 mod query;
+pub mod replication;
 mod statements;
 
 use crate::pool::{ConnectionFactory, PostgresPool};

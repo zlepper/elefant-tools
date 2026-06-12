@@ -181,4 +181,50 @@ mod tests {
         test_quote!("my\"table", "\"my\"\"table\"");
         test_quote!("", "\"\"");
     }
+
+    #[test]
+    fn quotes_keywords_based_on_usage() {
+        // `between` is a `C` keyword: usable unquoted as a column name, but not as a
+        // type/function name. `left` is a `T` keyword: the opposite.
+        let quoter = super::IdentifierQuoter::new(HashMap::from([
+            (
+                "between".to_string(),
+                AllowedKeywordUsage {
+                    column_name: true,
+                    type_or_function_name: false,
+                },
+            ),
+            (
+                "left".to_string(),
+                AllowedKeywordUsage {
+                    column_name: false,
+                    type_or_function_name: true,
+                },
+            ),
+        ]));
+
+        assert_eq!(
+            quoter.quote("between", AttemptedKeywordUsage::ColumnName),
+            "between"
+        );
+        assert_eq!(
+            quoter.quote("between", AttemptedKeywordUsage::TypeOrFunctionName),
+            "\"between\""
+        );
+
+        assert_eq!(
+            quoter.quote("left", AttemptedKeywordUsage::ColumnName),
+            "\"left\""
+        );
+        assert_eq!(
+            quoter.quote("left", AttemptedKeywordUsage::TypeOrFunctionName),
+            "left"
+        );
+
+        // Reserved-everywhere keywords are always quoted.
+        assert_eq!(
+            quoter.quote("left", AttemptedKeywordUsage::Other),
+            "\"left\""
+        );
+    }
 }

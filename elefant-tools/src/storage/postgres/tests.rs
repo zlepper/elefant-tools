@@ -1613,3 +1613,25 @@ async fn temporal_foreign_key(source: &TestHelper, destination: &TestHelper) {
     )
     .await;
 }
+
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn escaped_column_names(source: &TestHelper, destination: &TestHelper) {
+    test_round_trip(
+        r#"
+        CREATE TABLE locations (
+            id int not null,
+            "left" int not null,
+            "right" int not null,
+            "top" int not null,
+            "bottom" int not null,
+            constraint locations_pk primary key (id, "left")
+        );
+
+        INSERT INTO locations (id, "left", "right", "top", "bottom") VALUES
+            (1, 2, 3, 4, 5);
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}

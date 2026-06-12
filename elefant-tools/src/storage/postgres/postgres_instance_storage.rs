@@ -39,8 +39,7 @@ impl<'a> PostgresInstanceStorage<'a> {
             keyword_info.insert(
                 keyword.word,
                 AllowedKeywordUsage {
-                    column_name: keyword.category == KeywordType::AllowedInColumnName
-                        || keyword.category == KeywordType::AllowedInTypeOrFunctionName,
+                    column_name: keyword.category == KeywordType::AllowedInColumnName,
                     type_or_function_name: keyword.category
                         == KeywordType::AllowedInTypeOrFunctionName,
                 },

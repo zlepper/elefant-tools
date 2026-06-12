@@ -73,7 +73,11 @@ impl PostgresTable {
                 sql.push_str("\n    ");
                 sql.push_str(&column.name.quote(identifier_quoter, ColumnName));
                 sql.push(' ');
-                sql.push_str(&column.data_type.quote(identifier_quoter, ColumnName));
+                sql.push_str(
+                    &column
+                        .data_type
+                        .quote(identifier_quoter, TypeOrFunctionName),
+                );
 
                 if let Some(length) = column.data_type_length {
                     sql.push_str(&format!("({length})"));

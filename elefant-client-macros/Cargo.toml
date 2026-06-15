@@ -2,6 +2,8 @@
 name = "elefant-client-macros"
 version = "0.1.0"
 edition = "2021"
+description = "Provides macros for the elefant-client crate"
+license = "MIT"
 
 [lib]
 proc-macro = true

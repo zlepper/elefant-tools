@@ -41,7 +41,8 @@ impl<'a> elefant_client::FromSqlRow<'a> for HypertableResult {
 pub(in crate::schema_reader) const QUERY: &str = r#"
 select ht.schema_name,
          ht.table_name,
-         ht.compression_state = 1 as compression_enabled,
+         -- TimescaleDB 2.29+ tracks compression in status bit 4 and no longer uses compression_state
+         (ht.status & 4 <> 0 or ht.compression_state = 1) as compression_enabled,
         _timescaledb_functions.to_interval(dim.compress_interval_length) as compress_chunk_time_interval,
         compression_job.schedule_interval,
         (compression_job.config->>'compress_after')::interval as compress_after,

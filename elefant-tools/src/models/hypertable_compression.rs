@@ -82,7 +82,8 @@ impl HypertableCompression {
 
         sql.push_str("\n);");
 
-        if let Some(compress_after) = self.compress_after {
+        // TimescaleDB rejects compression policies on hypertables without compression enabled.
+        if let Some(compress_after) = self.compress_after.filter(|_| self.enabled) {
             sql.push_str("\nselect public.add_compression_policy('");
             sql.push_str(escaped_relation_name);
             sql.push_str("', compress_after => INTERVAL '");
@@ -97,5 +98,33 @@ impl HypertableCompression {
 
             sql.push_str(");");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+
+    #[test]
+    fn does_not_add_compression_policy_when_compression_is_disabled() {
+        let compression = HypertableCompression {
+            enabled: false,
+            compress_after: Some(Interval::new(0, 7, 0)),
+            compression_schedule_interval: Some(Interval::new(0, 0, 43200000000)),
+            ..Default::default()
+        };
+
+        let mut sql = String::new();
+        compression.add_compression_settings(
+            &mut sql,
+            "public.my_table",
+            &IdentifierQuoter::new(HashMap::new()),
+        );
+
+        assert_eq!(
+            sql,
+            "public.my_table set (\n\ttimescaledb.compress = false\n);"
+        );
     }
 }

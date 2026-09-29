@@ -847,6 +847,43 @@ select add_compression_policy('stocks_real_time', interval '7 days');
 #[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
 #[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
 #[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
+async fn timescale_hypertable_compression_disabled_with_stale_policy(
+    source: &TestHelper,
+    destination: &TestHelper,
+) {
+    test_round_trip(
+        r#"
+
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL,
+  price DOUBLE PRECISION NULL,
+  day_volume INT NOT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+alter table stocks_real_time set(
+    timescaledb.compress,
+        timescaledb.compress_segmentby = 'symbol',
+        timescaledb.compress_orderby = 'time,day_volume'
+        );
+
+select add_compression_policy('stocks_real_time', interval '7 days');
+
+alter table stocks_real_time set (timescaledb.compress = false);
+
+        "#,
+        source,
+        destination,
+    )
+    .await;
+}
+
+#[pg_test(arg(timescale_db = 15), arg(timescale_db = 15))]
+#[pg_test(arg(timescale_db = 16), arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17), arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18), arg(timescale_db = 18))]
 async fn timescale_continuous_aggregate(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(r#"
 CREATE TABLE stocks_real_time (

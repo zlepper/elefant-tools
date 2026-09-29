@@ -591,14 +591,9 @@ impl SchemaReader<'_> {
                     None
                 };
 
-                let compression = if let (false, None, None, None, None, None) = (
-                    ca.compression_enabled,
-                    ca.compress_after,
-                    ca.compress_job_interval,
-                    &ca.compress_segment_by,
-                    &ca.compress_order_by,
-                    &ca.compress_chunk_time_interval,
-                ) {
+                // A disabled continuous aggregate can still have a leftover compression policy
+                // and settings, which can't be restored without enabling compression.
+                let compression = if !ca.compression_enabled {
                     None
                 } else {
                     Some(HypertableCompression {
@@ -729,14 +724,9 @@ impl SchemaReader<'_> {
                 }
             }
 
-            let compression = if let (false, None, None, None, None, None) = (
-                hypertable.compression_enabled,
-                hypertable.compress_after,
-                hypertable.compression_chunk_interval,
-                hypertable.compression_schedule_interval,
-                &hypertable.compress_segment_by,
-                &hypertable.compress_order_by,
-            ) {
+            // Disabling compression does not remove the compression policy (and on some versions
+            // the settings), so we ignore the leftovers as they can't be restored.
+            let compression = if !hypertable.compression_enabled {
                 None
             } else {
                 Some(HypertableCompression {

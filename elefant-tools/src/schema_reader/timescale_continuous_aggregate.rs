@@ -63,10 +63,8 @@ SELECT ht.schema_name                                       AS hypertable_schema
        refresh_job.schedule_interval                        as refresh_interval,
        (refresh_job.config ->> 'start_offset')::interval    as refresh_start_offset,
        (refresh_job.config ->> 'end_offset')::interval      as refresh_end_offset,
-       CASE
-           WHEN mat_ht.compressed_hypertable_id IS NOT NULL THEN true
-           ELSE false
-           END                                              AS compression_enabled,
+       -- TimescaleDB 2.29+ tracks compression in status bit 4 and no longer uses compressed_hypertable_id
+       (mat_ht.status & 4 <> 0 or mat_ht.compressed_hypertable_id is not null) AS compression_enabled,
        compress_job.schedule_interval                       as compress_job_interval,
        (compress_job.config ->> 'compress_after')::interval as compress_after,
        cs.orderby                                           as compress_orderby,

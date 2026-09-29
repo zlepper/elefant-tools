@@ -254,6 +254,86 @@ select add_compression_policy('stocks_real_time', interval '7 days');
 }
 
 #[pg_test(arg(timescale_db = 15))]
+#[pg_test(arg(timescale_db = 16))]
+#[pg_test(arg(timescale_db = 17))]
+#[pg_test(arg(timescale_db = 18))]
+async fn inspect_compression_disabled_with_stale_policy(helper: &TestHelper) {
+    test_introspection(
+        helper,
+        r#"
+CREATE TABLE stocks_real_time (
+  time TIMESTAMPTZ NOT NULL,
+  symbol TEXT NOT NULL
+);
+
+SELECT create_hypertable('stocks_real_time', by_range('time', '7 days'::interval));
+
+alter table stocks_real_time set(
+    timescaledb.compress,
+        timescaledb.compress_segmentby = 'symbol'
+        );
+
+select add_compression_policy('stocks_real_time', interval '7 days');
+
+alter table stocks_real_time set (timescaledb.compress = false);
+    "#,
+        PostgresDatabase {
+            schemas: vec![PostgresSchema {
+                tables: vec![PostgresTable {
+                    name: "stocks_real_time".to_string(),
+                    columns: vec![
+                        PostgresColumn {
+                            name: "time".to_string(),
+                            ordinal_position: 1,
+                            is_nullable: false,
+                            data_type: "timestamptz".to_string(),
+                            ..default()
+                        },
+                        PostgresColumn {
+                            name: "symbol".to_string(),
+                            ordinal_position: 2,
+                            is_nullable: false,
+                            data_type: "text".to_string(),
+                            ..default()
+                        },
+                    ],
+                    indices: vec![PostgresIndex {
+                        name: "stocks_real_time_time_idx".to_string(),
+                        key_columns: vec![PostgresIndexKeyColumn {
+                            name: "\"time\"".to_string(),
+                            ordinal_position: 1,
+                            direction: Some(PostgresIndexColumnDirection::Descending),
+                            nulls_order: Some(PostgresIndexNullsOrder::First),
+                        }],
+                        index_type: "btree".to_string(),
+                        index_constraint_type: PostgresIndexType::Index,
+                        ..default()
+                    }],
+                    table_type: TableTypeDetails::TimescaleHypertable {
+                        dimensions: vec![HypertableDimension::Time {
+                            column_name: "time".to_string(),
+                            time_interval: Interval::new(0, 7, 0),
+                        }],
+                        compression: None,
+                        retention: None,
+                    },
+                    ..default()
+                }],
+                name: "public".to_string(),
+                ..default()
+            }],
+            timescale_support: TimescaleSupport {
+                is_enabled: true,
+                timescale_toolkit_is_enabled: true,
+                ..default()
+            },
+            ..default()
+        },
+    )
+    .await;
+}
+
+#[pg_test(arg(timescale_db = 15))]
 async fn inspect_continuous_aggregates_15(helper: &TestHelper) {
     test_introspection(
         helper,

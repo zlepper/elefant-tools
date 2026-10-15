@@ -13,7 +13,7 @@ members = [
 # Internal crates
 elefant-client = { path = "elefant-client", version = "0.1.0" }
 elefant-client-macros = { path = "elefant-client-macros", version = "0.1.0" }
-elefant-tools = { path = "elefant-tools", version = "0.0.9" }
+elefant-tools = { path = "elefant-tools", version = "0.0.10" }
 elefant-test-macros = { path = "elefant-test-macros" }
 
 # Async runtime

@@ -39,7 +39,7 @@ from pg_constraint con
          left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
          join pg_catalog.pg_class tab on con.conrelid = tab.oid
          left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
-         join unnest(con.conkey, con.confkey) as cols (conkey, confkey) on true
+         join unnest(con.conkey, con.confkey) with ordinality as cols (conkey, confkey, position) on true
          left join pg_attribute source_table_attr
                    on source_table_attr.attrelid = con.conrelid and source_table_attr.attnum = cols.conkey
          left join pg_attribute target_table_attr
@@ -47,7 +47,7 @@ from pg_constraint con
          left join pg_depend dep on dep.objid = con_ns.oid
 where con.contype = 'f'
 and (dep.objid is null or dep.deptype <> 'e' )
-order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
+order by constraint_schema_name, source_table_name, constraint_name, cols.position;
 "#;
 
 //language=postgresql
@@ -63,13 +63,13 @@ from pg_constraint con
          left join pg_catalog.pg_namespace con_ns on con_ns.oid = con.connamespace
          join pg_catalog.pg_class tab on con.conrelid = tab.oid
          left join pg_namespace tab_ns on tab_ns.oid = tab.relnamespace
-         join unnest(con.conkey, con.confkey) as cols (conkey, confkey) on true
+         join unnest(con.conkey, con.confkey) with ordinality as cols (conkey, confkey, position) on true
          left join pg_attribute source_table_attr
                    on source_table_attr.attrelid = con.conrelid and source_table_attr.attnum = cols.conkey
          left join pg_attribute target_table_attr
                    on target_table_attr.attrelid = con.confrelid and target_table_attr.attnum = cols.confkey
 where con.contype = 'f'
-order by constraint_schema_name, source_table_name, constraint_name, source_table_attr.attnum;
+order by constraint_schema_name, source_table_name, constraint_name, cols.position;
 "#;
 
 impl QueryResult for ForeignKeyColumnResult {

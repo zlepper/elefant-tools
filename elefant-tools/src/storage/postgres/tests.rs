@@ -185,6 +185,43 @@ async fn filtered_foreign_key_set_null(source: &TestHelper, destination: &TestHe
     .await;
 }
 
+#[pg_test(arg(postgres = 12), arg(postgres = 12))]
+#[pg_test(arg(postgres = 18), arg(postgres = 18))]
+async fn foreign_key_column_order_differs_from_table_column_order(
+    source: &TestHelper,
+    destination: &TestHelper,
+) {
+    test_round_trip(
+        r#"
+        CREATE TABLE parent (
+            x integer,
+            y integer,
+            UNIQUE (x, y)
+        );
+
+        CREATE TABLE child (
+            a integer,
+            b integer,
+            CONSTRAINT child_fk FOREIGN KEY (b, a) REFERENCES parent (y, x)
+        );
+    "#,
+        source,
+        destination,
+    )
+    .await;
+
+    // Foreign keys are always restored as NOT VALID, so that part is ignored.
+    let sql = "select replace(pg_get_constraintdef(oid), ' NOT VALID', '') from pg_constraint where conname = 'child_fk'";
+    let source_definition = source.get_single_result::<String>(sql).await;
+    let destination_definition = destination.get_single_result::<String>(sql).await;
+
+    assert_eq!(
+        source_definition,
+        "FOREIGN KEY (b, a) REFERENCES parent(y, x)"
+    );
+    assert_eq!(destination_definition, source_definition);
+}
+
 test_round_trip!(
     generated_columns,
     r#"

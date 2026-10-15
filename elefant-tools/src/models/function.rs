@@ -99,8 +99,7 @@ impl PostgresFunction {
         let fn_name = format!(
             "{}.{}",
             schema.name.quote(identifier_quoter, TypeOrFunctionName),
-            &self
-                .function_name
+            self.function_name
                 .quote(identifier_quoter, TypeOrFunctionName)
         );
 
@@ -263,8 +262,7 @@ impl PostgresAggregateFunction {
         let fn_name = format!(
             "{}.{}",
             schema.name.quote(identifier_quoter, TypeOrFunctionName),
-            &self
-                .function_name
+            self.function_name
                 .quote(identifier_quoter, TypeOrFunctionName)
         );
 

@@ -420,7 +420,7 @@ async fn write_column<F: AsyncWrite + Unpin + Send + Sync>(
     bytes: &[u8],
     col_data_type: &SimplifiedDataType,
 ) -> Result<()> {
-    if bytes == [b'\\', b'N'] {
+    if bytes == *b"\\N" {
         content.write_all(b"null").await?;
         return Ok(());
     }

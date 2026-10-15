@@ -1,3 +1,6 @@
+// The async main wraps the whole copy pipeline, whose future layout nests deeper than the default limit of 128.
+#![recursion_limit = "256"]
+
 use crate::cli::{Commands, CopyArgs, ExportDbArgs, ImportDbArgs, Storage};
 use clap::Parser;
 use elefant_tools::PostgresClientWrapper;

@@ -1,3 +1,6 @@
+// darling's `FromMeta` derive generates `args: args` for `TestArgs`, spanned to our field.
+#![allow(clippy::redundant_field_names)]
+
 use darling::ast::NestedMeta;
 use darling::FromMeta;
 use proc_macro::{Span, TokenStream};

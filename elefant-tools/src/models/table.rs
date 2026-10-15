@@ -64,9 +64,7 @@ impl PostgresTable {
 
             let mut text_row_count = 0;
 
-            for (column_index, column) in self.columns.iter().enumerate() {
-                let column_position = (column_index + 1) as i32;
-
+            for column in &self.columns {
                 if text_row_count > 0 {
                     sql.push(',');
                 }
@@ -115,7 +113,7 @@ impl PostgresTable {
 
                     if let Some(seq) = &schema.sequences.iter().find(|s| {
                         s.author_table.as_ref().is_some_and(|t| *t == self.name)
-                            && s.author_table_column_position == Some(column_position)
+                            && s.author_table_column_position == Some(column.ordinal_position)
                     }) {
                         sql.push_str(" ( sequence name ");
                         sql.push_str(&seq.name.quote(identifier_quoter, TypeOrFunctionName));

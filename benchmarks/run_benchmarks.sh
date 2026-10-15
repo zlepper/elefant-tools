@@ -75,7 +75,7 @@ PG_DUMP_COMMAND_TO_COPY="pg_dump --dbname dvdrental -f benchmarks/results/pg_dum
 ELEFANT_SYNC_COMMAND_TO_SQL_INSERTS="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result-insert.sql --format InsertStatements --max-rows-per-insert 1000"
 ELEFANT_SYNC_COMMAND_TO_COPY="\"$ELEFANT_SYNC_PATH\" export --source-db-name dvdrental sql-file --path benchmarks/results/elefant_sync_result-copy.sql --format CopyStatements --max-commands-per-chunk 500"
 
-hyperfine --command-name "pg_dump sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS" \
+hyperfine --shell=default --command-name "pg_dump sql-insert" "$PG_DUMP_COMMAND_TO_SQL_INSERTS" \
           --command-name "pg_dump sql-copy" "$PG_DUMP_COMMAND_TO_COPY" \
           --command-name "elefant-sync sql-insert" "$ELEFANT_SYNC_COMMAND_TO_SQL_INSERTS" \
           --command-name "elefant-sync sql-copy" "$ELEFANT_SYNC_COMMAND_TO_COPY" \
@@ -86,7 +86,7 @@ PG_RESTORE_IMPORT_SQL_COPY="psql --dbname dvdrental_import --file benchmarks/res
 ELEFANT_SYNC_COMMAND_FROM_SQL_INSERTS="\"$ELEFANT_SYNC_PATH\" import --target-db-name dvdrental_import sql-file --path benchmarks/results/elefant_sync_result-insert.sql"
 ELEFANT_SYNC_COMMAND_FROM_SQL_COPY="\"$ELEFANT_SYNC_PATH\" import --target-db-name dvdrental_import sql-file --path benchmarks/results/elefant_sync_result-copy.sql"
 
-hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
+hyperfine --shell=default --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
           --export-markdown "benchmarks/results/import-from-sql.md" \
           --command-name "psql sql-copy" "$PG_RESTORE_IMPORT_SQL_COPY" \
           --command-name "psql sql-insert" "$PG_RESTORE_IMPORT_SQL_INSERTS" \
@@ -99,7 +99,7 @@ ELEFANT_SYNC_COPY_DIRECTLY_SINGLE="\"$ELEFANT_SYNC_PATH\" --max-parallelism 1 co
 ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL="\"$ELEFANT_SYNC_PATH\" copy --source-db-name dvdrental --target-db-name dvdrental_import"
 ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL_DIFFERENTIAL="\"$ELEFANT_SYNC_PATH\" copy --source-db-name dvdrental --target-db-name dvdrental_import --differential"
 
-hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
+hyperfine --shell=default --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
           --export-markdown "benchmarks/results/sync-between-databases.md" \
           --command-name "elefant-sync copy non-parallel" "$ELEFANT_SYNC_COPY_DIRECTLY_SINGLE" \
           --command-name "elefant-sync copy parallel" "$ELEFANT_SYNC_COPY_DIRECTLY_PARALLEL" \
@@ -110,7 +110,7 @@ hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --qu
 ELEFANT_NARROW_COPY="\"$ELEFANT_SYNC_PATH\" copy --source-db-name bench_narrow --target-db-name bench_narrow_import"
 PG_NARROW_COPY="pg_dump --dbname bench_narrow | psql --dbname bench_narrow_import --quiet -v ON_ERROR_STOP=1"
 
-hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
+hyperfine --shell=default --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
           --export-markdown "benchmarks/results/narrow-copy.md" \
           --command-name "elefant-sync copy" "$ELEFANT_NARROW_COPY" \
           --command-name "pg_dump => psql" "$PG_NARROW_COPY"
@@ -118,7 +118,7 @@ hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --qu
 ELEFANT_WIDE_COPY="\"$ELEFANT_SYNC_PATH\" copy --source-db-name bench_wide --target-db-name bench_wide_import"
 PG_WIDE_COPY="pg_dump --dbname bench_wide | psql --dbname bench_wide_import --quiet -v ON_ERROR_STOP=1"
 
-hyperfine --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
+hyperfine --shell=default --prepare "cargo run --release --package=benchmark-import-prepare --quiet" --warmup 1 \
           --export-markdown "benchmarks/results/wide-copy.md" \
           --command-name "elefant-sync copy" "$ELEFANT_WIDE_COPY" \
           --command-name "pg_dump => psql" "$PG_WIDE_COPY"

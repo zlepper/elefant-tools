@@ -5,10 +5,10 @@ use thiserror::Error;
 #[non_exhaustive]
 #[derive(Error, Debug)]
 pub enum ElefantToolsError {
-    #[error("Error from postgres: `{0}`")]
+    #[error(transparent)]
     PostgresError(#[from] elefant_client::ElefantClientError),
 
-    #[error("Error from postgres: `{query}` when executing query: `{source}`")]
+    #[error("{source}\nQuery: {}", .query.trim())]
     PostgresErrorWithQuery {
         query: String,
         #[source]
@@ -107,3 +107,36 @@ pub enum ElefantToolsError {
 
 /// A result type that uses the ElefantToolsError as the error type
 pub type Result<T = ()> = std::result::Result<T, ElefantToolsError>;
+
+#[cfg(test)]
+mod tests {
+    use crate::test_helpers;
+    use crate::test_helpers::TestHelper;
+    use crate::ElefantToolsError;
+    use elefant_client::ElefantClientError;
+    use elefant_test_macros::pg_test;
+
+    #[pg_test(arg(postgres = 12))]
+    #[pg_test(arg(postgres = 18))]
+    async fn query_errors_are_human_readable(helper: &TestHelper) {
+        let error = helper
+            .get_conn()
+            .execute_non_query("\n    alter sequence public.missing_seq increment by 1;\n")
+            .await
+            .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "ERROR 42P01: relation \"public.missing_seq\" does not exist\n\
+             Query: alter sequence public.missing_seq increment by 1;"
+        );
+
+        match error {
+            ElefantToolsError::PostgresErrorWithQuery {
+                source: ElefantClientError::ServerError(server_error),
+                ..
+            } => assert_eq!(server_error.code, "42P01"),
+            other => panic!("Expected a server error, got {other:?}"),
+        }
+    }
+}

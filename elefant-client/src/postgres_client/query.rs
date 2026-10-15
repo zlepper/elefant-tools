@@ -103,7 +103,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 trace!("Parse complete");
             }
             BackendMessage::ErrorResponse(er) => {
-                return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                return Err(er.into());
             }
             _ => {
                 return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -118,7 +118,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
             match msg {
                 BackendMessage::ParameterDescription(pd) => pd,
                 BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                    return Err(er.into());
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -151,7 +151,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 }
                 BackendMessage::NoData => PreparedQueryResult::NoData,
                 BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                    return Err(er.into());
                 }
                 _ => {
                     return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -250,7 +250,7 @@ impl<'postgres_client, F: ConnectionFactory> QueryResultBase<'postgres_client, F
                     debug!("Empty query response");
                 }
                 BackendMessage::ErrorResponse(er) => {
-                    return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                    return Err(er.into());
                 }
                 BackendMessage::ReadyForQuery(rfq) => {
                     self.client.ready_for_query = true;
@@ -420,9 +420,7 @@ impl<'postgres_client, 'query_result_set, F: ConnectionFactory>
                 self.client.current_transaction_status = rfq.current_transaction_status;
                 Ok(None)
             }
-            BackendMessage::ErrorResponse(er) => {
-                Err(ElefantClientError::PostgresError(format!("{er:?}")))
-            }
+            BackendMessage::ErrorResponse(er) => Err(er.into()),
             _ => Err(ElefantClientError::UnexpectedBackendMessage(format!(
                 "{msg:?}"
             ))),

@@ -5,19 +5,24 @@ use elefant_tools::{
     apply_sql_file, copy_data, CopyDataOptions, PostgresInstanceStorage, Result, SqlFileOptions,
 };
 use std::num::NonZeroUsize;
+use std::process::ExitCode;
 use tracing::instrument;
 
 mod cli;
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> ExitCode {
     tracing_subscriber::fmt::init();
 
     let cli = cli::Cli::parse();
 
-    run(cli).await?;
-
-    Ok(())
+    match run(cli).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("Error: {e}");
+            ExitCode::FAILURE
+        }
+    }
 }
 
 #[instrument(skip_all)]

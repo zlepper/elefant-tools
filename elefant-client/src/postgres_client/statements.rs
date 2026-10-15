@@ -100,7 +100,7 @@ impl PreparedQuery {
                 trace!("Bind complete");
             }
             BackendMessage::ErrorResponse(er) => {
-                return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                return Err(er.into());
             }
             _ => {
                 return Err(ElefantClientError::UnexpectedBackendMessage(format!(

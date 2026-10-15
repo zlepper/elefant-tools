@@ -119,9 +119,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                                             // Authentication successful, whoop whoop!
                                         }
                                         BackendMessage::ErrorResponse(er) => {
-                                            return Err(ElefantClientError::PostgresError(
-                                                format!("{er:?}"),
-                                            ));
+                                            return Err(er.into());
                                         }
                                         _ => {
                                             return Err(
@@ -133,9 +131,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                                     }
                                 }
                                 BackendMessage::ErrorResponse(er) => {
-                                    return Err(ElefantClientError::PostgresError(format!(
-                                        "{er:?}"
-                                    )));
+                                    return Err(er.into());
                                 }
                                 _ => {
                                     return Err(ElefantClientError::UnexpectedBackendMessage(
@@ -145,7 +141,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                             }
                         }
                         BackendMessage::ErrorResponse(er) => {
-                            return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                            return Err(er.into());
                         }
                         _ => {
                             return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -172,7 +168,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                         // Authentication successful, whoop whoop!
                     }
                     BackendMessage::ErrorResponse(er) => {
-                        return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                        return Err(er.into());
                     }
                     _ => {
                         return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -197,7 +193,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                         // Authentication successful, whoop whoop!
                     }
                     BackendMessage::ErrorResponse(er) => {
-                        return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                        return Err(er.into());
                     }
                     _ => {
                         return Err(ElefantClientError::UnexpectedBackendMessage(format!(
@@ -214,7 +210,7 @@ impl<F: ConnectionFactory> PostgresClient<F> {
                 ));
             }
             BackendMessage::ErrorResponse(er) => {
-                return Err(ElefantClientError::PostgresError(format!("{er:?}")));
+                return Err(er.into());
             }
             _ => {
                 return Err(ElefantClientError::UnexpectedBackendMessage(format!(

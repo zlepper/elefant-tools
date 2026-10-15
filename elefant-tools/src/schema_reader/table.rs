@@ -72,7 +72,8 @@ select
     pt.partstrat,
     default_partition.relname as default_partition,
     pt.partattrs::int2[],
-    pg_get_expr(pt.partexprs, pt.partrelid) as partexprs,
+    -- The key list from pg_get_partkeydef ("RANGE (a, ((b + 1)))") also covers keys that mix columns and expressions
+    case when pt.partexprs is not null then substring(pg_get_partkeydef(cl.oid) from '^\w+ \((.*)\)$') end as partexprs,
     (select array_agg(parent.relname) from (select parent.relname from pg_inherits i
         join pg_class parent on i.inhparent = parent.oid
           where i.inhrelid = cl.oid

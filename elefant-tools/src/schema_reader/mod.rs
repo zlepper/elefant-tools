@@ -787,7 +787,7 @@ impl SchemaReader<'_> {
                             row.table_name.clone(),
                         ));
                     }
-                    (None, Some(expr)) => PartitionedTableColumns::Expression(expr.clone()),
+                    (_, Some(expr)) => PartitionedTableColumns::Expression(expr.clone()),
                     (Some(column_indices), None) => {
                         let column_names = column_indices
                             .iter()
@@ -806,11 +806,6 @@ impl SchemaReader<'_> {
                             .collect();
                         PartitionedTableColumns::Columns(column_names)
                     }
-                    (Some(_), Some(_)) => return Err(
-                        ElefantToolsError::PartitionedTableWithBothPartitionColumnsAndExpression(
-                            row.table_name.clone(),
-                        ),
-                    ),
                 },
             }
         } else if let Some(parent_table) = &row.parent_tables {

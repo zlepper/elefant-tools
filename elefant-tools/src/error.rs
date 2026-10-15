@@ -73,9 +73,6 @@ pub enum ElefantToolsError {
     #[error("The table '{0}' is a partitioned table and does not have partition columns")]
     PartitionedTableWithoutPartitionColumns(String),
 
-    #[error("The table '{0}' is a partitioned table and has both partition columns and a partition expression")]
-    PartitionedTableWithBothPartitionColumnsAndExpression(String),
-
     #[error("Unsupported postgres version: {0}. Minimum supported version is 12")]
     UnsupportedPostgresVersion(String),
 

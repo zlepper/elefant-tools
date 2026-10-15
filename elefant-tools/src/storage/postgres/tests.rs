@@ -629,6 +629,42 @@ CREATE TABLE orders_3 PARTITION OF orders
     "#
 );
 
+test_round_trip!(
+    expression_partitions,
+    r#"
+CREATE TABLE measurements (
+    id int not null,
+    value int not null
+) partition by range ((value + 1));
+
+CREATE TABLE measurements_low PARTITION OF measurements
+    FOR VALUES FROM (MINVALUE) TO (100);
+
+CREATE TABLE measurements_high PARTITION OF measurements
+    FOR VALUES FROM (100) TO (MAXVALUE);
+
+INSERT INTO measurements (id, value) VALUES (1, 10), (2, 500);
+    "#
+);
+
+test_round_trip!(
+    column_and_expression_partitions,
+    r#"
+CREATE TABLE events (
+    tenant_id int not null,
+    name text not null
+) partition by range (tenant_id, lower(name));
+
+CREATE TABLE events_low PARTITION OF events
+    FOR VALUES FROM (MINVALUE, MINVALUE) TO (100, 'm');
+
+CREATE TABLE events_high PARTITION OF events
+    FOR VALUES FROM (100, 'm') TO (MAXVALUE, MAXVALUE);
+
+INSERT INTO events (tenant_id, name) VALUES (1, 'Alpha'), (200, 'Zulu');
+    "#
+);
+
 #[pg_test(arg(postgres = 18), arg(postgres = 18))]
 async fn named_not_null_constraint(source: &TestHelper, destination: &TestHelper) {
     test_round_trip(

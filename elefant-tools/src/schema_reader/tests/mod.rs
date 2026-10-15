@@ -168,6 +168,8 @@ async fn reads_simple_schema(helper: &TestHelper) {
                     cache_size: 1,
                     cycle: false,
                     last_value: Some(2),
+                    author_table: Some("my_table".to_string()),
+                    author_table_column_position: Some(1),
                     ..default()
                 }],
                 ..default()
@@ -801,6 +803,8 @@ async fn test_quoted_identifier_names(helper: &TestHelper) {
                 sequences: vec![PostgresSequence {
                     name: "MyTable_int_seq".to_string(),
                     data_type: "int4".to_string(),
+                    author_table: Some("MyTable".to_string()),
+                    author_table_column_position: Some(1),
                     ..default()
                 }],
                 ..default()

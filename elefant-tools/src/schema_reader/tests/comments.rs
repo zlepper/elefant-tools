@@ -176,6 +176,8 @@ async fn comments_on_stuff(helper: &TestHelper) {
                         name: "my_table_value_seq".to_string(),
                         data_type: "int4".to_string(),
                         comment: Some("This is a sequence".to_string()),
+                        author_table: Some("my_table".to_string()),
+                        author_table_column_position: Some(1),
                         ..default()
                     }
                 ],

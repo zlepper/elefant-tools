@@ -194,15 +194,20 @@ async fn exports_to_fake_file_15() {
             create unique index unique_name_per_level on public.tree_node using btree (field_id asc nulls last, parent_id asc nulls last, name asc nulls last) nulls not distinct;
 
             create sequence public.ext_test_table_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.ext_test_table_id_seq owned by public.ext_test_table.id;
 
             create sequence public.field_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.field_id_seq owned by public.field.id;
 
             create sequence public.people_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.people_id_seq owned by public.people.id;
 
             -- chunk-separator-test_chunk_separator --
             create sequence public.pets_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.pets_id_seq owned by public.pets.id;
 
             create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.tree_node_id_seq owned by public.tree_node.id;
 
             select pg_catalog.setval('public.people_id_seq', 6, true);
 
@@ -406,15 +411,20 @@ async fn exports_to_fake_file_14() {
             create unique index unique_name_per_level on public.tree_node using btree (field_id asc nulls last, parent_id asc nulls last, name asc nulls last);
 
             create sequence public.ext_test_table_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.ext_test_table_id_seq owned by public.ext_test_table.id;
 
             create sequence public.field_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.field_id_seq owned by public.field.id;
 
             create sequence public.people_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.people_id_seq owned by public.people.id;
 
             -- chunk-separator-test_chunk_separator --
             create sequence public.pets_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.pets_id_seq owned by public.pets.id;
 
             create sequence public.tree_node_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.tree_node_id_seq owned by public.tree_node.id;
 
             select pg_catalog.setval('public.people_id_seq', 6, true);
 
@@ -850,6 +860,7 @@ insert into my_table (value, active_interval) values
 
             -- chunk-separator-test_chunk_separator --
             create sequence public.my_table_id_seq as int4 increment by 1 minvalue 1 maxvalue 2147483647 start 1 cache 1;
+            alter sequence public.my_table_id_seq owned by public.my_table.id;
 
             select pg_catalog.setval('public.my_table_id_seq', 2, true);
 

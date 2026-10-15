@@ -65,7 +65,12 @@ FROM pg_sequence s
          LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
          left join pg_description d on d.objoid = c.oid
          left join pg_depend dep on dep.objid = n.oid
-         left join pg_depend col_dep on col_dep.objid = s.seqrelid and col_dep.deptype = 'i'
+         -- 'i' links an identity column to its sequence, 'a' is "owned by" (serial columns)
+         left join pg_depend col_dep on col_dep.classid = 'pg_class'::regclass
+                                        and col_dep.objid = s.seqrelid
+                                        and col_dep.refclassid = 'pg_class'::regclass
+                                        and col_dep.refobjsubid > 0
+                                        and col_dep.deptype in ('i', 'a')
          left join pg_class col_table_dep on col_dep.refobjid = col_table_dep.oid
 WHERE NOT pg_is_other_temp_schema(n.oid)
   AND c.relkind = 'S'::"char"

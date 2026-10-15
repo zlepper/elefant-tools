@@ -164,6 +164,8 @@ create table cats(
                 sequences: vec![PostgresSequence {
                     name: "pets_id_seq".to_string(),
                     data_type: "int4".to_string(),
+                    author_table: Some("pets".to_string()),
+                    author_table_column_position: Some(1),
                     ..default()
                 }],
                 name: "public".to_string(),

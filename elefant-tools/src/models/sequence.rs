@@ -1,7 +1,7 @@
 use crate::object_id::ObjectId;
 use crate::quoting::AttemptedKeywordUsage::ColumnName;
 use crate::quoting::{quote_value_string, IdentifierQuoter, Quotable};
-use crate::PostgresSchema;
+use crate::{PostgresColumn, PostgresSchema, PostgresTable};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 
@@ -79,6 +79,22 @@ impl PostgresSequence {
 
         sql.push(';');
 
+        if !self.is_internally_created {
+            if let Some((table, column)) = self.get_owner(schema) {
+                sql.push_str("\nalter sequence ");
+                sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+                sql.push('.');
+                sql.push_str(&self.name.quote(identifier_quoter, ColumnName));
+                sql.push_str(" owned by ");
+                sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
+                sql.push('.');
+                sql.push_str(&table.name.quote(identifier_quoter, ColumnName));
+                sql.push('.');
+                sql.push_str(&column.name.quote(identifier_quoter, ColumnName));
+                sql.push(';');
+            }
+        }
+
         if let Some(comment) = &self.comment {
             sql.push_str("\ncomment on sequence ");
             sql.push_str(&schema.name.quote(identifier_quoter, ColumnName));
@@ -90,6 +106,20 @@ impl PostgresSequence {
         }
 
         sql
+    }
+
+    pub fn is_owned_by(&self, table: &PostgresTable, column: &PostgresColumn) -> bool {
+        self.author_table.as_ref() == Some(&table.name)
+            && self.author_table_column_position == Some(column.ordinal_position)
+    }
+
+    fn get_owner<'a>(
+        &self,
+        schema: &'a PostgresSchema,
+    ) -> Option<(&'a PostgresTable, &'a PostgresColumn)> {
+        let table = schema.try_get_table(self.author_table.as_ref()?)?;
+        let column = table.columns.iter().find(|c| self.is_owned_by(table, c))?;
+        Some((table, column))
     }
 
     pub fn get_set_value_statement(

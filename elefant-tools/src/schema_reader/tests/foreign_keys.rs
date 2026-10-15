@@ -128,6 +128,8 @@ async fn foreign_keys(helper: &TestHelper) {
                         cache_size: 1,
                         cycle: false,
                         last_value: None,
+                        author_table: Some("items".to_string()),
+                        author_table_column_position: Some(1),
                         ..default()
                     },
                     PostgresSequence {
@@ -140,6 +142,8 @@ async fn foreign_keys(helper: &TestHelper) {
                         cache_size: 1,
                         cycle: false,
                         last_value: None,
+                        author_table: Some("users".to_string()),
+                        author_table_column_position: Some(1),
                         ..default()
                     },
                 ],

@@ -111,10 +111,11 @@ impl PostgresTable {
                     }
                     sql.push_str(" as identity");
 
-                    if let Some(seq) = &schema.sequences.iter().find(|s| {
-                        s.author_table.as_ref().is_some_and(|t| *t == self.name)
-                            && s.author_table_column_position == Some(column.ordinal_position)
-                    }) {
+                    if let Some(seq) = &schema
+                        .sequences
+                        .iter()
+                        .find(|s| s.is_internally_created && s.is_owned_by(self, column))
+                    {
                         sql.push_str(" ( sequence name ");
                         sql.push_str(&seq.name.quote(identifier_quoter, TypeOrFunctionName));
                         sql.push_str(" )");
